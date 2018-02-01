@@ -1,0 +1,38 @@
+PROGRAM = sap_cta_contrato.exe
+
+OBJECTS = sap_cta_contrato.o 
+
+OBJS_LIB = sqlerror.o ustring.o macmath.o
+
+OTROS =
+
+LXFLAGS = -lsynmail -lmail
+
+%If "$(SYSTEM)" == "AIX/RS-6000"
+.include /usr/pvcs/etc/build.def
+%Else
+.include /pvcs/etc/build.def
+%EndIf
+
+#UPDATE#
+
+sap_cta_contrato.o : sap_cta_contrato.ec   \
+              sap_cta_contrato.h           \
+              codigos.h                    \
+              sqlerror.h                   \
+              lotes.h                      \
+              pardud.h                     \
+              tabla_errores.h              \
+              ustring.h					   \
+              macmath.h                    \
+              synmail.h
+
+sqlerror.o : sqlerror.ec                   \
+             sqlerror.h
+
+ustring.o : ustring.c                      \
+            ustring.h
+
+macmath.o : macmath.c 
+
+#ENDUPDATE#
