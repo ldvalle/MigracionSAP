@@ -396,7 +396,7 @@ strcat(sql, "END unidad_lectura, ");
 	strcat(sql, "NVL(t1.cod_sap, '00') voltaje, ");
 	strcat(sql, "NVL(t4.cod_sap, ' ') electrodep, ");
 	strcat(sql, "CASE ");					/* TArifa*/
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t2.cod_sap ");
 	strcat(sql, "END, ");
@@ -673,7 +673,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
    /************* Tarifa RTI ************/
 	strcpy(sql, "SELECT ");  
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN h1.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' "); 
+   strcat(sql, "	WHEN h1.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN h1.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
 	strcat(sql, "	ELSE t1.cod_sap "); 
 	strcat(sql, "END ");
@@ -691,8 +691,8 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
    
    /************ Tarifa a la instalacion ************/
 	strcpy(sql, "SELECT first 1 ");
-	strcat(sql, "CASE "); 
-	strcat(sql, "	WHEN h.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' "); 
+	strcat(sql, "CASE ");
+   strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
 	strcat(sql, "	ELSE t1.cod_sap "); 
 	strcat(sql, "END, "); 
@@ -715,8 +715,8 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
       
    /************ Tarifa a la instalacion Alternativa ************/
 	strcpy(sql, "SELECT first 1 ");
-	strcat(sql, "CASE "); 
-	strcat(sql, "	WHEN h.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' "); 
+	strcat(sql, "CASE ");
+   strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
 	strcat(sql, "	ELSE t1.cod_sap "); 
 	strcat(sql, "END, "); 
@@ -1330,7 +1330,8 @@ ClsInstalacion	regIns;
    
    /* ANLAGE */
    /*sprintf(sLinea, "%s%s\t", sLinea, regIns.sPod);*/
-   sprintf(sLinea, "%s%ldAR\t", sLinea, regIns.numero_cliente);
+   /*sprintf(sLinea, "%s%ldAR\t", sLinea, regIns.numero_cliente);*/
+   sprintf(sLinea, "%s%ld\t", sLinea, regIns.numero_cliente);
    
    /* BIS */
 	strcat(sLinea, "99991231");
@@ -1592,7 +1593,7 @@ $ClsInstalacion *reg;
 void CargaLimiteInferior(void){
 char  sFecha[11];
 
-   strcpy(sFecha, "20151201");
+   strcpy(sFecha, "20141201");
    
    rdefmtdate(&lFechaLimiteInferior, "yyyymmdd", sFecha); /*char a long*/
 
