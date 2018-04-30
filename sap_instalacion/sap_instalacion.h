@@ -100,7 +100,7 @@ void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 
 short	ClienteYaMigrado(long, int*);
-short	RegistraCliente(long, char *, char *, int);
+short	RegistraCliente(long, char *, long, char *, int);
 char	*getFechaFactura(long, long);
 
 short CargaAltaReal(ClsInstalacion *);

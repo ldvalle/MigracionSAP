@@ -56,6 +56,8 @@ char	sMensMail[1024];
 
 /* Variables Globales Host */
 $ClsInstalacion	regInstal;
+$long lFechaPivote;
+char  sFechaPivote[9];
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
 $char sFechaRTI[9];
@@ -91,9 +93,8 @@ int		iFlagMigra=0;
 
    memset(sFechaRTI, '\0', sizeof(sFechaRTI));
    
-/*   
-	$EXECUTE selFechaLimInf into :lFechaLimiteInferior;
-*/
+	$EXECUTE selFechaPivote INTO :lFechaPivote;
+
    CargaLimiteInferior();
       
    $EXECUTE selFechaRti into :sFechaRTI, :lFechaRTI;
@@ -162,8 +163,9 @@ int		iFlagMigra=0;
 				}
 				cantInactivos++;
 			}
+         
          $BEGIN WORK;
-			if(!RegistraCliente(regInstal.numero_cliente, regInstal.fecha_vig_tarifa, regInstal.sFechaAltaReal, iFlagMigra)){
+			if(!RegistraCliente(regInstal.numero_cliente, regInstal.fecha_vig_tarifa, lFechaPivote, regInstal.sFechaAltaReal, iFlagMigra)){
 				$ROLLBACK WORK;
 				exit(1);	
 			}			
@@ -439,8 +441,9 @@ strcat(sql, "END unidad_lectura, ");
 	strcat(sql, "FROM cliente c, sucur_centro_op sc, OUTER (tecni t, sap_transforma t1), sap_transforma t2, ");
 	strcat(sql, "OUTER sap_transforma t3, OUTER (clientes_vip cv, sap_transforma t4), OUTER ubica_geo_cliente g ");
 
-
+/*
 strcat(sql, ", migra_activos m ");
+*/
 /*	
 strcat(sql, ", sap_sin_fecha m ");
 */
@@ -489,9 +492,9 @@ strcat(sql, ", sap_sin_fecha m ");
 	strcat(sql, "AND g.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND g.origen = 'SIS_TEC' ");
 
-
+/*
 strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
-
+*/
 	/*strcat(sql, "ORDER BY c.numero_cliente ");*/
 	
 	$PREPARE selInstal FROM $sql;
@@ -580,8 +583,8 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, fecha_val_tarifa, fecha_alta_real, instalacion ");
-	strcat(sql, ")VALUES(?, ?, ?, 'S') ");
+	strcat(sql, "numero_cliente, fecha_val_tarifa, fecha_alta_real, fecha_pivote, instalacion ");
+	strcat(sql, ")VALUES(?, ?, ?, ?, 'S') ");
 	
 	$PREPARE insClientesMigra FROM $sql;
 	
@@ -589,6 +592,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
 	strcat(sql, "fecha_val_tarifa = ?, ");
    strcat(sql, "fecha_alta_real = ?, ");
+   strcat(sql, "fecha_pivote = ?, ");
 	strcat(sql, "instalacion = 'S' ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
@@ -610,16 +614,16 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	$PREPARE selFechaInstal2 FROM $sql;
 	
 	/************ FechaLimiteInferior **************/
-	/*strcpy(sql, "SELECT TODAY-365 FROM dual ");*/
-
+	strcpy(sql, "SELECT TODAY - 420 FROM dual ");
+/*
 	strcpy(sql, "SELECT TODAY - t.valor FROM dual d, tabla t ");
 	strcat(sql, "WHERE t.nomtabla = 'SAPFAC' ");
 	strcat(sql, "AND t.sucursal = '0000' ");
 	strcat(sql, "AND t.codigo = 'HISTO' ");
 	strcat(sql, "AND t.fecha_activacion <= TODAY ");
 	strcat(sql, "AND (t.fecha_desactivac IS NULL OR t.fecha_desactivac > TODAY) ");
-		
-	$PREPARE selFechaLimInf FROM $sql;
+*/		
+	$PREPARE selFechaPivote FROM $sql;
 
 	/*********** Correlativos Hacia Atras ***********/		
 	strcpy(sql, "SELECT t.valor FROM tabla t ");
@@ -1296,9 +1300,10 @@ short RegistraArchivo(void)
 	return 1;
 }
 
-short RegistraCliente(nroCliente, sFechaVigencia, sFechaAlta, iFlagMigra)
+short RegistraCliente(nroCliente, sFechaVigencia, lFechaPivote, sFechaAlta, iFlagMigra)
 $long	nroCliente;
 char	sFechaVigencia[9];
+$long lFechaPivote;
 char  sFechaAlta[9];
 int	iFlagMigra;
 {
@@ -1309,9 +1314,9 @@ int	iFlagMigra;
    rdefmtdate(&lFechaAlta, "yyyymmdd", sFechaAlta); /*char a long*/
 	
 	if(iFlagMigra==1){
-		$EXECUTE insClientesMigra using :nroCliente, :lFechaVigencia, :lFechaAlta;
+		$EXECUTE insClientesMigra using :nroCliente, :lFechaVigencia, :lFechaAlta, :lFechaPivote;
 	}else{
-		$EXECUTE updClientesMigra using :lFechaVigencia, :lFechaAlta, :nroCliente;
+		$EXECUTE updClientesMigra using :lFechaVigencia, :lFechaAlta, :lFechaPivote, :nroCliente;
 	}
 
 	return 1;
@@ -1604,16 +1609,16 @@ $ClsInstalacion *reg;
 {
    $long lFechaAlta;
    $long lCorr;
-   
-   rdefmtdate(&lFechaAlta, "yyyymmdd", reg->fecha_vig_tarifa); /*char a long*/
-
+/*   
+   rdefmtdate(&lFechaAlta, "yyyymmdd", reg->fecha_vig_tarifa); // char a long
+*/
    $EXECUTE selTarifInstal INTO :reg->tarifa, :reg->cod_ul, :lCorr 
-                           USING :reg->numero_cliente, :lFechaAlta;
+                           USING :reg->numero_cliente, :lFechaPivote;
 
    if(SQLCODE != 0){
       if(SQLCODE == 100){
          $EXECUTE selTarifInstal2 INTO :reg->tarifa, :reg->cod_ul, :lCorr 
-                                 USING :reg->numero_cliente, :lFechaAlta;
+                                 USING :reg->numero_cliente, :lFechaPivote;
       
       }else{ 
          return 0;
