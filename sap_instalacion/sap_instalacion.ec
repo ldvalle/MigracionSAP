@@ -496,11 +496,116 @@ strcat(sql, ", sap_sin_fecha m ");
 strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 */
 	/*strcat(sql, "ORDER BY c.numero_cliente ");*/
+
+	/************* CURSOR CLIENTES *************/
+	strcpy(sql, "SELECT c.numero_cliente, ");
+	strcat(sql, "CASE ");
+	strcat(sql, "	WHEN c.sector IN (81,82) THEN 'DUMMY' ");
+	strcat(sql, "	ELSE sc.cod_ul_sap || lpad(c.sector, 2, 0)|| lpad(c.zona,5,0) ");
+	strcat(sql, "END unidad_lectura, ");
+	strcat(sql, "CASE ");					/* TArifa*/
+	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
+	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+	strcat(sql, "	ELSE t2.cod_sap ");
+	strcat(sql, "END, ");
+	strcat(sql, "NVL(t3.cod_sap, '000') ramo, ");
+	strcat(sql, "NVL(c.nro_beneficiario, 0), ");
+	strcat(sql, "NVL(c.corr_facturacion, 0), ");
+	strcat(sql, "c.estado_cliente, ");
+	strcat(sql, "NVL(c.potencia_inst_fp, 0), ");
+	strcat(sql, "NVL(c.cantidad_medidores, 1), ");	
+	strcat(sql, "c.correlativo_ruta ");
+	strcat(sql, "FROM cliente c, sucur_centro_op sc, OUTER sap_transforma t2, OUTER sap_transforma t3 ");
+	
+	if(giEstadoCliente!=0){
+		strcat(sql, ", sap_inactivos si ");
+	}
+	
+	if(glNroCliente > 0 ){
+		strcat(sql, "WHERE c.numero_cliente = ? ");
+		strcat(sql, "AND c.tipo_sum != 5 ");	
+	}else{
+		if(giEstadoCliente==0){
+			strcat(sql, "WHERE c.estado_cliente = 0 ");
+			strcat(sql, "AND c.tipo_sum != 5 ");
+		}else if(giEstadoCliente == 1){
+			strcat(sql, "WHERE c.estado_cliente != 0 ");
+			strcat(sql, "AND c.tipo_sum != 5 ");
+		}else{
+			strcat(sql, "WHERE c.tipo_sum != 5 ");
+		}		
+	}
+
+	if(giEstadoCliente!=0){
+		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+	}
+	
+	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
+	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND cm.fecha_activacion < TODAY ");
+	strcat(sql, "AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
+	strcat(sql, "AND sc.cod_centro_op = c.sucursal ");
+	strcat(sql, "AND t2.clave = 'TARIFTYP' ");			/* tarifa */
+	strcat(sql, "AND t2.cod_mac = c.tarifa ");
+	strcat(sql, "AND t3.clave = 'BU_TYPE' ");			/* actividad economica */
+	strcat(sql, "AND t3.cod_mac = c.actividad_economic ");
+
 	
 	$PREPARE selInstal FROM $sql;
 	
 	$DECLARE curInstal CURSOR WITH HOLD FOR selInstal;	
 
+	/********** DATOS TECNICOS ***********/
+	strcpy(sql, "SELECT NVL(t1.cod_sap, '00') voltaje, ");
+	strcat(sql, "t.nro_subestacion, ");
+	strcat(sql, "t.tec_nom_subest, ");
+	strcat(sql, "t.tec_alimentador, ");
+	strcat(sql, "t.tec_centro_trans, ");
+	strcat(sql, "t.tec_fase, ");
+	strcat(sql, "NVL(t.tec_acometida, 0), ");
+	strcat(sql, "t.tec_tipo_instala, ");
+	strcat(sql, "t.tec_nom_calle, ");
+	strcat(sql, "t.tec_nro_dir, ");
+	strcat(sql, "t.tec_piso_dir, ");
+	strcat(sql, "t.tec_depto_dir, ");
+	strcat(sql, "t.tec_entre_calle1, ");
+	strcat(sql, "t.tec_entre_calle2, ");
+	strcat(sql, "t.tec_manzana, ");
+	strcat(sql, "t.tec_barrio, ");
+	strcat(sql, "t.tec_localidad, ");
+	strcat(sql, "t.tec_partido, ");
+	strcat(sql, "t.tec_sucursal, ");
+	strcat(sql, "t.tipo_conexion, ");
+	strcat(sql, "t.acometida ");
+	strcat(sql, "FROM tecni t, OUTER sap_transforma t1 ");
+	strcat(sql, "WHERE t.numero_cliente = ? ");
+	strcat(sql, "AND t1.clave = 'SPEBENE' ");			/* voltaje*/
+	strcat(sql, "AND t1.cod_mac = t.codigo_voltaje ");
+
+	$PREPARE selTecni FROM $sql;
+
+	/********** ELECTRO DEPENDIENTE ***********/
+	strcpy(sql, "SELECT  NVL(t4.cod_sap, ' ') electrodep ");
+	strcat(sql, "FROM clientes_vip cv, OUTER sap_transforma t4 ");
+	strcat(sql, "WHERE cv.numero_cliente = ? ");
+	strcat(sql, "AND cv.fecha_activacion <= TODAY ");
+	strcat(sql, "AND (cv.fecha_desactivac IS NULL OR cv.fecha_desactivac > TODAY) ");
+	strcat(sql, "AND t4.clave = 'NODISCONCT' ");		/* categoria electrodepe */
+	strcat(sql, "AND t4.cod_mac = cv.motivo ");	
+	
+	$PREPARE selElectroDepe FROM $sql;
+
+	********* UBICACION GEOGRAFICA *****
+	strcpy(sql, "SELECT NVL(g.x, 0), ");
+	strcat(sql, "NVL(g.y, 0), ");
+	strcat(sql, "NVL(g.lat, 0), ");
+	strcat(sql, "NVL(g.lon, 0) ");
+	strcat(sql, "FROM ubica_geo_cliente g ");
+	strcat(sql, "WHERE g.numero_cliente = ? ");
+	strcat(sql, "AND g.origen = 'SIS_TEC' ");
+			
+	$PREPARE selUbica FROM $sql;
+	
 	/******** Cursor Facturas *********/	
 	strcpy(sql, "SELECT FIRST 12 h.fecha_facturacion, h.tarifa, TO_CHAR(h.fecha_facturacion, '%Y%m%d') ");
 	strcat(sql, "FROM hisfac h ");
@@ -798,45 +903,14 @@ $ClsInstalacion *regIns;
 	$FETCH curInstal into
 		:regIns->numero_cliente,
 		:regIns->cod_ul,
-		:regIns->codigo_voltaje,
-		:regIns->catego_electrodependiente,
 		:regIns->tarifa,
 		:regIns->actividad_economic,
 		:regIns->nro_beneficiario,
 		:regIns->corr_facturacion,
 		:regIns->estado_cliente,
-		:regIns->nro_subestacion,
-		:regIns->tec_nom_subest,
-		:regIns->tec_alimentador,
-		:regIns->tec_centro_trans,
-		:regIns->tec_fase,
-		:regIns->tec_acometida,
-		:regIns->tec_tipo_instala,
-		:regIns->tec_nom_calle,
-		:regIns->tec_nro_dir,
-		:regIns->tec_piso_dir,
-		:regIns->tec_depto_dir,
-		:regIns->tec_entre_calle1,
-		:regIns->tec_entre_calle2,
-		:regIns->tec_manzana,
-		:regIns->tec_barrio,
-		:regIns->tec_localidad,
-		:regIns->tec_partido,
-		:regIns->tec_sucursal,
-		:regIns->ubi_x,
-		:regIns->ubi_y,
-		:regIns->ubi_lat,
-		:regIns->ubi_long,
 		:regIns->potencia_inst_fp,
-		:regIns->tipo_obra,
-		:regIns->toma,
-		:regIns->tipo_conexion,
-		:regIns->acometida,
 		:regIns->cantidad_medidores,
-		:regIns->fase_neutro,
-		:regIns->neutro_metal,
-      :regIns->correlativo_ruta;
-				
+        :regIns->correlativo_ruta;
 	
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -847,6 +921,56 @@ $ClsInstalacion *regIns;
 		}
     }			
 
+	/* Cargo Datos Tecnicos */
+	$EXECUTE selTecni INTO
+			:regIns->codigo_voltaje,
+			:regIns->nro_subestacion,
+			:regIns->tec_nom_subest, 
+			:regIns->tec_alimentador, 
+			:regIns->tec_centro_trans,
+			:regIns->tec_fase,
+			:regIns->tec_acometida,
+			:regIns->tec_tipo_instala,
+			:regIns->tec_nom_calle,
+			:regIns->tec_nro_dir,
+			:regIns->tec_piso_dir,
+			:regIns->tec_depto_dir,
+			:regIns->tec_entre_calle1,
+			:regIns->tec_entre_calle2,
+			:regIns->tec_manzana,
+			:regIns->tec_barrio,
+			:regIns->tec_localidad,
+			:regIns->tec_partido,
+			:regIns->tec_sucursal,
+			:regIns->tipo_conexion,
+			:regIns->acometida
+		USING :regIns->numero_cliente;
+	
+	if(SQLCODE != 0 && SQLCODE != SQLNOTFOUND){
+		printf("Error al buscar datos técnicos para cliente %ld\n", regIns->numero_cliente);
+	}
+
+	/* Cargo Electrodependencia */
+	$EXECUTE selElectroDepe
+		INTO :regIns->catego_electrodependiente
+		USING :regIns->numero_cliente;
+	
+	if(SQLCODE != 0 && SQLCODE != SQLNOTFOUND){
+		printf("Error al buscar Electrodependencia para cliente %ld\n", regIns->numero_cliente);
+	}
+	
+	/* Cargo Ubicación Geografica */
+	$EXECUTE selUbica INTO 
+		:regIns->ubi_x,
+		:regIns->ubi_y,
+		:regIns->ubi_lat,
+		:regIns->ubi_long
+		USING :regIns->numero_cliente;
+	
+	if(SQLCODE != 0 && SQLCODE != SQLNOTFOUND){
+		printf("Error al buscar Ubicación Geográfica para cliente %ld\n", regIns->numero_cliente);
+	}
+	
 	/* Verifico Tarifa Social */
 /*	
 	iCant=0;
