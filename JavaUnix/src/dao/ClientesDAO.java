@@ -56,6 +56,7 @@ public class ClientesDAO {
 			con.setAutoCommit(false);
 			con.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 			pstm0 = con.prepareStatement(sql, ResultSet.TYPE_SCROLL_INSENSITIVE , ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
+			pstm0.setQueryTimeout(120);
 			pstm0.setFetchSize(1);
 			rs0 = pstm0.executeQuery();
 			
@@ -79,6 +80,7 @@ public class ClientesDAO {
 
 				//-------------------------------------
 				regFechas.dFechaPivote = fPivote;
+				regFechas.dFechaLimInf = fLimInf;
 
 				//Fecha Validez de Tarifa
 				regFechas.dFechaValTar = getFValTar(miReg);
@@ -113,7 +115,13 @@ public class ClientesDAO {
 				}
 
 			}
-			
+			//Graba Par General
+			regFechas.dFechaPivote = fPivote;
+			regFechas.dFechaLimInf = fLimInf;
+
+			if(!SetParam(regFechas)) {
+				System.out.println("Error al insertar Parametros grales.");
+			}
 		}catch(Exception ex){
 			System.out.println("revento en la vuelta " + iCantClientes);
 			ex.printStackTrace();
@@ -293,6 +301,7 @@ public class ClientesDAO {
 		try{
 			con = UConnection.getConnection();
 			pstm = con.prepareStatement(SQL_SEL_FPIVOTE);
+			pstm.setQueryTimeout(120);
 			rs = pstm.executeQuery();
 			
 			if(rs.next()){
@@ -325,6 +334,7 @@ public class ClientesDAO {
 		try{
 			con = UConnection.getConnection();
 			pstm = con.prepareStatement(SQL_SEL_FRTI);
+			pstm.setQueryTimeout(120);
 			rs = pstm.executeQuery();
 			
 			if(rs.next()){
@@ -357,7 +367,9 @@ public class ClientesDAO {
 		
 		try{
 			con = UConnection.getConnection();
+			con.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 			pstm = con.prepareStatement(SQL_SEL_VIGTARIFA1);
+			pstm.setQueryTimeout(120);
 			pstm.setLong(1, lNroCliente);
 			pstm.setDate(2, fechaBD);
 			
@@ -393,7 +405,9 @@ public class ClientesDAO {
 		
 		try{
 			con = UConnection.getConnection();
+			con.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 			pstm = con.prepareStatement(SQL_SEL_VIGTARIFA2);
+			pstm.setQueryTimeout(120);
 			pstm.setLong(1, lNroCliente);
 			
 			rs = pstm.executeQuery();
@@ -428,7 +442,9 @@ public class ClientesDAO {
 		
 		try{
 			con = UConnection.getConnection();
+			con.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 			pstm = con.prepareStatement(SQL_SEL_RETIRO);
+			pstm.setQueryTimeout(120);
 			pstm.setLong(1, lNroCliente);
 			
 			rs = pstm.executeQuery();
@@ -462,7 +478,9 @@ public class ClientesDAO {
 		
 		try{
 			con = UConnection.getConnection();
+			con.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 			pstm = con.prepareStatement(SQL_SEL_FINSTAL);
+			pstm.setQueryTimeout(120);
 			pstm.setLong(1, lNroCliente);
 			
 			rs = pstm.executeQuery();
@@ -498,10 +516,11 @@ public class ClientesDAO {
 		try{
 			//Tarifa y UL
 			con = UConnection.getConnection();
+			con.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 			pstm = con.prepareStatement(SQL_SEL_TARIFA1);
 			pstm.setLong(1, lNroCliente);
 			pstm.setDate(2, fechaBD);
-			
+			pstm.setQueryTimeout(120);
 			rs = pstm.executeQuery();
 			
 			if(rs.next()){
@@ -518,6 +537,7 @@ public class ClientesDAO {
 
 			estados.sMotivoAlta="N2";
 			pstm = con.prepareStatement(SQL_SEL_MOTALTA);
+			pstm.setQueryTimeout(120);
 			pstm.setLong(1, lNroCliente);
 			
 			rs = pstm.executeQuery();
@@ -557,7 +577,9 @@ public class ClientesDAO {
 		
 		try{
 			con = UConnection.getConnection();
+			con.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 			pstm = con.prepareStatement(SQL_SEL_FMOVEIN1);
+			pstm.setQueryTimeout(120);
 			pstm.setLong(1, lNroCliente);
 			pstm.setDate(2, fechaBD);
 			
@@ -591,6 +613,7 @@ public class ClientesDAO {
 		java.sql.Date fAlta = (java.sql.Date)regF.dFechaAlta;
 		java.sql.Date fMoveIn = (java.sql.Date)regF.dFechaMoveIn;
 		java.sql.Date fPivote = (java.sql.Date)regF.dFechaPivote;
+		java.sql.Date fLimInf = convertJavaDateToSqlDate(regF.dFechaLimInf);
 		
 		try{
 			con = UConnection.getConnection();
@@ -603,9 +626,10 @@ public class ClientesDAO {
 			pstm.setDate(3, fAlta);
 			pstm.setDate(4, fMoveIn);
 			pstm.setDate(5, fPivote);
-			pstm.setString(6, regE.sTarifa);
-			pstm.setString(7, regE.sUL);
-			pstm.setString(8, regE.sMotivoAlta);
+			pstm.setDate(6, fLimInf);
+			pstm.setString(7, regE.sTarifa);
+			pstm.setString(8, regE.sUL);
+			pstm.setString(9, regE.sMotivoAlta);
 			
 			pstm.executeUpdate();
 			
@@ -624,6 +648,40 @@ public class ClientesDAO {
 			}
 		}
 				
+		return true;
+	}
+	
+	public Boolean SetParam(FechasDTO regF) {
+		Connection con = null;
+		PreparedStatement pstm = null;
+		java.sql.Date fPivote = (java.sql.Date)regF.dFechaPivote;
+		java.sql.Date fLimInf = (java.sql.Date)regF.dFechaLimInf;
+		
+		try{
+			con = UConnection.getConnection();
+			con.setAutoCommit(false);
+			
+			pstm = con.prepareStatement(SQL_INS_PAR);
+			pstm.setDate(1, fPivote);
+			pstm.setDate(2, fLimInf);
+			
+			pstm.executeUpdate();
+			
+			con.commit();
+			
+		}catch(Exception ex){
+			System.out.println("Fallo ClientesDAO setParam");
+			ex.printStackTrace();
+			throw new RuntimeException(ex);
+		}finally{
+			try{
+				if(pstm != null) pstm.close();
+			}catch(Exception ex){
+				ex.printStackTrace();
+				throw new RuntimeException(ex);
+			}
+		}
+		
 		return true;
 	}
 	
@@ -714,12 +772,17 @@ public class ClientesDAO {
 		sql += "c.actividad_economic, ";
 		sql += "NVL(c.nro_beneficiario, 0) beneficiario ";
 		sql += "FROM cliente c ";
+		
+		sql += ", migra_activos ma ";
+		
 		sql += "WHERE c.estado_cliente = 0 ";
 		sql += "AND c.tipo_sum != 5 ";
 		sql += "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ";
 		sql += "WHERE cm.numero_cliente = c.numero_cliente ";
 		sql += "AND cm.fecha_activacion < TODAY ";
 		sql += "AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ";
+		
+		sql += "AND ma.numero_cliente = c.numero_cliente ";
 		
 		return sql;
 		
@@ -791,15 +854,25 @@ public class ClientesDAO {
 		
 	}
 	
-	private static String SQL_INS_REG = "INSERT INTO sap_regimigra (numero_cliente, " + 
-			"fecha_val_tarifa, " + 
-			"fecha_alta_real, " + 
-			"fecha_move_in, " + 
+	private static String SQL_INS_REG = "INSERT INTO sap_regi_cliente( " +
+			"numero_cliente, " +
+			"fecha_val_tarifa, " +
+			"fecha_alta_real, " +
+			"fecha_move_in, " +
 			"fecha_pivote, " +
+			"fecha_limi_inf, " +
 			"tarifa, " +
 			"ul, " +
 			"motivo_alta " +
-			" )VALUES( ?,?,?,?,?,?,?,?) ";
+			")VALUES( " +
+			"?,?,?,?,?,?,?,?,?)";
+
+	private static String SQL_INS_PAR = "INSERT INTO sap_regi_cliente( " +
+			"numero_cliente, " +
+			"fecha_pivote, " +
+			"fecha_limi_inf " +
+			")VALUES( " +
+			"0,?,?)";
 	
 	private static String SQL_SEL_FPIVOTE = "SELECT TODAY - 420 FROM dual";
 			

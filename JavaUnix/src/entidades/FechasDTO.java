@@ -8,6 +8,7 @@ public class FechasDTO {
 	public Date dFechaAlta;
 	public Date dFechaMoveIn;
 	public Date dFechaPivote;
+	public Date dFechaLimInf;
 	public String	sTarifa;
 	public String	UL;
 	public String	sMotivoAlta;
