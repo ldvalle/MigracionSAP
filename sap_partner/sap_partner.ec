@@ -33,6 +33,7 @@ $char	gsSucursal[5];
 $int	giPlan;
 $long	glNroCliente;
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 long	cantProcesada;
 long 	cantPreexistente;
@@ -119,15 +120,16 @@ int		iFlagMigra;
 	memset(sSoloArchivoCorpo,'\0',sizeof(sSoloArchivoCorpo));
 	
 	memset(FechaGeneracion,'\0',sizeof(FechaGeneracion));
-    FechaGeneracionFormateada(FechaGeneracion);
+   FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathDestino,'\0',sizeof(sPathDestino));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-
-	lCorrelativo = getCorrelativo();
-
 	alltrim(sPathSalida,' ');
+   
+	RutaArchivos( sPathDestino, "SAPCPY" );
+	alltrim(sPathDestino,' ');
 
 	if(giEstadoCliente==0){
 		/******** Activos ********/	
@@ -207,7 +209,7 @@ int		iFlagMigra;
 
 	iEsCorpo=0;
 	while(LeoClientes(&regCliente, &regFP)){
-      $BEGIN WORK;
+      /*$BEGIN WORK;*/
 		if(regCliente.estado_cliente[0]=='0'){
 			iFlagMigra=0;
 			if(! ClienteYaMigrado(regCliente.numero_cliente, 1, &iFlagMigra)){
@@ -221,14 +223,12 @@ int		iFlagMigra;
 						/* Cargar Telefonos */
 						iCantTelefonos=0;
 						if(! CargaTelefonos(regCliente, &(regTelefonos), &iCantTelefonos)){
-							$ROLLBACK WORK;
 							exit(1);
 						}
 
 						/* Cargar eMail */
 						iCantEmail=0;
 						if(! CargaEmail(regCliente, &regEmail, &iCantEmail)){
-							$ROLLBACK WORK;
 							exit(1);
 						}		
 
@@ -241,16 +241,17 @@ int		iFlagMigra;
 */
 						/* Generar Plano */
 						if (!GenerarPlano(pFileUnx, regCliente, regFP, regTelefonos, regEmail, iCantTelefonos, iCantEmail, iEsCorpo)){
-							$ROLLBACK WORK;
+							printf("Error al generar el archivo\n");
 							exit(1);	
 						}
 
 						/* Registrar Control Cliente */
+                  $BEGIN WORK;
 						if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
 							$ROLLBACK WORK;
 							exit(1);	
 						}
-
+                  $COMMIT WORK;
 						cantProcesada++;
 						cantActivos++;
 					}else{
@@ -264,14 +265,12 @@ int		iFlagMigra;
 									/* Cargar Telefonos */
 									iCantTelefonos=0;
 									if(! CargaTelefonos(regCliente, &(regTelefonos), &iCantTelefonos)){
-										$ROLLBACK WORK;
 										exit(1);
 									}
 									
 									/* Cargar eMail */
 									iCantEmail=0;
 									if(! CargaEmail(regCliente, &regEmail, &iCantEmail)){
-										$ROLLBACK WORK;
 										exit(1);
 									}		
 
@@ -285,10 +284,10 @@ int		iFlagMigra;
 */									
 									/* Generar Plano */
 									if (!GenerarPlano(pFileCorpoUnx, regCliente, regFP, regTelefonos, regEmail, iCantTelefonos, iCantEmail, iEsCorpo)){
-										$ROLLBACK WORK;
+                              printf("Error al generar el archivo\n");
 										exit(1);	
 									}
-									
+									$BEGIN WORK;
 									/* Registrar Control Cliente */
 									if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
 										$ROLLBACK WORK;
@@ -300,7 +299,7 @@ int		iFlagMigra;
 										$ROLLBACK WORK;
 										exit(1);	
 									}
-									
+									$COMMIT WORK;
 									cantProcesada++;
 									cantActivos++;
 								}
@@ -318,14 +317,12 @@ int		iFlagMigra;
 				/* Cargar Telefonos */
 				iCantTelefonos=0;
 				if(! CargaTelefonos(regCliente, &(regTelefonos), &iCantTelefonos)){
-					$ROLLBACK WORK;
 					exit(1);
 				}
 				
 				/* Cargar eMail */
 				iCantEmail=0;
 				if(! CargaEmail(regCliente, &regEmail, &iCantEmail)){
-					$ROLLBACK WORK;
 					exit(1);
 				}		
 
@@ -338,20 +335,22 @@ int		iFlagMigra;
 */				
 				/* Generar Plano */
 				if (!GenerarPlano(pFileUnx, regCliente, regFP, regTelefonos, regEmail, iCantTelefonos, iCantEmail, iEsCorpo)){
-					$ROLLBACK WORK;
+					printf("Error al generar archivo\n");
 					exit(1);	
 				}
 				
 				/* Registrar Control Cliente */
+            $BEGIN WORK;
 				if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
 					$ROLLBACK WORK;
 					exit(1);	
 				}
+            $COMMIT WORK;
 				cantNoActivos++;
 				cantProcesada++;
 			}
 		}/* Verif Estado Cliente */
-      $COMMIT WORK;
+      /*$COMMIT WORK;*/
 		
 	}/* Fin While */
 
@@ -380,9 +379,11 @@ int		iFlagMigra;
 		
 	
 	if(giEstadoCliente==0){
-		strcpy(sPathDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+		/*strcpy(sPathDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+      strcat(sPathDestino, "Activos/");
 	}else{
-		strcpy(sPathDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+		/*strcpy(sPathDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+      strcat(sPathDestino, "Inactivos/");
 	}
 
 	sprintf(sCommand, "chmod 755 %s", sArchUnx);
@@ -445,7 +446,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc > 5 || argc < 4){
+	if(argc > 6 || argc < 5){
 		MensajeParametros();
 		return 0;
 	}
@@ -458,9 +459,10 @@ char	* argv[];
 	
 	giEstadoCliente=atoi(argv[2]);
 	strcpy(gsTipoGenera, argv[3]);
+   giTipoCorrida=atoi(argv[4]);
 	
-	if(argc == 5){	
-		glNroCliente=atol(argv[4]);
+	if(argc == 6){	
+		glNroCliente=atol(argv[5]);
 	}else{
 		glNroCliente=-1;	
 	}
@@ -473,6 +475,7 @@ void MensajeParametros(void){
 		printf("\t<Base> = synergia.\n");
 		printf("\t<Estado Cliente> = 0 Activo - 1 No Activo 2 - Todos.\n");
 		printf("\t<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("\t<Tipo Corrida> 0 = Normal, 1 = Reducida.\n");
 		printf("\t<Nro.Cliente> Opcional.\n");
 
 }
@@ -540,8 +543,9 @@ $char sAux[1000];
 	strcat(sql, "f.fp_cbu ");
 	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2, OUTER sap_transforma t3, ");
 	strcat(sql, "OUTER forma_pago f, OUTER (postal p, sap_transforma t4) ");
-
-strcat(sql, ", migra_activos ma ");	
+   
+   if(giTipoCorrida == 1)
+      strcat(sql, ", migra_activos ma ");	
 	
 	if(glNroCliente > 0){
 		strcat(sql, "WHERE c.numero_cliente = ? ");	
@@ -576,7 +580,8 @@ strcat(sql, ", migra_activos ma ");
 	strcat(sql, "AND (f.fecha_desactivac IS NULL OR f.fecha_desactivac > TODAY) ");
 	strcat(sql, "AND p.numero_cliente = c.numero_cliente ");
 
-strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
+   if(giTipoCorrida == 1)
+      strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	
 /*	
 	strcat(sql, "ORDER BY c.numero_cliente ");
@@ -738,13 +743,6 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 
 	$PREPARE selRutaPlanos FROM $sql;
 
-	/******** Select Correlativo ****************/
-	strcpy(sql, "SELECT correlativo +1 FROM sap_gen_archivos ");
-	strcat(sql, "WHERE sistema = 'SAPISU' ");
-	strcat(sql, "AND tipo_archivo = 'PARTNER' ");
-	
-	$PREPARE selCorrelativo FROM $sql;
-
 	/********* Select Tipo Entidad Debito **********/
 	strcpy(sql, "SELECT tipo ");
 	strcat(sql, "FROM entidades_debito ");
@@ -765,6 +763,13 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selCorpoT23 FROM $sql;
+
+	/******** Select Correlativo ****************/
+	strcpy(sql, "SELECT correlativo +1 FROM sap_gen_archivos ");
+	strcat(sql, "WHERE sistema = 'SAPISU' ");
+	strcat(sql, "AND tipo_archivo = 'PARTNER' ");
+	
+	/*$PREPARE selCorrelativo FROM $sql;*/
 	
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -772,7 +777,7 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = 'PARTNER' ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -787,7 +792,7 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");	
 	
-	$PREPARE insGenPartner FROM $sql;
+	/*$PREPARE insGenPartner FROM $sql;*/
 	
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
@@ -861,7 +866,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(void){
 $long iValor=0;
 
@@ -874,7 +879,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoClientes(regCli, regFP)
 $ClsCliente *regCli;
 $ClsFormaPago *regFP;
@@ -1650,13 +1655,19 @@ $ClsFormaPago	regFpago;
 /*
 	sprintf(sLinea, "T1%ld\tBUT0CC\t%s\t", regCliente.numero_cliente, regFpago.fp_banco);
 */
+   /* LLAVE + CCARD_ID */
 	sprintf(sLinea, "T1%ld\tBUT0CC\t000001\t", regCliente.numero_cliente);
-	
+	/* CHIND_CCARD */
 	sprintf(sLinea, "%sI\t", sLinea);
+   /* CCINS */
 	sprintf(sLinea, "%s%s\t", sLinea, regFpago.cod_tarjeta);
+   /* CCNUM */
 	sprintf(sLinea, "%s%s\t", sLinea, regFpago.fp_nrocuenta);
+   /* CCDEF */
 	sprintf(sLinea, "%sX\t", sLinea);
+   /* CCNAME */
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.nombre);
+   /* DATAB + DATBI + AUSGDAT + ISSBANK + CCTYP + CCLOCK */
 	sprintf(sLinea, "%s\t\t\t\t01\t", sLinea);
 	
 	strcat(sLinea, "\n");
@@ -1936,7 +1947,7 @@ $long	lNroCliente;
 	
 	return 1;	
 }
-
+/*
 short RegistraArchivo(nomArchivo, iCant)
 $char	nomArchivo[100];
 $long	iCant;
@@ -1958,7 +1969,7 @@ $long	iCant;
 	
 	return 1;
 }
-
+*/
 char *getCodTarjeta(sCodMac)
 $char	sCodMac[5];
 {

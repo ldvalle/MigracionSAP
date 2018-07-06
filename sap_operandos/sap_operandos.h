@@ -61,7 +61,7 @@ char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 
-short	ClienteYaMigrado(char *, long, int*);
+short	ClienteYaMigrado(char *, long, long *,int*);
 short	RegistraCliente(char*, long, int);
 char	*getFechaFactura(long, long);
 

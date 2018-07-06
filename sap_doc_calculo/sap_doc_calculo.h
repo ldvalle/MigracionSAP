@@ -23,6 +23,7 @@ $typedef struct{
    char  tipo_fpago[2];
    char  cod_agrupa[10];
    long  minist_repart;
+   char  tipo_cliente[3];
 }ClsCliente;
 
 
@@ -39,6 +40,7 @@ $typedef struct{
    char     tipo_tarifa[11];
    char     tipo_iva[11];
    double   consumo_sum;
+   char     tarifa[4];
    int      subtarifa;
    char     indica_refact[2];
    
@@ -46,6 +48,8 @@ $typedef struct{
    int      dias_periodo;
    double   consumo_normalizado;
    int      corr_refacturacion;
+   char     clase_servicio[3];
+   char     cdc[11];
 }ClsHisfac;
 
 $typedef struct{
@@ -59,8 +63,24 @@ $typedef struct{
   char     tarifa[10];
   char     deriv_contable[10];
   double   precio_unitario;
-  char     tipo_cargo_tarifa[2];  
+  char     tipo_cargo_tarifa[2];
+  
+  char     ctaContable[9];
+  char     tvorg[5];
+  char     belzart[10];
+  char     preistyp[30];
+  char     tarifnr[15];
+  char     gegen_tvorg[5];
+  char     mngbasis[2];    
 }ClsDetalle;
+
+$typedef struct{
+   char  codigo_cargo[4]; 
+   char  codigo_cuenta[5]; 
+   char  agrupacion[4];
+   char  descripcion[31];
+}ClsCtaAgrupa;
+
 
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
@@ -70,6 +90,16 @@ void  CreaPrepare(void);
 void 	FechaGeneracionFormateada( char *);
 void 	RutaArchivos( char*, char * );
 long  getCorrelativo(char*);
+
+short CargarCtas(ClsCtaAgrupa **, int *);
+short LeoCuenta(ClsCtaAgrupa *);
+void  InicializoCta(ClsCtaAgrupa *);
+short BuscaCuenta(ClsCliente, ClsHisfac, ClsCtaAgrupa *, int, ClsDetalle *);
+char  *getNroCuentaAux(ClsCliente, ClsHisfac, char *);
+char  *getClase(char *);
+char  *getTarifa(char *);
+char  *getSubTarifa(char *, int);
+char  *getExigibilidad(char *);
 
 short LeoCliente(ClsCliente * );
 void  InicializaCliente(ClsCliente *);

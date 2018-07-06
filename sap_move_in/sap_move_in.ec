@@ -27,6 +27,7 @@ $include "sap_move_in.h";
 $long	glNroCliente;
 $long	giEstadoCliente;
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 FILE	*pFileAltas;
 
@@ -35,6 +36,7 @@ char	sArchAltasDos[100];
 char	sSoloArchivoAltas[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -57,6 +59,8 @@ void main( int argc, char **argv )
 $char 	nombreBase[20];
 time_t 	hora;
 int		iFlagMigra=0;
+int      iFlagExiste=0;
+$ClsEstados regSts;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -105,18 +109,29 @@ int		iFlagMigra=0;
 	}
 
 	while(LeoAltas(&regAltas)){
-		if(! ClienteYaMigrado(regAltas.numero_cliente, &iFlagMigra)){
-         $BEGIN WORK;
+      iFlagMigra=0;
+      iFlagExiste=0;
+      InicializaEstados(&regSts);
+		if(! ClienteYaMigrado(regAltas.numero_cliente, &iFlagMigra, &iFlagExiste, &regSts)){
+
+         if(iFlagExiste == 1){
+            CargaCalculados(&regAltas, regSts);
+         }else{
+            CalculoDatos(&regAltas);         
+         }
+                  
 			if (!GenerarPlanoAltas(pFileAltas, regAltas)){
 				$ROLLBACK WORK;
 				exit(1);	
 			}
-						
-			if(!RegistraCliente(regAltas, iFlagMigra)){
-				$ROLLBACK WORK;
-				exit(1);	
-			}
-         $COMMIT WORK;                  			
+         if(iFlagExiste != 1){         
+            $BEGIN WORK;			
+   			if(!RegistraCliente(regAltas, iFlagMigra)){
+   				$ROLLBACK WORK;
+   				exit(1);	
+   			}
+            $COMMIT WORK;
+         }                           			
 			cantProcesada++;
 		}else{
 			cantPreexistente++;			
@@ -128,7 +143,7 @@ int		iFlagMigra=0;
 	CerrarArchivos();
 
 	/* Registrar Control Plano */
-
+/*
    $BEGIN WORK;   
 	if(!RegistraArchivo()){
 		$ROLLBACK WORK;
@@ -136,7 +151,7 @@ int		iFlagMigra=0;
 	}
 	
 	$COMMIT WORK;
-
+*/
 	$CLOSE DATABASE;
 
 	$DISCONNECT CURRENT;
@@ -181,7 +196,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc < 4 || argc > 5){
+	if(argc < 5 || argc > 6){
 		MensajeParametros();
 		return 0;
 	}
@@ -192,8 +207,10 @@ char	* argv[];
 	
 	strcpy(gsTipoGenera, argv[3]);
 	
-	if(argc==5){
-		glNroCliente=atoi(argv[4]);
+   giTipoCorrida=atoi(argv[4]);
+   
+	if(argc==6){
+		glNroCliente=atoi(argv[5]);
 	}else{
 		glNroCliente=-1;
 	}
@@ -206,6 +223,7 @@ void MensajeParametros(void){
 		printf("	<Base> = synergia.\n");
 		printf("	<Estado> 0 = Activos, 1 = No Activos.\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("	<Tipo Corrida> 0 = Normal, 1 = Reducida.\n");
 		printf("	<Nro.Cliente>(Opcional)\n");
 }
 
@@ -218,15 +236,16 @@ short AbreArchivos()
 	memset(sSoloArchivoAltas,'\0',sizeof(sSoloArchivoAltas));	
 	
 	memset(FechaGeneracion,'\0',sizeof(FechaGeneracion));
-    FechaGeneracionFormateada(FechaGeneracion);
+   FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
-
+	memset(sPathCopia,'\0',sizeof(sPathCopia));
+   
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	iCorrAlta = getCorrelativo("MOVE_IN");
-	
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 
 	sprintf( sArchAltasUnx  , "%sT1MOVEIN.unx", sPathSalida );
 	/*sprintf( sArchAltasDos  , "%sMove_In_T1_%s_%d.txt", sPathSalida, FechaGeneracion, iCorrAlta );*/
@@ -254,7 +273,8 @@ char	sPathCp[100];
 	memset(sCommand, '\0', sizeof(sCommand));
 	memset(sPathCp, '\0', sizeof(sPathCp));
 
-	strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+	/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+   sprintf(sPathCp, "%sActivos/", sPathCopia);
 	
 	sprintf(sCommand, "chmod 755 %s", sArchAltasUnx);
 	iRcv=system(sCommand);	
@@ -292,11 +312,13 @@ $char sAux[1000];
 	strcat(sql, "CASE ");
 	strcat(sql, "	WHEN cv.numero_cliente IS NOT NULL THEN 'SI' ");
 	strcat(sql, "	ELSE 'NO' ");
-	strcat(sql, "END ");
+	strcat(sql, "END, ");
+   strcat(sql, "c.sucursal ");
 	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2, OUTER clientes_vip cv ");
    strcat(sql, ", OUTER sap_transforma t3 ");
-	
-strcat(sql, ", migra_activos ma ");	
+
+   if(giTipoCorrida==1)	
+      strcat(sql, ", migra_activos ma ");	
 	
 	if(giEstadoCliente==0){
 		strcat(sql, "WHERE c.estado_cliente = 0 ");
@@ -307,9 +329,9 @@ strcat(sql, ", migra_activos ma ");
 	if(glNroCliente > 0 ){
 		strcat(sql, "AND c.numero_cliente = ? ");		
 	}
-	
-strcat(sql, "AND c.numero_cliente = ma.numero_cliente ");
 
+   if(giTipoCorrida == 1)	
+      strcat(sql, "AND c.numero_cliente = ma.numero_cliente ");
 
 	strcat(sql, "AND c.tipo_sum != 5 ");
 	if(giEstadoCliente!=0){
@@ -375,7 +397,7 @@ strcat(sql, "AND c.numero_cliente = ma.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -383,7 +405,7 @@ strcat(sql, "AND c.numero_cliente = ma.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos Altas ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -398,10 +420,10 @@ strcat(sql, "AND c.numero_cliente = ma.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenAltas FROM $sql;
+	/*$PREPARE insGenAltas FROM $sql;*/
 	
 	/********* Select Cliente ya migrado **********/
-	strcpy(sql, "SELECT move_in FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT move_in, fecha_alta_real, fecha_move_in, motivo_alta FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigrado FROM $sql;
@@ -488,6 +510,15 @@ strcat(sql, "AND c.numero_cliente = ma.numero_cliente ");
 	strcat(sql, "  AND h2.fecha_lectura > ?) ");
    
    $PREPARE selFechaAlta FROM $sql;
+
+   /******** FEcha Primera factura *********/
+	strcpy(sql, "SELECT TO_CHAR(h1.fecha_facturacion, '%Y%m%d') ");
+	strcat(sql, "FROM hisfac h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.corr_facturacion = (SELECT MIN(h2.corr_facturacion) ");
+	strcat(sql, "	FROM hisfac h2 WHERE h2.numero_cliente = h1.numero_cliente) ");
+   
+   $PREPARE selPrimFactu FROM $sql;
    
    /************ Motivo Alta *************/
 	strcpy(sql, "SELECT e.cod_motivo "); 
@@ -531,7 +562,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -546,7 +577,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoAltas(regAlta)
 $ClsAltas *regAlta;
 {
@@ -563,7 +594,8 @@ $ClsAltas *regAlta;
 		:regAlta->sucursal_sap,
 		:regAlta->nro_beneficiario,
 		:regAlta->corr_facturacion,
-		:regAlta->sElectro;
+		:regAlta->sElectro,
+      :regAlta->sucursal_mac;
 	
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -576,55 +608,6 @@ $ClsAltas *regAlta;
 
 	alltrim(regAlta->sCDC, ' ');
 	
-	/* Ahora es la fecha de la primera factura que se migra */
-	if(regAlta->corr_facturacion > 0){
-   
-      $EXECUTE selFechaAlta INTO :regAlta->fecha_alta
-         USING :regAlta->numero_cliente,
-               :lFechaRti;
-               
-      if(SQLCODE != 0){
-		    printf("Error al buscar fecha de Alta para cliente %ld.\n", regAlta->numero_cliente);
-		    exit(2);
-      }
-
-      alltrim(regAlta->fecha_alta, ' ');
-      if(strcmp(regAlta->fecha_alta, "")==0){
-         if(!CargaAlta(regAlta)){
-   		    printf("Error al buscar fecha de Alta para cliente %ld.\n", regAlta->numero_cliente);
-   		    exit(2);
-         }
-
-      }
-         
-	}else{
-
-      if(!CargaAlta(regAlta)){
-		    printf("Error al buscar fecha de Alta para cliente %ld.\n", regAlta->numero_cliente);
-		    exit(2);
-      }
-	}
-	
-   /* Motivo de Alta */
-   memset(sMotivo, '\0', sizeof(sMotivo));
-   
-   $EXECUTE selMotiAlta INTO :sMotivo USING :regAlta->numero_cliente;
-   
-   if(SQLCODE!=0){
-      strcpy(regAlta->sMotivoAlta, "N2");
-   }else{
-      alltrim(sMotivo, ' ');
-      if(strcmp(sMotivo,"S16")==0){
-         strcpy(regAlta->sMotivoAlta, "N1");
-      }else{
-         strcpy(regAlta->sMotivoAlta, "N2");
-      }
-   }
-   
-   if(!CargaAltaReal(regAlta)){
-       printf("Error al buscar fecha de Alta Real para cliente %ld.\n", regAlta->numero_cliente);
-       exit(2);
-   }
    
    /* ID Sales Forces */
 /*   
@@ -711,6 +694,15 @@ $ClsAltas   *regAlta;
 			}
 		}
 	}
+   
+   alltrim(regAlta->fecha_alta, ' ');
+   if(strcmp(regAlta->fecha_alta, "")==0){
+      $EXECUTE selPrimFactu INTO :regAlta->fecha_alta USING :regAlta->numero_cliente;
+      
+      if(SQLCODE != 0){
+         strcpy(regAlta->fecha_alta, "19950924");
+      }
+   }
 
    return 1;
 }
@@ -748,36 +740,48 @@ $ClsAltas	*regAlta;
 	memset(regAlta->sElectro, '\0', sizeof(regAlta->sElectro));
    memset(regAlta->sMotivoAlta, '\0', sizeof(regAlta->sMotivoAlta));
    memset(regAlta->sAsset, '\0', sizeof(regAlta->sAsset));
+   memset(regAlta->sucursal_mac, '\0', sizeof(regAlta->sucursal_mac));
 }
 
-short ClienteYaMigrado(nroCliente, iFlagMigra)
+short ClienteYaMigrado(nroCliente, iFlagMigra, iFlagExiste, regSts)
 $long	nroCliente;
 int		*iFlagMigra;
+int      *iFlagExiste;
+$ClsEstados *regSts;
 {
 	$char	sMarca[2];
 	
    *iFlagMigra=2;
-   
-	if(gsTipoGenera[0]=='R'){
-		return 0;	
-	}
-	
+
 	memset(sMarca, '\0', sizeof(sMarca));
 	
-	$EXECUTE selClienteMigrado into :sMarca using :nroCliente;
+	$EXECUTE selClienteMigrado INTO :sMarca, 
+                                 :regSts->fecha_alta_real,
+                                 :regSts->fecha_move_in,
+                                 :regSts->motivo_alta
+            using :nroCliente;
 		
 	if(SQLCODE != 0){
 		if(SQLCODE==SQLNOTFOUND){
 			*iFlagMigra=1; /* Indica que se debe hacer un insert */
+         *iFlagExiste=0;
 			return 0;
 		}else{
 			printf("ErroR al verificar si el cliente %ld ya había sido migrado.\n", nroCliente);
 			exit(1);
 		}
 	}
+
+   alltrim(regSts->motivo_alta, ' ');
+   if(regSts->fecha_alta_real > 0 && regSts->fecha_move_in > 0 && strcmp(regSts->motivo_alta, "")!=0){
+      *iFlagExiste=1;
+   }
 	
 	if(strcmp(sMarca, "S")==0){
-		*iFlagMigra=2; /* Indica que se debe hacer un update */	
+		*iFlagMigra=2; /* Indica que se debe hacer un update */
+   	if(gsTipoGenera[0]=='R'){
+   		return 0;	
+   	}
 		return 1;
 	}else{
 		*iFlagMigra=2; /* Indica que se debe hacer un update */	
@@ -802,7 +806,7 @@ $ClsAltas	regAlta;
 	
 	fprintf(fp, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -826,7 +830,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 short RegistraCliente(reg, iFlagMigra)
 $ClsAltas reg;
 int		 iFlagMigra;
@@ -950,7 +954,7 @@ $ClsAltas		regAlta;
 	strcat(sLinea, "\t");
    
    /* BUPLA */
-	sprintf(sLinea, "%s%s\t", sLinea, regAlta.sucursal_sap);
+	sprintf(sLinea, "%s%s\t", sLinea, regAlta.sucursal_mac);
    
    /* EXTRAPOLWASTE */
 	strcat(sLinea, "\t");
@@ -970,6 +974,87 @@ $ClsAltas		regAlta;
 	
 	fprintf(fp, sLinea);
 	
+}
+
+void CargaCalculados(regAltas, regSts)
+ClsAltas    *regAltas;
+ClsEstados  regSts;
+{
+   rfmtdate(regSts.fecha_move_in, "yyyymmdd", regAltas->fecha_alta); /* long to char */
+   rfmtdate(regSts.fecha_alta_real, "yyyymmdd", regAltas->fecha_alta_sistema); /* long to char */
+   strcpy(regAltas->sMotivoAlta, regSts.motivo_alta);
+}
+
+
+void CalculoDatos(regAlta)
+$ClsAltas   *regAlta;
+{
+	$long	lCorrFactuInicio;
+	$char sMotivo[7];
+
+	/* Ahora es la fecha de la primera factura que se migra */
+	if(regAlta->corr_facturacion > 0){
+   
+      $EXECUTE selFechaAlta INTO :regAlta->fecha_alta
+         USING :regAlta->numero_cliente,
+               :lFechaRti;
+               
+      if(SQLCODE != 0){
+		    printf("Error al buscar fecha de Alta para cliente %ld.\n", regAlta->numero_cliente);
+		    exit(2);
+      }
+
+      alltrim(regAlta->fecha_alta, ' ');
+      if(strcmp(regAlta->fecha_alta, "")==0){
+         if(!CargaAlta(regAlta)){
+   		    printf("Error al buscar fecha de Alta para cliente %ld.\n", regAlta->numero_cliente);
+   		    exit(2);
+         }
+
+      }
+         
+	}else{
+
+      if(!CargaAlta(regAlta)){
+		    printf("Error al buscar fecha de Alta para cliente %ld.\n", regAlta->numero_cliente);
+		    exit(2);
+      }
+	}
+	
+   /* Motivo de Alta */
+   memset(sMotivo, '\0', sizeof(sMotivo));
+   
+   $EXECUTE selMotiAlta INTO :sMotivo USING :regAlta->numero_cliente;
+   
+   if(SQLCODE!=0){
+      strcpy(regAlta->sMotivoAlta, "N2");
+   }else{
+      alltrim(sMotivo, ' ');
+      if(strcmp(sMotivo,"S16")==0){
+         strcpy(regAlta->sMotivoAlta, "N1");
+      }else{
+         strcpy(regAlta->sMotivoAlta, "N2");
+      }
+   }
+   
+   if(!CargaAltaReal(regAlta)){
+       printf("Error al buscar fecha de Alta Real para cliente %ld.\n", regAlta->numero_cliente);
+       exit(2);
+   }
+
+}
+
+void InicializaEstados(reg)
+ClsEstados *reg;
+{
+   rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_val_tarifa));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_alta_real));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_move_in));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_pivote));
+   memset(reg->tarifa, '\0', sizeof(reg->tarifa));
+   memset(reg->ul, '\0', sizeof(reg->ul));
+   memset(reg->motivo_alta, '\0', sizeof(reg->motivo_alta));
 }
 
 /****************************

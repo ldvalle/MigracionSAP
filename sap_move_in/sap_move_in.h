@@ -28,8 +28,19 @@ $typedef struct{
 	char	sCDC[21];
    char  sMotivoAlta[3];
    char  sAsset[21];
+   char  sucursal_mac[5];
 }ClsAltas;
 
+$typedef struct{
+   long  numero_cliente;
+   long  fecha_val_tarifa;
+   long  fecha_alta_real;
+   long  fecha_move_in;
+   long  fecha_pivote;
+   char  tarifa[20];
+   char  ul[9];
+   char  motivo_alta[3];
+}ClsEstados;
 
 /** Prototipos de Funciones **/
 short	AnalizarParametros(int, char **);
@@ -44,6 +55,10 @@ short   LeoAltas(ClsAltas *);
 void    InicializaAltas(ClsAltas *);
 short CargaAlta(ClsAltas *);
 
+void  InicializaEstados(ClsEstados *);
+void  CalculoDatos(ClsAltas *);
+void  CargaCalculados(ClsAltas *, ClsEstados);
+
 short	GenerarPlanoAltas(FILE *, ClsAltas);
 void	GeneraEVER(FILE *, ClsAltas);
 void	GeneraENDE(FILE *, ClsAltas);
@@ -51,7 +66,7 @@ short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
-short	ClienteYaMigrado(long, int*);
+short	ClienteYaMigrado(long, int*, int*, ClsEstados*);
 short	RegistraCliente(ClsAltas, int);
 char	*getFechaFactura(long, long);
 

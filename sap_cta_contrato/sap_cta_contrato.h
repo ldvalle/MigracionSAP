@@ -35,10 +35,19 @@ $typedef struct{
    char  sTipoDebito[2];
    char  sEstadoCobrabilidad[11];
    char  tiene_corte_rest[2];
+   char  tiene_cobro_int[2];
    char  sTipoEntidadDebito[2];
    char  sCodSucurSap[5];
 }ClsCliente;
 
+$typedef struct{
+   long     numero_cliente;
+   char     MWSKZ[3];
+   char     KSCHL[5];
+   char     sFechaDesde[9];
+   char     sFechaHasta[9];
+   double   EXRAT;
+}ClsExencion;
 
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
@@ -57,6 +66,9 @@ short LeoCorpoT1(ClsCliente *);
 
 short LeoClientes(ClsCliente *);
 void  InicializaCliente(ClsCliente *);
+short LeoExencion(ClsExencion *);
+void  InicializaExencion(ClsExencion *);
+
 short	ClienteYaMigrado(long, int*);
 short	CorporativoT23(ClsCliente *);
 short	GenerarPlanoT1(FILE *, ClsCliente, int);
@@ -76,8 +88,8 @@ static char 	*strReplace(char *, char *, char *);
 void	GeneraINIT(FILE *, ClsCliente, char*, int);
 void	GeneraVK(FILE *, ClsCliente, int);
 void	GeneraVKP(FILE *, ClsCliente, char*, int);
-void   GeneraVKLOCK(FILE *, ClsCliente, char*, int);
-void 	GeneraVKTXEX(FILE *, ClsCliente, int);
+void  GeneraVKLOCK(FILE *, ClsCliente, char*, int, char *);
+void 	GeneraVKTXEX(FILE *, ClsCliente, ClsExencion, int);
 void	GeneraENDE(FILE *, ClsCliente, int);
 
 void 	FormateaArchivos(void);

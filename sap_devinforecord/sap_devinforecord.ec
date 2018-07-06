@@ -25,6 +25,7 @@ $include "sap_devinforecord.h";
 
 /* Variables Globales */
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 FILE  *pFileMedInstalUnx;
 FILE  *pFileMedNoInstalUnx;
@@ -44,6 +45,7 @@ char	sArchMedExtNoInstal[100];
 char  sArchivoLog[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -52,6 +54,10 @@ long	lCorrelativo;
 long	cantInstalados;
 long 	cantNoInstalados;
 long	iContaLog;
+
+$long       lFechaPivote;
+char        sFechaPivote[11];
+
 
 /* Variables Globales Host */
 $ClsMedidor	regMedidor;
@@ -104,6 +110,9 @@ int   iIndice;
    memset(FechaGeneracion, '\0', sizeof(FechaGeneracion));
       
    FechaGeneracionFormateada(FechaGeneracion);
+
+   strcpy(sFechaPivote, "20141201");
+   rdefmtdate(&lFechaPivote, "yyyymmdd", sFechaPivote); /*char a long*/
    
 	/*********************************************
 				AREA CURSORes PPALes
@@ -229,7 +238,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc != 3 ){
+	if(argc != 4 ){
 		MensajeParametros();
 		return 0;
 	}
@@ -237,6 +246,7 @@ char	* argv[];
 	memset(gsTipoGenera, '\0', sizeof(gsTipoGenera));
 
 	strcpy(gsTipoGenera, argv[2]);
+   giTipoCorrida=atoi(argv[3]);
 	
 	return 1;
 }
@@ -245,6 +255,7 @@ void MensajeParametros(void){
 		printf("Error en Parametros.\n");
 		printf("	<Base> = synergia.\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("	<Tipo Corrida> 0=Normal 1=Reducida.\n");
 }
 
 short AbreArchivos()
@@ -254,13 +265,13 @@ short AbreArchivos()
    memset(sArchMedExtNoInstal, '\0', sizeof(sArchMedExtNoInstal));
    memset(sArchivoLog, '\0', sizeof(sArchivoLog));
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+	memset(sPathCopia,'\0',sizeof(sPathCopia));   
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-
-	/*lCorrelativo = getCorrelativo("APARATO");*/
-	
 	alltrim(sPathSalida,' ');
 
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 
    /* De los medidores no instalados */
 	sprintf( sArchMedNoInstalUnx  , "%sT1DEVINFORECORD_noinstal.unx", sPathSalida );
@@ -340,8 +351,9 @@ char	sPathCp[100];
 	memset(sCommand, '\0', sizeof(sCommand));
 	memset(sPathCp, '\0', sizeof(sPathCp));
 	
-	strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
-
+	/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+   sprintf(sPathCp, "%sActivos/", sPathCopia);
+   
    /* Los Instalados */
    for(i=1; i <= indice; i++){
       sprintf( sArchMedInstalUnx  , "%sT1DEVINFORECORD_instal_%d.unx", sPathSalida, i);
@@ -433,7 +445,9 @@ $char sAux[1000];
    strcat(sql, ", medidores@medidor_test:marca ma ");
    strcat(sql, ", medidores@medidor_test:fabricante f ");
 
-strcat(sql, ", migra_activos mac ");
+if(giTipoCorrida==1){
+   strcat(sql, ", migra_activos mac ");
+}
    
    strcat(sql, "WHERE mi.estado = 'I' ");
 /*
@@ -452,7 +466,9 @@ strcat(sql, ", migra_activos mac ");
 	strcat(sql, "AND ma.mar_codigo = md.mar_codigo ");
 	strcat(sql, "AND f.fab_codigo = ma.fab_codigo ");
    
-strcat(sql, "AND mac.numero_cliente = mi.numero_cliente ");
+if(giTipoCorrida==1){   
+   strcat(sql, "AND mac.numero_cliente = mi.numero_cliente ");
+}
 
    $PREPARE selMedInstal FROM $sql;
    
@@ -505,8 +521,8 @@ strcat(sql, "AND mac.numero_cliente = mi.numero_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	strcat(sql, "AND numero_medidor = ? ");
 	strcat(sql, "AND marca_medidor = ? ");
-	strcat(sql, "AND fecha_lectura >= TODAY - 365 ");
-   
+	strcat(sql, "AND fecha_lectura >= TODAY - 420 "); /* 420 = 14 meses */
+  
    $PREPARE selMovimientos FROM $sql;   
    
 	/******** Select Path de Archivos ****************/
@@ -551,7 +567,7 @@ strcat(sql, "AND mac.numero_cliente = mi.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -559,7 +575,7 @@ strcat(sql, "AND mac.numero_cliente = mi.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -574,7 +590,7 @@ strcat(sql, "AND mac.numero_cliente = mi.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, -1, ?) ");
 	
-	$PREPARE insGenAparato FROM $sql;
+	/*$PREPARE insGenAparato FROM $sql;*/
 	
 }
 
@@ -603,7 +619,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -618,7 +634,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoMedidores(iTipo, regMed)
 int         iTipo;
 $ClsMedidor *regMed;
@@ -784,7 +800,7 @@ $ClsMedidor	regMed;
       exit(1);
    }	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -807,7 +823,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 
 void GeneraDVMINT(fp, regMed)
 FILE 		*fp;

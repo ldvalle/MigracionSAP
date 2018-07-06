@@ -29,6 +29,7 @@ $include "sap_instalchange.h";
 $long	glNroCliente;
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 FILE	*pFileInstalacionUnx;
 
@@ -36,6 +37,7 @@ char	sArchInstalacionUnx[100];
 char	sSoloArchivoInstalacion[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -83,7 +85,9 @@ int		iFlagCambio;
 int      iSec;
 $long    lFechaValTarifa;
 $long    lFechaAltaReal;
+$long    lFechaPivote;
 int      iCantOcurr;
+int      iTeniaPendiente;
 
 $ClsCliente    regCliente;
 $ClsFacturas   regFacturas;
@@ -111,7 +115,7 @@ $ClsFacturas   regAux;
    
    $EXECUTE selFechaRti into :sFechaRti, :lFechaRti;
 
-	$EXECUTE selFechaLimInf into :lFechaLimiteInferior;
+	/*$EXECUTE selFechaLimInf into :lFechaLimiteInferior;*/
 		
 	$EXECUTE selCorrelativos into :iCorrelativos;
 		
@@ -148,10 +152,10 @@ $ClsFacturas   regAux;
 	fpIntalacion=pFileInstalacionUnx;
 
 	while(LeoCliente(&regCliente)){
-		if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra, &lFechaValTarifa, &lFechaAltaReal)){
-         
-			$OPEN curFacturas using :regCliente.numero_cliente, :lFechaValTarifa;
+		if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra, &lFechaValTarifa, &lFechaPivote, &lFechaAltaReal)){
          /*$OPEN curFacturas using :regCliente.numero_cliente, :lFechaRti;*/
+			/*$OPEN curFacturas using :regCliente.numero_cliente, :lFechaValTarifa;*/
+         $OPEN curFacturas using :regCliente.numero_cliente, :lFechaPivote;
 
          memset(sFechaFactuAnterior, '\0', sizeof(sFechaFactuAnterior));
          memset(sTarifaAnterior, '\0', sizeof(sTarifaAnterior));
@@ -164,10 +168,11 @@ $ClsFacturas   regAux;
          iSec=1;
          iCantOcurr=0;
 			iFlagCambio=0;
-
+         iTeniaPendiente=0;
+         
          while (LeoFacturas(&regFacturas)){
             strcpy(sFechaUltiFactura, regFacturas.sFechaFacturacion);
-            CopiaAux(regFacturas, &regAux);
+            /*CopiaAux(regFacturas, &regAux);*/
             
             if(iNx==0){ /* primera vuelta*/
                strcpy(sTarifaAnterior, regFacturas.tarifa);
@@ -182,101 +187,62 @@ $ClsFacturas   regAux;
                   /* Tengo que informar la novedad */
                   strcpy(sTarifaAux, sTarifaAnterior);
                   strcpy(sCodUlAux, sCodUlAnterior);
+                  
                   strcpy(sTarifaAnterior, regFacturas.tarifa);
                   strcpy(sCodUlAnterior, regFacturas.cod_ul);
-                  strcpy(regFacturas.tarifa, sTarifaAux);
-                  strcpy(regFacturas.cod_ul, sCodUlAux);
+                  strcpy(sFechaFactuAnterior, regFacturas.sFechaFacturacion);
                   
-                  if(iCantOcurr > 0){
-                     GenerarPlano(sFechaFactuAnterior, regCliente, regFacturas, iSec);
+                  if(iTeniaPendiente==0){
+                     /* Armo la novedad y espero la siguiente para cerrarla e informar */
+                     strcpy(regAux.tarifa, regFacturas.tarifa);
+                     strcpy(regAux.cod_ul, regFacturas.cod_ul);
+                     strcpy(regAux.sFechaFacturacion, regFacturas.sFechaFacturacion);
+                     iTeniaPendiente=1;
+                  }else if(iTeniaPendiente==1){
+                     /* Informo la novedad pendiente y preparo la novedad actual */
+                     strcpy(regAux.sFechaHasta, regFacturas.sFechaFacturacion);
+                     GenerarPlano(regAux.sFechaFacturacion, regCliente, regAux, iSec);
                      iSec++;
-                  }else{
-                     iCantOcurr++;
+                     /* Armo la novedad y espero la siguiente para cerrarla e informar */
+                     strcpy(regAux.tarifa, regFacturas.tarifa);
+                     strcpy(regAux.cod_ul, regFacturas.cod_ul);
+                     strcpy(regAux.sFechaFacturacion, regFacturas.sFechaFacturacion);
+                     iTeniaPendiente=1;
+                     
                   }
-                  
-                  strcpy(sFechaFactuAnterior, regFacturas.sFechaFacturacion);                                 
-                  
+
                   iFlagCambio=1;
-
-                  
-
                }
             }
+            
             iNx++;
          }
          
          $CLOSE curFacturas;
          
          if(iFlagCambio == 1){
-            if(strcmp(regCliente.tarifa, regAux.tarifa) != 0){
-               memset(sFechaUltCambio, '\0', sizeof(sFechaUltCambio));
-               
-               $EXECUTE selUltModif INTO :sFechaUltCambio USING :regCliente.numero_cliente;
-               
-               if(SQLCODE == 0){
-                  strcpy(regAux.sFechaFacturacion, sFechaUltCambio);
+            if(iTeniaPendiente == 1){
+               /* Ver si los estados del cliente son iguales a la ultima factura*/
+               if(strcmp(sTarifaAnterior, regCliente.tarifa)!=0 || strcmp(sCodUlAnterior, regCliente.cod_ul)!=0){
+                  /* cierro la pendiente */
+                  strcpy(regAux.sFechaHasta, sFechaUltiFactura);
+                  GenerarPlano(regAux.sFechaFacturacion, regCliente, regAux, iSec);
+                  iSec++;
+                  /* lo igualo al estado actual del cliente */
+                  strcpy(regAux.tarifa, regCliente.tarifa);
+                  strcpy(regAux.cod_ul, regCliente.cod_ul);
+                  strcpy(regAux.sFechaFacturacion, sFechaUltiFactura);
+                  strcpy(regAux.sFechaHasta, "99991231");
+                  GenerarPlano(regAux.sFechaFacturacion, regCliente, regAux, iSec);
+               }else{
+                  /* cierro la pendiente */
+                  strcpy(regAux.sFechaHasta, "99991231");
+                  GenerarPlano(regAux.sFechaFacturacion, regCliente, regAux, iSec);
                }
-               
-   				rdefmtdate(&lFecha, "yyyymmdd", sFechaFactuAnterior); /*char a long*/
-   				lFecha=lFecha+1;
-   				rfmtdate(lFecha, "yyyymmdd", sFechaFactuAnterior); /* long to char */
-
-               strcpy(sTarifaAux, sTarifaAnterior);
-               strcpy(sCodUlAux, sCodUlAnterior);
-               strcpy(sTarifaAnterior, regAux.tarifa);
-               strcpy(sCodUlAnterior, regAux.cod_ul);
-               strcpy(regAux.tarifa, sTarifaAux);
-               strcpy(regAux.cod_ul, sCodUlAux);
-               
-               GenerarPlano(sFechaFactuAnterior, regCliente, regAux, iSec);
-
-               strcpy(sFechaFactuAnterior, regAux.sFechaFacturacion);
-               iFlagCambio=1;
-               iSec++;
             }
-            
-            if(strcmp(regCliente.cod_ul, regAux.cod_ul) != 0){
-               memset(sFechaUltCambio, '\0', sizeof(sFechaUltCambio));
-               
-               $EXECUTE selUltModifUl INTO :sFechaUltCambio USING :regCliente.numero_cliente;
-               
-               if(SQLCODE == 0){
-                  strcpy(regAux.sFechaFacturacion, sFechaUltCambio);
-               }
-               
-   				rdefmtdate(&lFecha, "yyyymmdd", sFechaFactuAnterior); /*char a long*/
-   				lFecha=lFecha+1;
-   				rfmtdate(lFecha, "yyyymmdd", sFechaFactuAnterior); /* long to char */
-
-               strcpy(sTarifaAux, sTarifaAnterior);
-               strcpy(sCodUlAux, sCodUlAnterior);
-               strcpy(sTarifaAnterior, regAux.tarifa);
-               strcpy(sCodUlAnterior, regAux.cod_ul);
-               strcpy(regAux.tarifa, sTarifaAux);
-               strcpy(regAux.cod_ul, sCodUlAux);
-               
-               GenerarPlano(sFechaFactuAnterior, regCliente, regAux, iSec);
-
-               strcpy(sFechaFactuAnterior, regAux.sFechaFacturacion);
-               iFlagCambio=1;
-               iSec++;
-            }
-            
          }
-         
-         if(iFlagCambio == 1 ){
-				rdefmtdate(&lFecha, "yyyymmdd", sFechaFactuAnterior); 
-				lFecha=lFecha+1;
-				rfmtdate(lFecha, "yyyymmdd", sFechaFactuAnterior); 
 
-            strcpy(regFacturas.sFechaFacturacion, "99991231");         
-            strcpy(regFacturas.tarifa, regCliente.tarifa);
-            strcpy(regFacturas.cod_ul, regCliente.cod_ul);
-            
-            GenerarPlano(sFechaFactuAnterior, regCliente, regFacturas, iSec);
-            iFlagCambio=1;
-         }
-			
+/*			
          $BEGIN WORK;
 			if(iFlagCambio==1){
 				if(!RegistraCliente(lNroCliente, iFlagMigra)){
@@ -285,7 +251,7 @@ $ClsFacturas   regAux;
 				}
 			}
          $COMMIT WORK;
-         
+*/         
 			cantProcesada++;         
          
 		}else{
@@ -323,7 +289,6 @@ $ClsFacturas   regAux;
 
 	FormateaArchivos();
 
-
 /*	
 	if(! EnviarMail(sArchResumenDos, sArchControlDos)){
 		printf("Error al enviar mail con lista de respaldo.\n");
@@ -359,7 +324,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc < 4 || argc > 5){
+	if(argc < 5 || argc > 6){
 		MensajeParametros();
 		return 0;
 	}
@@ -375,8 +340,10 @@ char	* argv[];
 	
 	strcpy(gsTipoGenera, argv[3]);
 	
-	if(argc==5){
-		glNroCliente=atoi(argv[4]);
+   giTipoCorrida=atoi(argv[4]);
+   
+	if(argc==6){
+		glNroCliente=atoi(argv[5]);
 	}else{
 		glNroCliente=-1;
 	}
@@ -389,6 +356,7 @@ void MensajeParametros(void){
 		printf("	<Base> = synergia.\n");
 		printf("	<Estado Cliente> 0=Activos, 1=No Activos, 2=Ambos\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("	<Tipo Corrida> 0=Normal, 1=Reducida\n");
 		printf("	<Nro.Cliente>(Opcional)\n");
 }
 
@@ -402,12 +370,13 @@ short AbreArchivos()
     FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	lCorrelativo = getCorrelativo("MODIF");
-	
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 
 	if(giEstadoCliente==0){
 		sprintf( sArchInstalacionUnx  , "%sT1INSTCHA_Activos.unx", sPathSalida);
@@ -440,9 +409,11 @@ char	sPathCp[100];
 	memset(sPathCp, '\0', sizeof(sPathCp));
 	
 	if(giEstadoCliente==0){
-		strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+      sprintf(sPathCp, "%sActivos/", sPathCopia);
 	}else{
-		strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+      sprintf(sPathCp, "%sInactivos/", sPathCopia);
 	}
 
 	sprintf(sCommand, "chmod 755 %s", sArchInstalacionUnx);
@@ -504,7 +475,7 @@ $char sAux[1000];
 	strcpy(sql, "SELECT c.numero_cliente, ");
 	strcat(sql, "c.corr_facturacion, ");
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, ");
@@ -514,7 +485,8 @@ $char sAux[1000];
 	strcat(sql, "LPAD(c.zona,5,0) "); 
 	strcat(sql, "FROM cliente c, sap_transforma t1, OUTER sap_transforma t2, sucur_centro_op s ");
 
-strcat(sql, ", migra_activos m ");
+   if(giTipoCorrida == 1)
+      strcat(sql, ", migra_activos m ");
 
 	if(glNroCliente > 0){
 		strcat(sql, "WHERE c.numero_cliente = ?	");
@@ -535,8 +507,9 @@ strcat(sql, ", migra_activos m ");
 	strcat(sql, "	WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "	AND cm.fecha_activacion < TODAY ");
 	strcat(sql, "	AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
-
-strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
+   
+   if(giTipoCorrida == 1)
+      strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 
 	$PREPARE selClienteActivo FROM $sql;
 	
@@ -546,7 +519,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcpy(sql, "SELECT c.numero_cliente, ");
 	strcat(sql, "c.corr_facturacion, ");
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");   
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, ");
@@ -589,7 +562,7 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "h.fecha_facturacion, ");
 	strcat(sql, "TO_CHAR(h.fecha_facturacion - 1 UNITS DAY, '%Y%m%d'), ");
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN h.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, ");
@@ -627,7 +600,7 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -635,7 +608,7 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -650,10 +623,10 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenInstal FROM $sql;
+	/*$PREPARE insGenInstal FROM $sql;*/
 
 	/********* Select Cliente ya migrado **********/
-	strcpy(sql, "SELECT modif, fecha_val_tarifa, fecha_alta_real FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT modif, fecha_val_tarifa, fecha_alta_real, fecha_pivote FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigrado FROM $sql;
@@ -764,7 +737,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -779,21 +752,23 @@ $long iValor=0;
     
     return iValor;
 }
+*/
 
-
-short ClienteYaMigrado(nroCliente, iFlagMigra, lFecha, lFechaReal)
+short ClienteYaMigrado(nroCliente, iFlagMigra, lFecha, lPivote, lFechaReal)
 $long	nroCliente;
 int		*iFlagMigra;
 $long    *lFecha;
+$long    *lPivote;
 $long    *lFechaReal;
 {
 	$char	sMarca[2];
    $long lFechaVig;
 	$long lFechaAlta;
+   $long lFechaPivote;
    
 	memset(sMarca, '\0', sizeof(sMarca));
 	
-	$EXECUTE selClienteMigrado into :sMarca, :lFechaVig, :lFechaAlta using :nroCliente;
+	$EXECUTE selClienteMigrado INTO :sMarca, :lFechaVig, :lFechaAlta, :lFechaPivote using :nroCliente;
 		
 	if(SQLCODE != 0){
  		if(SQLCODE==SQLNOTFOUND){
@@ -807,6 +782,7 @@ $long    *lFechaReal;
 
    *lFecha = lFechaVig;
    *lFechaReal = lFechaAlta;
+   *lPivote = lFechaPivote;
 
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */
@@ -856,7 +832,7 @@ int               iSec;
 	
 	fprintf(pFileInstalacionUnx, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -880,7 +856,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 short RegistraCliente(nroCliente, iFlagMigra)
 $long	nroCliente;
 int		iFlagMigra;
@@ -909,7 +885,7 @@ int      iSec;
    /* ANLAGE */
 	sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
    /* BIS Fecha Hasta */
-   sprintf(sLinea, "%s%s", sLinea, regFacturas.sFechaFacturacion);
+   sprintf(sLinea, "%s%s", sLinea, regFacturas.sFechaHasta);
 	
 	strcat(sLinea, "\n");
 	
@@ -1131,6 +1107,7 @@ ClsFacturas *reg;
 	memset(reg->sFechaFacturacion, '\0', sizeof(reg->sFechaFacturacion));
    memset(reg->tarifa, '\0', sizeof(reg->tarifa));
    memset(reg->cod_ul, '\0', sizeof(reg->cod_ul));
+   memset(reg->sFechaHasta, '\0', sizeof(reg->sFechaHasta));
 }
 
 /****************************

@@ -1,0 +1,186 @@
+PROGRAM = calcula_interes_mora.exe
+
+OBJECTS = calcula_interes_mora.o datos_gen_fact.o calc_int.o
+
+OBJS_LIB = sqlerror.o errores.o ustring.o macmath.o funcdt.o rec_tot_nd_nc.o \
+           recu_val.o fecha.o val_tar2.o global.o
+
+OTROS = calc_conv/calc_conv.o            \
+        conc_calc/conc_calc.o
+
+LXFLAGS = 
+
+%If "$(SYSTEM)" == "AIX/RS-6000"
+.include /usr/pvcs/etc/build.def
+EXFLAGS=-ED_AIX
+%Else
+.include /pvcs/etc/build.def
+%EndIf
+
+
+#UPDATE#
+
+calcula_interes_mora.o : calcula_interes_mora.ec                          \
+                         ahorro_hist.h                                    \
+                         calc_inter.h                                     \
+                         calcula_interes_mora.h                           \
+                         campos.h                                         \
+                         cargos.h                                         \
+                         cliente.h                                        \
+                         codca.h                                          \
+                         codigos.h                                        \
+                         conc_calc.h                                      \
+                         datos_gen.h                                      \
+                         det_val_tarifas.h                                \
+                         errores.h                                        \
+                         fecha.h                                          \
+                         hisfac.h                                         \
+                         hisfac_cont.h                                    \
+                         insta.h                                          \
+                         lectu.h                                          \
+                         macmath.h                                        \
+                         mensajes.h                                       \
+                         pagco.h                                          \
+                         rec_tot_nd_nc.h                                  \
+                         recu_val.h                                       \
+                         refac.h                                          \
+                         sqlerror.h                                       \
+                         subsidio_acum.h                                  \
+                         subsidio_ce.h                                    \
+                         tabla.h                                          \
+                         tabla_errores.h                                  \
+                         tramos.h                                         \
+                         ustring.h                                        \
+                         val_tar2.h                                       \
+                         venage.h 
+
+datos_gen_fact.o : datos_gen_fact.ec                                      \
+                   campos.h                                               \
+                   codca.h                                                \
+                   codigos.h                                              \
+                   datos_gen.h                                            \
+                   det_val_tarifas.h                                      \
+                   errores.h                                              \
+                   funcdt.h                                               \
+                   insta.h                                                \
+                   lectu.h                                                \
+                   mensajes.h                                             \
+                   pagco.h                                                \
+                   refac.h                                                \
+                   tabla.h                                                \
+                   tabla_errores.h                                        \
+                   venage.h 
+
+calc_int.o : calc_int.ec                                                  \
+             calc_inter.h                                                 \
+             campos.h                                                     \
+             cliente.h                                                    \
+             codca.h                                                      \
+             codigos.h                                                    \
+             conc_calc.h                                                  \
+             datos_gen.h                                                  \
+             det_val_tarifas.h                                            \
+             errores.h                                                    \
+             funcdt.h                                                     \
+             hisfac.h                                                     \
+             insta.h                                                      \
+             lectu.h                                                      \
+             macmath.h                                                    \
+             mensajes.h                                                   \
+             pagco.h                                                      \
+             recu_val.h                                                   \
+             refac.h                                                      \
+             subsidio_acum.h                                              \
+             subsidio_ce.h                                                \
+             tabla.h                                                      \
+             tabla_errores.h                                              \
+             tramos.h                                                     \
+             venage.h 
+
+errores.o : errores.ec                                                    \
+            errores.h                                                     \
+            tabla_errores.h 
+
+ustring.o : ustring.c                                                     \
+            ustring.h 
+
+macmath.o : macmath.c 
+
+funcdt.o : funcdt.ec 
+
+rec_tot_nd_nc.o : rec_tot_nd_nc.ec                                        \
+                  calc_otros.h                                            \
+                  calc_rec.h                                              \
+                  calcimpasoc.h                                           \
+                  campos.h                                                \
+                  carco.h                                                 \
+                  cliente.h                                               \
+                  codigos.h                                               \
+                  conc_calc.h                                             \
+                  datos_gen.h                                             \
+                  det_val_tarifas.h                                       \
+                  entid_ofic.h                                            \
+                  entiofi.h                                               \
+                  errores.h                                               \
+                  fechas_venc.h                                           \
+                  hisfac.h                                                \
+                  hisfac_cont.h                                           \
+                  postal.h                                                \
+                  recu_val.h                                              \
+                  refac.h                                                 \
+                  subsidio_acum.h                                         \
+                  subsidio_ce.h                                           \
+                  tabla_errores.h                                         \
+                  tasa_alum.h                                             \
+                  tramos.h                                                \
+                  update_hisfac_cont.h 
+
+recu_val.o : recu_val.ec                                                  \
+             campos.h                                                     \
+             codigos.h                                                    \
+             det_val_tarifas.h                                            \
+             errores.h                                                    \
+             fecha.h                                                      \
+             macmath.h                                                    \
+             preca.h                                                      \
+             recu_val.h                                                   \
+             subsidio_acum.h                                              \
+             subsidio_ce.h                                                \
+             tabla_errores.h                                              \
+             tacar.h                                                      \
+             tramos.h 
+
+fecha.o : fecha.ec                                                        \
+          campos.h                                                        \
+          codigos.h 
+
+val_tar2.o : val_tar2.ec                                                  \
+             ahorro_hist.h                                                \
+             campos.h                                                     \
+             cargos.h                                                     \
+             codigos.h                                                    \
+             det_val_tarifas.h                                            \
+             errores.h                                                    \
+             fecha.h                                                      \
+             global.h                                                     \
+             lotes.h                                                      \
+             macmath.h                                                    \
+             pardud.h                                                     \
+             recu_val.h                                                   \
+             subsidio_acum.h                                              \
+             subsidio_ce.h                                                \
+             tabla_errores.h                                              \
+             tacar.h                                                      \
+             tramos.h                                                     \
+             val_tar2.h 
+
+sqlerror.o : sqlerror.ec                                                  \
+             sqlerror.h 
+
+global.o :  global.ec                                          \
+            campos.h                                           \
+            codigos.h                                          \
+            lotes.h                                            \
+            pardud.h
+
+#ENDUPDATE#

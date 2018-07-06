@@ -92,7 +92,7 @@ char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(char*, int);
 
-short	ClienteYaMigrado(long, int*);
+short	ClienteYaMigrado(long, long*, int*);
 short	RegistraCliente(long, int);
 
 /*

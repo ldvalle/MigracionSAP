@@ -30,6 +30,7 @@ $typedef struct{
 	char	sFechaFacturacion[9];
 	char	tarifa[20];
 	char  cod_ul[9];
+   char  sFechaHasta[9];
 }ClsFacturas;
 
 $typedef struct{
@@ -71,7 +72,7 @@ char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 
-short	ClienteYaMigrado(long, int*, long*, long*);
+short	ClienteYaMigrado(long, int*, long*, long*, long*);
 short	RegistraCliente(long, int);
 
 short	LeoCliente(ClsCliente *);

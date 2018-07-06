@@ -29,6 +29,7 @@ $include "sap_instalacion.h";
 $long	glNroCliente;
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 FILE	*pFileInstalacionUnx;
 FILE	*pFileInstalInactivoUnx;
@@ -42,6 +43,7 @@ char	sArchInstalInactivoDos[100];
 char	sSoloArchivoInstalInactivo[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -68,10 +70,15 @@ $WHENEVER ERROR CALL SqlException;
 
 void main( int argc, char **argv ) 
 {
-$char 	nombreBase[20];
-time_t 	hora;
-FILE	*fpIntalacion;
-int		iFlagMigra=0;
+$char     nombreBase[20];
+time_t 	 hora;
+FILE	    *fpIntalacion;
+int		 iFlagMigra=0;
+int       iFlagExiste=0;
+$ClsEstados regSts;
+
+int      iCalculo=0;
+int      iRecupero=0;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -92,10 +99,12 @@ int		iFlagMigra=0;
 	CreaPrepare();
 
    memset(sFechaRTI, '\0', sizeof(sFechaRTI));
-   
+/*   
 	$EXECUTE selFechaPivote INTO :lFechaPivote;
 
    CargaLimiteInferior();
+*/
+   $EXECUTE selParametros INTO :lFechaPivote, :lFechaLimiteInferior;      
       
    $EXECUTE selFechaRti into :sFechaRTI, :lFechaRTI;
 		
@@ -104,6 +113,7 @@ int		iFlagMigra=0;
 	/* ********************************************
 				INICIO AREA DE PROCESO
 	********************************************* */
+ 
 	if(!AbreArchivos()){
 		exit(1);	
 	}
@@ -127,29 +137,34 @@ int		iFlagMigra=0;
 	fpIntalacion=pFileInstalacionUnx;
 
 	while(LeoInstalacion(&regInstal)){
-		
-		if(! ClienteYaMigrado(regInstal.numero_cliente, &iFlagMigra)){
-         
-			if(!CargaAltaCliente(&regInstal)){
-				printf("No se pudo cargar Fecha Vigencia Tarifa cliente nro %ld\n", regInstal.numero_cliente);
-				exit(1);				
-			}
-         
-         if(!CargaTarifaInstal(&regInstal)){
-				printf("No se pudo cargar Tarifa y UL Instal a cliente nro %ld\n", regInstal.numero_cliente);
-				exit(1);				
-         }
-         
-			if(!CargaAltaReal(&regInstal)){
-				printf("No se pudo cargar Fecha Alta Real cliente nro %ld\n", regInstal.numero_cliente);
-				exit(1);				
-			}
-/*         
-         if(!CargaIdSF(&regInstal)){
-				printf("No se pudo cargar ID de Sales Forces para cliente nro %ld\n", regInstal.numero_cliente);
-				exit(1);				
-         }
-*/
+	   iFlagMigra=0;
+      iFlagExiste=0;
+      InicializaEstados(&regSts);
+      
+		if(! ClienteYaMigrado(regInstal.numero_cliente, &iFlagMigra, &iFlagExiste, &regSts)){
+        
+        if(iFlagExiste == 1){
+            CargaCalculados(&regInstal, regSts);
+            iRecupero++;                    
+        }else{
+printf("Calculando cliente %ld\n", regInstal.numero_cliente);        
+            if(!CargaAltaCliente(&regInstal)){
+            	printf("No se pudo cargar Fecha Vigencia Tarifa cliente nro %ld\n", regInstal.numero_cliente);
+            	exit(1);				
+            }
+            
+            if(!CargaTarifaInstal(&regInstal)){
+            	printf("No se pudo cargar Tarifa y UL Instal a cliente nro %ld\n", regInstal.numero_cliente);
+            	exit(1);				
+            }
+            
+            if(!CargaAltaReal(&regInstal)){
+            	printf("No se pudo cargar Fecha Alta Real cliente nro %ld\n", regInstal.numero_cliente);
+            	exit(1);				
+            }
+            iCalculo++;
+        }
+
 			if(regInstal.estado_cliente[0]=='0'){
 				if (!GenerarPlano(fpIntalacion, regInstal)){
 					printf("Fallo generacion planos cliente nro %ld\n", regInstal.numero_cliente);
@@ -171,6 +186,7 @@ int		iFlagMigra=0;
 			}			
          $COMMIT WORK;
 			cantProcesada++;
+         
 		}else{
 			cantPreexistente++;			
 		}
@@ -201,7 +217,6 @@ int		iFlagMigra=0;
 
 	FormateaArchivos();
 
-
 /*	
 	if(! EnviarMail(sArchResumenDos, sArchControlDos)){
 		printf("Error al enviar mail con lista de respaldo.\n");
@@ -222,6 +237,9 @@ int		iFlagMigra=0;
 	printf("Clientes Activos :          %ld \n",cantActivos);
 	printf("Clientes No Activos :       %ld \n",cantInactivos);
 	printf("Clientes Preexistentes :    %ld \n",cantPreexistente);
+	printf("Recupero :       %ld \n",iRecupero);
+	printf("Calculo :    %ld \n",iCalculo);
+   
 	printf("==============================================\n");
 	printf("\nHora antes de comenzar proceso : %s\n", ctime(&hora));						
 
@@ -238,7 +256,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc < 4 || argc > 5){
+	if(argc < 5 || argc > 6){
 		MensajeParametros();
 		return 0;
 	}
@@ -253,9 +271,11 @@ char	* argv[];
 	giEstadoCliente=atoi(argv[2]);
 	
 	strcpy(gsTipoGenera, argv[3]);
+   
+   giTipoCorrida=atoi(argv[4]);
 	
-	if(argc==5){
-		glNroCliente=atoi(argv[4]);
+	if(argc==6){
+		glNroCliente=atoi(argv[5]);
 	}else{
 		glNroCliente=-1;
 	}
@@ -268,6 +288,7 @@ void MensajeParametros(void){
 		printf("	<Base> = synergia.\n");
 		printf("	<Estado Cliente> 0=Activos, 1=No Activos, 2=Ambos\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("	<Tipo Corrida> 0=Normal, 1=Reducida\n");
 		printf("	<Nro.Cliente>(Opcional)\n");
 }
 
@@ -286,12 +307,13 @@ short AbreArchivos()
     FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	lCorrelativo = getCorrelativo("INSTAL");
-	
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 
 	sprintf( sArchInstalacionUnx  , "%sT1INSTALN_Activos.unx", sPathSalida );
 	strcpy( sSoloArchivoInstalacion, "T1INSTALN_Activos.unx");
@@ -330,9 +352,11 @@ char	sPathCp[100];
 	memset(sPathCp, '\0', sizeof(sPathCp));
 
 	if(giEstadoCliente==0){
-		strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+      sprintf(sPathCp, "%sActivos/", sPathCopia);
 	}else{
-		strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+      sprintf(sPathCp, "%sInactivos/", sPathCopia);
 	}
 	
 	if(cantActivos>0){
@@ -372,6 +396,12 @@ $char sAux[1000];
 	
 	$PREPARE selFechaActual FROM $sql;	
 
+   /********* Parametros **********/
+	strcpy(sql, "SELECT fecha_pivote, fecha_limi_inf FROM sap_regi_cliente ");
+	strcat(sql, "WHERE numero_cliente = 0 ");   
+   
+   $PREPARE selParametros FROM $sql;
+   
    /********* Fecha RTi **********/
 	strcpy(sql, "SELECT TO_CHAR(fecha_modificacion, '%Y%m%d'), fecha_modificacion ");
 	strcat(sql, "FROM tabla ");
@@ -441,9 +471,9 @@ strcat(sql, "END unidad_lectura, ");
 	strcat(sql, "FROM cliente c, sucur_centro_op sc, OUTER (tecni t, sap_transforma t1), sap_transforma t2, ");
 	strcat(sql, "OUTER sap_transforma t3, OUTER (clientes_vip cv, sap_transforma t4), OUTER ubica_geo_cliente g ");
 
-/*
-strcat(sql, ", migra_activos m ");
-*/
+   if(giTipoCorrida==1)
+      strcat(sql, ", migra_activos m ");
+
 /*	
 strcat(sql, ", sap_sin_fecha m ");
 */
@@ -470,7 +500,6 @@ strcat(sql, ", sap_sin_fecha m ");
 		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	}
 
-   
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
@@ -492,18 +521,123 @@ strcat(sql, ", sap_sin_fecha m ");
 	strcat(sql, "AND g.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND g.origen = 'SIS_TEC' ");
 
-/*
-strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
-*/
+   if(giTipoCorrida==1)
+      strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
+
 	/*strcat(sql, "ORDER BY c.numero_cliente ");*/
+   
+   /******************* Cursor Ppal 2 *******************/
+	strcpy(sql, "SELECT c.numero_cliente, ");
+	/*strcat(sql, "sc.cod_ul_sap || lpad(case when c.sector>60 then c.sector -20 else c.sector end, 2, 0)|| ");*/
+	
+strcat(sql, "CASE ");
+strcat(sql, "	WHEN c.sector IN (81,82) THEN 'DUMMY' ");
+strcat(sql, "	ELSE sc.cod_ul_sap || lpad(c.sector, 2, 0)|| lpad(c.zona,5,0) ");
+strcat(sql, "END unidad_lectura, ");
+	
+/*	strcat(sql, "sc.cod_ul_sap || lpad(c.sector, 2, 0)|| ");
+	strcat(sql, "lpad(c.zona,5,0) unidad_lectura, ");
+*/	
+	strcat(sql, "NVL(t1.cod_sap, '00') voltaje, ");
+	strcat(sql, "NVL(t4.cod_sap, ' ') electrodep, ");
+	strcat(sql, "CASE ");					/* TArifa*/
+	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
+	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+	strcat(sql, "	ELSE t2.cod_sap ");
+	strcat(sql, "END, ");
+	strcat(sql, "NVL(t3.cod_sap, '000') ramo, ");
+	strcat(sql, "NVL(c.nro_beneficiario, 0), ");
+	strcat(sql, "NVL(c.corr_facturacion, 0), ");
+	strcat(sql, "c.estado_cliente, ");
+
+	strcat(sql, "t.nro_subestacion, ");
+	strcat(sql, "t.tec_nom_subest, ");
+	strcat(sql, "t.tec_alimentador, ");
+	strcat(sql, "t.tec_centro_trans, ");
+	strcat(sql, "t.tec_fase, ");
+	strcat(sql, "NVL(t.tec_acometida, 0), ");
+	strcat(sql, "t.tec_tipo_instala, ");
+	strcat(sql, "t.tec_nom_calle, ");
+	strcat(sql, "t.tec_nro_dir, ");
+	strcat(sql, "t.tec_piso_dir, ");
+	strcat(sql, "t.tec_depto_dir, ");
+	strcat(sql, "t.tec_entre_calle1, ");
+	strcat(sql, "t.tec_entre_calle2, ");
+	strcat(sql, "t.tec_manzana, ");
+	strcat(sql, "t.tec_barrio, ");
+	strcat(sql, "t.tec_localidad, ");
+	strcat(sql, "t.tec_partido, ");
+	strcat(sql, "t.tec_sucursal, ");
+	strcat(sql, "NVL(c.potencia_inst_fp, 0), ");
+	strcat(sql, "' ', ");		/* Tipo Obra */
+	strcat(sql, "' ', ");		/* Toma */
+	strcat(sql, "t.tipo_conexion, ");
+	strcat(sql, "t.acometida, ");
+	strcat(sql, "NVL(c.cantidad_medidores, 1), ");
+	strcat(sql, "' ', ");		/* Fase Neutro */
+	strcat(sql, "' ', ");		/* Neutro Metal */
+   strcat(sql, "c.correlativo_ruta ");
+	strcat(sql, "FROM cliente c, sucur_centro_op sc, OUTER (tecni t, sap_transforma t1), sap_transforma t2, ");
+	strcat(sql, "OUTER sap_transforma t3, OUTER (clientes_vip cv, sap_transforma t4) ");
+
+   if(giTipoCorrida==1)
+      strcat(sql, ", migra_activos m ");
+
+	if(giEstadoCliente!=0){
+		strcat(sql, ", sap_inactivos si ");
+	}
+	
+	if(glNroCliente > 0 ){
+		strcat(sql, "WHERE c.numero_cliente = ? ");
+		strcat(sql, "AND c.tipo_sum != 5 ");	
+	}else{
+		if(giEstadoCliente==0){
+			strcat(sql, "WHERE c.estado_cliente = 0 ");
+			strcat(sql, "AND c.tipo_sum != 5 ");
+		}else if(giEstadoCliente == 1){
+			strcat(sql, "WHERE c.estado_cliente != 0 ");
+			strcat(sql, "AND c.tipo_sum != 5 ");
+		}else{
+			strcat(sql, "WHERE c.tipo_sum != 5 ");
+		}		
+	}
+
+	if(giEstadoCliente!=0){
+		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+	}
+
+	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
+	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND cm.fecha_activacion < TODAY ");
+	strcat(sql, "AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
+		
+	strcat(sql, "AND sc.cod_centro_op = c.sucursal ");
+	strcat(sql, "AND t.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND cv.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND cv.fecha_activacion <= TODAY ");
+	strcat(sql, "AND (cv.fecha_desactivac IS NULL OR cv.fecha_desactivac > TODAY) ");
+	strcat(sql, "AND t1.clave = 'SPEBENE' ");			/* voltaje*/
+	strcat(sql, "AND t1.cod_mac = t.codigo_voltaje ");
+	strcat(sql, "AND t4.clave = 'NODISCONCT' ");		/* categoria electrodepe */
+	strcat(sql, "AND t4.cod_mac = cv.motivo ");			
+	strcat(sql, "AND t2.clave = 'TARIFTYP' ");			/* tarifa */
+	strcat(sql, "AND t2.cod_mac = c.tarifa ");
+	strcat(sql, "AND t3.clave = 'BU_TYPE' ");			/* actividad economica */
+	strcat(sql, "AND t3.cod_mac = c.actividad_economic ");
+
+   if(giTipoCorrida==1)
+      strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
+   
 
 	/************* CURSOR CLIENTES *************/
+/* La version para que traiga las cosas de a pedazos, tardó mas  */
+/*
 	strcpy(sql, "SELECT c.numero_cliente, ");
 	strcat(sql, "CASE ");
 	strcat(sql, "	WHEN c.sector IN (81,82) THEN 'DUMMY' ");
 	strcat(sql, "	ELSE sc.cod_ul_sap || lpad(c.sector, 2, 0)|| lpad(c.zona,5,0) ");
 	strcat(sql, "END unidad_lectura, ");
-	strcat(sql, "CASE ");					/* TArifa*/
+	strcat(sql, "CASE ");
 	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t2.cod_sap ");
@@ -517,6 +651,9 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "c.correlativo_ruta ");
 	strcat(sql, "FROM cliente c, sucur_centro_op sc, OUTER sap_transforma t2, OUTER sap_transforma t3 ");
 	
+   if(giTipoCorrida==1)
+      strcat(sql, ", migra_activos ma ");
+      
 	if(giEstadoCliente!=0){
 		strcat(sql, ", sap_inactivos si ");
 	}
@@ -540,17 +677,19 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	}
 	
+   if(giTipoCorrida==1)
+      strcat(sql, "AND c.numero_cliente = ma.numero_cliente ");
+      
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
 	strcat(sql, "AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
 	strcat(sql, "AND sc.cod_centro_op = c.sucursal ");
-	strcat(sql, "AND t2.clave = 'TARIFTYP' ");			/* tarifa */
+	strcat(sql, "AND t2.clave = 'TARIFTYP' "); 
 	strcat(sql, "AND t2.cod_mac = c.tarifa ");
-	strcat(sql, "AND t3.clave = 'BU_TYPE' ");			/* actividad economica */
+	strcat(sql, "AND t3.clave = 'BU_TYPE' ");
 	strcat(sql, "AND t3.cod_mac = c.actividad_economic ");
-
-	
+*/	
 	$PREPARE selInstal FROM $sql;
 	
 	$DECLARE curInstal CURSOR WITH HOLD FOR selInstal;	
@@ -595,7 +734,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	
 	$PREPARE selElectroDepe FROM $sql;
 
-	********* UBICACION GEOGRAFICA *****
+	/********** UBICACION GEOGRAFICA ******/
 	strcpy(sql, "SELECT NVL(g.x, 0), ");
 	strcat(sql, "NVL(g.y, 0), ");
 	strcat(sql, "NVL(g.lat, 0), ");
@@ -655,7 +794,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -663,7 +802,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -678,10 +817,15 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenInstal FROM $sql;
+	/*$PREPARE insGenInstal FROM $sql;*/
 
 	/********* Select Cliente ya migrado **********/
-	strcpy(sql, "SELECT instalacion FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT instalacion, ");
+   strcat(sql, "fecha_val_tarifa, ");
+   strcat(sql, "fecha_alta_real, ");
+   strcat(sql, "tarifa, ");
+   strcat(sql, "ul ");    
+   strcat(sql, "FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigrado FROM $sql;
@@ -823,26 +967,22 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
    $PREPARE selTarifInstal FROM $sql;
       
    /************ Tarifa a la instalacion Alternativa ************/
-	strcpy(sql, "SELECT first 1 ");
+	strcpy(sql, "SELECT ");
 	strcat(sql, "CASE ");
-   strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
-	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
-	strcat(sql, "	ELSE t1.cod_sap "); 
+	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
+	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, "); 
 	strcat(sql, "s.cod_ul_sap || "); 
-	strcat(sql, "LPAD(CASE WHEN h.sector>60 AND h.sector < 81 THEN h.sector ELSE h.sector END, 2, 0) || ");  
-	strcat(sql, "LPAD(h.zona,5,0), ");
-	strcat(sql, "h.corr_facturacion ");
-	strcat(sql, "FROM cliente c, hisfac h, sap_transforma t1, sucur_centro_op s "); 
+	strcat(sql, "LPAD(CASE WHEN c.sector>60 AND c.sector < 81 THEN c.sector ELSE c.sector END, 2, 0) || ");  
+	strcat(sql, "LPAD(c.zona,5,0) ");
+	strcat(sql, "FROM cliente c, sap_transforma t1, sucur_centro_op s "); 
 	strcat(sql, "WHERE c.numero_cliente = ? ");
-	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
-	strcat(sql, "AND h.fecha_facturacion >= ? ");
-	strcat(sql, "AND t1.clave = 'TARIFTYP' "); 
-	strcat(sql, "AND t1.cod_mac = h.tarifa "); 
-	strcat(sql, "AND s.cod_centro_op = h.sucursal "); 
+	strcat(sql, "AND t1.clave = 'TARIFTYP' " );
+	strcat(sql, "AND t1.cod_mac = c.tarifa "); 
+	strcat(sql, "AND s.cod_centro_op = c.sucursal "); 
 	strcat(sql, "AND s.fecha_activacion <= TODAY "); 
 	strcat(sql, "AND (s.fecha_desactivac IS NULL OR s.fecha_desactivac > TODAY) "); 
-	strcat(sql, "ORDER BY h.corr_facturacion ASC ");
    
    $PREPARE selTarifInstal2 FROM $sql;
 
@@ -873,7 +1013,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -888,7 +1028,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoInstalacion(regIns)
 $ClsInstalacion *regIns;
 {
@@ -900,6 +1040,56 @@ $ClsInstalacion *regIns;
 		
 	InicializaInstalacion(regIns);
 
+	$FETCH curInstal into
+		:regIns->numero_cliente,
+		:regIns->cod_ul,
+		:regIns->codigo_voltaje,
+		:regIns->catego_electrodependiente,
+		:regIns->tarifa,
+		:regIns->actividad_economic,
+		:regIns->nro_beneficiario,
+		:regIns->corr_facturacion,
+		:regIns->estado_cliente,
+		:regIns->nro_subestacion,
+		:regIns->tec_nom_subest,
+		:regIns->tec_alimentador,
+		:regIns->tec_centro_trans,
+		:regIns->tec_fase,
+		:regIns->tec_acometida,
+		:regIns->tec_tipo_instala,
+		:regIns->tec_nom_calle,
+		:regIns->tec_nro_dir,
+		:regIns->tec_piso_dir,
+		:regIns->tec_depto_dir,
+		:regIns->tec_entre_calle1,
+		:regIns->tec_entre_calle2,
+		:regIns->tec_manzana,
+		:regIns->tec_barrio,
+		:regIns->tec_localidad,
+		:regIns->tec_partido,
+		:regIns->tec_sucursal,
+		:regIns->potencia_inst_fp,
+		:regIns->tipo_obra,
+		:regIns->toma,
+		:regIns->tipo_conexion,
+		:regIns->acometida,
+		:regIns->cantidad_medidores,
+		:regIns->fase_neutro,
+		:regIns->neutro_metal,
+      :regIns->correlativo_ruta;
+	
+    if ( SQLCODE != 0 ){
+    	if(SQLCODE == 100){
+			return 0;
+		}else{
+			printf("Error al leer Cursor de INSTALACION !!!\nProceso Abortado.\n");
+			exit(1);	
+		}
+    }			
+
+
+   /* Cursor Clientes */
+/*   
 	$FETCH curInstal into
 		:regIns->numero_cliente,
 		:regIns->cod_ul,
@@ -920,8 +1110,9 @@ $ClsInstalacion *regIns;
 			exit(1);	
 		}
     }			
-
+*/
 	/* Cargo Datos Tecnicos */
+/*   
 	$EXECUTE selTecni INTO
 			:regIns->codigo_voltaje,
 			:regIns->nro_subestacion,
@@ -949,8 +1140,9 @@ $ClsInstalacion *regIns;
 	if(SQLCODE != 0 && SQLCODE != SQLNOTFOUND){
 		printf("Error al buscar datos técnicos para cliente %ld\n", regIns->numero_cliente);
 	}
-
+*/
 	/* Cargo Electrodependencia */
+/*   
 	$EXECUTE selElectroDepe
 		INTO :regIns->catego_electrodependiente
 		USING :regIns->numero_cliente;
@@ -958,8 +1150,9 @@ $ClsInstalacion *regIns;
 	if(SQLCODE != 0 && SQLCODE != SQLNOTFOUND){
 		printf("Error al buscar Electrodependencia para cliente %ld\n", regIns->numero_cliente);
 	}
-	
+*/	
 	/* Cargo Ubicación Geografica */
+  
 	$EXECUTE selUbica INTO 
 		:regIns->ubi_x,
 		:regIns->ubi_y,
@@ -1117,19 +1310,27 @@ $ClsInstalacion	*regIns;
    
 }
 
-short ClienteYaMigrado(nroCliente, iFlagMigra)
+short ClienteYaMigrado(nroCliente, iFlagMigra, iFlagExiste, reg)
 $long	nroCliente;
 int		*iFlagMigra;
+int      *iFlagExiste;
+$ClsEstados *reg;
 {
 	$char	sMarca[2];
 	
 	memset(sMarca, '\0', sizeof(sMarca));
 	
-	$EXECUTE selClienteMigrado into :sMarca using :nroCliente;
+	$EXECUTE selClienteMigrado INTO :sMarca, 
+                                 :reg->fecha_val_tarifa,
+                                 :reg->fecha_alta_real,
+                                 :reg->tarifa,
+                                 :reg->ul    
+                     USING :nroCliente;
 		
 	if(SQLCODE != 0){
 		if(SQLCODE==SQLNOTFOUND){
 			*iFlagMigra=1; /* Indica que se debe hacer un insert */
+         *iFlagExiste=0;
 			return 0;
 		}else{
 			printf("ErroR al verificar si el cliente %ld ya había sido migrado.\n", nroCliente);
@@ -1137,6 +1338,16 @@ int		*iFlagMigra;
 		}
 	}
 	
+   alltrim(reg->tarifa, ' ');
+   alltrim(reg->ul, ' ');
+
+/*printf("valtarifa [%ld] real [%ld] tarifa[%s] ul [%s]\n", reg->fecha_val_tarifa, reg->fecha_alta_real, reg->tarifa, reg->ul);*/   
+   if(reg->fecha_val_tarifa > 0 && reg->fecha_alta_real >0 && strcmp(reg->tarifa, "")!= 0 && strcmp(reg->ul, "")!=0){
+/*printf("Lo reconoce\n");*/   
+      *iFlagExiste=1;   
+   }
+
+
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */
    	if(gsTipoGenera[0]=='R'){
@@ -1399,7 +1610,7 @@ $ClsInstalacion	regIns;
 	
 	fprintf(fp, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -1423,7 +1634,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 short RegistraCliente(nroCliente, sFechaVigencia, lFechaPivote, sFechaAlta, iFlagMigra)
 $long	nroCliente;
 char	sFechaVigencia[9];
@@ -1438,9 +1649,9 @@ int	iFlagMigra;
    rdefmtdate(&lFechaAlta, "yyyymmdd", sFechaAlta); /*char a long*/
 	
 	if(iFlagMigra==1){
-		$EXECUTE insClientesMigra using :nroCliente, :lFechaVigencia, :lFechaAlta, :lFechaPivote;
+      $EXECUTE insClientesMigra using :nroCliente, :lFechaVigencia, :lFechaAlta, :lFechaPivote;
 	}else{
-		$EXECUTE updClientesMigra using :lFechaVigencia, :lFechaAlta, :lFechaPivote, :nroCliente;
+      $EXECUTE updClientesMigra using :lFechaVigencia, :lFechaAlta, :lFechaPivote, :nroCliente;
 	}
 
 	return 1;
@@ -1742,16 +1953,45 @@ $ClsInstalacion *reg;
    if(SQLCODE != 0){
       if(SQLCODE == 100){
          $EXECUTE selTarifInstal2 INTO :reg->tarifa, :reg->cod_ul, :lCorr 
-                                 USING :reg->numero_cliente, :lFechaPivote;
+                                 USING :reg->numero_cliente;
       
       }else{ 
          return 0;
       }
    }
-                           
                                  
    return 1;
 }
+
+void  InicializaEstados(reg)
+ClsEstados  *reg;
+{
+   rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_val_tarifa));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_alta_real));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_move_in));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_pivote));
+   memset(reg->tarifa, '\0', sizeof(reg->tarifa));
+   memset(reg->ul, '\0', sizeof(reg->ul));
+   memset(reg->motivo_alta, '\0', sizeof(reg->motivo_alta));
+}
+
+void CargaCalculados(regIns, regSts)
+ClsInstalacion *regIns;
+ClsEstados     regSts;
+{
+
+   rfmtdate(regSts.fecha_val_tarifa, "yyyymmdd", regIns->fecha_vig_tarifa); /* long to char */
+   strcpy(regIns->fecha_instalacion, regIns->fecha_vig_tarifa);
+
+   alltrim(regSts.tarifa, ' ');
+   alltrim(regSts.ul, ' ');
+   strcpy(regIns->tarifa, regSts.tarifa);
+   strcpy(regIns->cod_ul, regSts.ul);
+   
+   rfmtdate(regSts.fecha_alta_real, "yyyymmdd", regIns->sFechaAltaReal); /* long to char */
+}
+
 
 /****************************
 		GENERALES

@@ -37,6 +37,7 @@ char	sArchFacturasUnx[100];
 char	sSoloArchivoFacturas[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -130,7 +131,7 @@ int 			j;
 			}
 			
 						
-			$BEGIN WORK;
+			/*$BEGIN WORK;*/
 			
 			if(glNroCliente > 0){
 				$OPEN curCliente using :glNroCliente, :sSucursal;	
@@ -187,11 +188,12 @@ int 			j;
 					}
 		
 					$CLOSE curHisfac;
-		
+		          /*
 					if(!RegistraCliente(lNroCliente, iFlagMigra)){
 						$ROLLBACK WORK;
 						exit(1);	
-					}			
+					}	
+               */		
 					cantProcesada++;
 				}else{
 					cantPreexistente++;	
@@ -202,7 +204,7 @@ int 			j;
 			iAnioPeriodo++;
 					
 			$CLOSE curCliente;
-			$COMMIT WORK;
+			/*$COMMIT WORK;*/
 	
 			CerrarArchivos();
 			
@@ -217,6 +219,7 @@ int 			j;
 				
 
 	/* Registrar Control Plano */
+/*   
 	$BEGIN WORK;
 	
 	if(!RegistraArchivo()){
@@ -225,7 +228,7 @@ int 			j;
 	}
 	
 	$COMMIT WORK;
-
+*/
 	$CLOSE DATABASE;
 
 	$DISCONNECT CURRENT;
@@ -309,12 +312,13 @@ long	iAnio;
     FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+	memset(sPathCopia,'\0',sizeof(sPathCopia));   
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	lCorrelativo = getCorrelativo("HISTOCNR");
-	
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 
 	sprintf( sArchFacturasUnx  , "%sT1CNR.unx", sPathSalida);
 	strcpy( sSoloArchivoFacturas, "T1CNR.unx");
@@ -565,7 +569,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -573,7 +577,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -588,7 +592,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenInstal FROM $sql;
+	/*$PREPARE insGenInstal FROM $sql;*/
 
 	/********* Select Cliente ya migrado **********/
 	strcpy(sql, "SELECT histo_cnr FROM sap_regi_cliente ");
@@ -688,7 +692,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -703,7 +707,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 
 short ClienteYaMigrado(nroCliente, iFlagMigra)
 $long	nroCliente;
@@ -755,7 +759,7 @@ $ClsHisfac	regHisfac;
 	
 	fprintf(fp, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -779,7 +783,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 short RegistraCliente(nroCliente, iFlagMigra)
 $long	nroCliente;
 int		iFlagMigra;

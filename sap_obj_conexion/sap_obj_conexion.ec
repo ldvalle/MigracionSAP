@@ -35,6 +35,7 @@ $int	giArchivosGen;
 $int	giEstadoCliente;
 $long	glNroCliente;
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 FILE	*pFileConexActivoUnx;
 FILE	*pFileConexNoActivoUnx;
@@ -65,6 +66,7 @@ char	sSoloArchivoUbicApaActivo[100];
 char	sSoloArchivoUbicApaNoActivo[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -171,7 +173,7 @@ int		iFlagMigra;
 				}else{
 					cantProcesadaConexNoActivo++;			
 				}
-
+/*
 				if(gsTipoGenera[0]!='R'){
                $BEGIN WORK;
 					if(!RegistraCliente("OBJCONEX", regCliente.numero_cliente, iFlagMigra)){
@@ -180,6 +182,7 @@ int		iFlagMigra;
 					}
                $COMMIT WORK;
 				}
+*/            
 				
 			}else{
 				cantPreexistenteConex++;
@@ -208,12 +211,14 @@ int		iFlagMigra;
 				}else{
 					cantProcesadaPtoSumNoActivo++;			
 				}
+/*            
             $BEGIN WORK;
 				if(!RegistraCliente("PUNTOSUM", regCliente.numero_cliente, iFlagMigra)){
 					$ROLLBACK WORK;
 					exit(1);					
 				}
-            $COMMIT WORK;				
+            $COMMIT WORK;
+*/            				
 			}else{
 				cantPreexistentePtoSum++;
 			}						
@@ -240,13 +245,14 @@ int		iFlagMigra;
 				}else{
 					cantProcesadaUbicApaNoActivo++;			
 				}
-
+/*
             $BEGIN WORK;
 				if(!RegistraCliente("UBICAPA", regCliente.numero_cliente, iFlagMigra)){
 					$ROLLBACK WORK;
 					exit(1);					
 				}
-            $COMMIT WORK;				
+            $COMMIT WORK;
+*/            				
 			}else{
 				cantPreexistenteUbicApa++;
 			}						
@@ -257,17 +263,14 @@ int		iFlagMigra;
 	$CLOSE curClientes;
 	
 	CerrarArchivos();
-
+/*
 	$BEGIN WORK;
-	
-	/* Registrar Control Plano */
 	if(!RegistraArchivo()){
 		$ROLLBACK WORK;
 		exit(1);
 	}
-	
 	$COMMIT WORK;
-
+*/
 	$CLOSE DATABASE;
 
 	$DISCONNECT CURRENT;
@@ -320,7 +323,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc > 6 || argc < 5){
+	if(argc > 7 || argc < 6){
 		MensajeParametros();
 		return 0;
 	}
@@ -335,9 +338,10 @@ char	* argv[];
 	giArchivosGen=atoi(argv[2]);
 	giEstadoCliente=atoi(argv[3]);
 	strcpy(gsTipoGenera, argv[4]);
-	
-	if(argc == 6){	
-		glNroCliente=atol(argv[5]);
+	giTipoCorrida=atoi(argv[5]);
+   
+	if(argc == 7){	
+		glNroCliente=atol(argv[6]);
 	}else{
 		glNroCliente=-1;	
 	}
@@ -382,14 +386,20 @@ short AbreArchivos()
     FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
+   alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+   alltrim(sPathCopia,' ');
+   
+/*	
 	lCorrelativoConex = getCorrelativo("OBJCONEX");
 	lCorrelativoPtoSum = getCorrelativo("PUNTOSUM");
 	lCorrelativoUbicApa = getCorrelativo("UBICAPA");
+*/	
 	
-	alltrim(sPathSalida,' ');
 	
 	switch(giArchivosGen){
 		case 0:	/* Objeto Conexion, Punto Suministro y Ubicacion Aparatos */
@@ -543,9 +553,11 @@ char	sPathCp[100];
 	memset(sPathCp, '\0', sizeof(sPathCp));
 	
 	if(giEstadoCliente==0){
-		strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+      sprintf(sPathCp, "%sActivos/", sPathCopia);
 	}else{
-		strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+      sprintf(sPathCp, "%sInactivos/", sPathCopia);
 	}
 	
 
@@ -670,7 +682,8 @@ $char sAux[1000];
 	strcat(sql, "c.obs_dir[1,40] ");
 	strcat(sql, "FROM cliente c, sap_transforma co, sap_transforma sp, sap_transforma sp1, OUTER (postal p, sap_transforma sp2 ) ");
 
-strcat(sql, ", migra_activos ma ");
+   if(giTipoCorrida==1)
+      strcat(sql, ", migra_activos ma ");
 	
 if(giEstadoCliente!=0){
 	strcat(sql, ", sap_inactivos si ");
@@ -706,7 +719,8 @@ if(giEstadoCliente!=0){
 	strcat(sql, "AND sp2.clave = 'REGION' ");
 	strcat(sql, "AND sp2.cod_mac = p.dp_provincia ");
 
-strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
+   if(giTipoCorrida==1)
+      strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 
 	$PREPARE selClientes FROM $sql;
 	
@@ -723,13 +737,6 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND ( fecha_desactivac >= TODAY OR fecha_desactivac IS NULL ) ");
 
 	$PREPARE selRutaPlanos FROM $sql;
-
-	/******** Select Correlativo ****************/
-	strcpy(sql, "SELECT correlativo +1 FROM sap_gen_archivos ");
-	strcat(sql, "WHERE sistema = 'SAPISU' ");
-	strcat(sql, "AND tipo_archivo = ? ");
-	
-	$PREPARE selCorrelativo FROM $sql;
 
 	/********* Select Cliente OBJETO CONEXION ya migrado **********/
 	strcpy(sql, "SELECT obj_conexion FROM sap_regi_cliente ");
@@ -748,6 +755,13 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteUbicApaMigrado FROM $sql;		
+
+	/******** Select Correlativo ****************/
+	strcpy(sql, "SELECT correlativo +1 FROM sap_gen_archivos ");
+	strcat(sql, "WHERE sistema = 'SAPISU' ");
+	strcat(sql, "AND tipo_archivo = ? ");
+	
+	/*$PREPARE selCorrelativo FROM $sql;*/
 	
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -755,7 +769,7 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -770,7 +784,7 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenArchivo FROM $sql;
+	/*$PREPARE insGenArchivo FROM $sql;*/
 
 	/*********Insert Clientes extraidos OBJ CONEXION **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
@@ -842,7 +856,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -857,7 +871,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoClientes(regCli)
 $ClsCliente *regCli;
 {
@@ -1105,7 +1119,7 @@ int		iFlagMigra;
 	return 1;
 }
 
-
+/*
 short RegistraArchivo(void)
 {
 	$int iEstado=giEstadoCliente;
@@ -1114,7 +1128,7 @@ short RegistraArchivo(void)
 	$char	sTipoArchivo[50];
 	$char	sNombreArchivo[100];
 	
-	/* Objeto Conexion */	
+	// Objeto Conexion	
 	if(cantProcesadaConexActivo>0 || cantProcesadaConexNoActivo>0){
 		strcpy(sTipoArchivo, "OBJCONEX");
 		alltrim(sTipoArchivo, ' ');
@@ -1149,7 +1163,7 @@ short RegistraArchivo(void)
 				:sNombreArchivo;	
 	}
 	
-	/* Punto Suministro */
+	// Punto Suministro
 	if(cantProcesadaPtoSumActivo>0 || cantProcesadaPtoSumNoActivo>0){
 		strcpy(sTipoArchivo, "PUNTOSUM");
 		alltrim(sTipoArchivo, ' ');
@@ -1184,7 +1198,7 @@ short RegistraArchivo(void)
 				:sNombreArchivo;
 	}	
 		
-	/* Ubicacion Aparatos */
+	// Ubicacion Aparatos
 	if(cantProcesadaUbicApaActivo>0 || cantProcesadaUbicApaNoActivo>0){
 		strcpy(sTipoArchivo, "UBICAPA");
 		alltrim(sTipoArchivo, ' ');
@@ -1221,7 +1235,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 int getTipoPersona(sTipoCliente)
 char	sTipoCliente[3];
 {

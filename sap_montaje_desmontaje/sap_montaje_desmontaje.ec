@@ -30,6 +30,7 @@ $long	glNroCliente;
 $char	gsTipoGenera[2];
 int	giEstadoCliente;
 int   giMovimientos;
+int   giTipoCorrida;
 
 FILE  *pFileGral;
 FILE  *pFileMontajeReal;
@@ -41,6 +42,7 @@ char	sArchMontajeRealUnx[100];
 char	sSoloArchivoMontajeReal[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -73,12 +75,13 @@ $long    lCorrFactuActual;
 $long	   lCorrFactuInicio;
 int		iNx;
 $ClsLecturas	  regLectu2;
-$char			    sFechaFactura[9];
-$long			    lFechaFactura;
-int		       iSuperaMedid;
-long	          lCantOperaciones;
-long	          lMaxTrx;
-$long           lFechaValTarifa;
+$char		sFechaFactura[9];
+$long		lFechaFactura;
+int		iSuperaMedid;
+long	   lCantOperaciones;
+long	   lMaxTrx;
+$long    lFechaValTarifa;
+$long    lFechaPivote;      
 
 $long    lNroMedidorActual;
 $char    sMarcaMedidorActual[4];
@@ -135,7 +138,7 @@ $char    sModeloMedidorActual[3];
 		
 		iSuperaMedid=EncontroMedid(lNroCliente);
 
-		if(!ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaValTarifa) && iSuperaMedid==1 ){
+		if(!ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaValTarifa, &lFechaPivote) && iSuperaMedid==1 ){
 			iNx=0;
 			iNroIndex=1;
          
@@ -146,10 +149,11 @@ $char    sModeloMedidorActual[3];
             lNroMedidorActual = getMedidorActual(lNroCliente, sMarcaMedidorActual, sModeloMedidorActual);
          }
                   
-         $BEGIN WORK;
+         /*$BEGIN WORK;*/
 			if(lCorrFactuActual > 0){
 
-				if(LeoPrimerMontajeReal(lNroCliente, lFechaValTarifa, &regLectu)){
+				/*if(LeoPrimerMontajeReal(lNroCliente, lFechaValTarifa, &regLectu)){*/
+            if(LeoPrimerMontajeReal(lNroCliente, lFechaPivote, &regLectu)){
 					GeneraMontajeReal(regLectu);
 					cantMontajesReal++;
 				}else{
@@ -159,73 +163,76 @@ $char    sModeloMedidorActual[3];
 					}
 				}
 				
-				if(LeoPrimeraLectura(lNroCliente, lFechaValTarifa, &regLectu)){
+				/*if(LeoPrimeraLectura(lNroCliente, lFechaValTarifa, &regLectu)){*/
+            if(LeoPrimeraLectura(lNroCliente, lFechaPivote, &regLectu)){
 					if (!GenerarPlanos(regLectu)){
-						$ROLLBACK WORK;
+						/*$ROLLBACK WORK;*/
 						exit(2);
 					}
 					iNx++;				
 					iNroIndex++;
 				}
 	
-				$OPEN curLecturas using :lNroCliente, :lFechaValTarifa;
-				while(LeoLecturas(&regLectu) ){
-               /*if(!EsMedidorVigente(lNroMedidorActual, sMarcaMedidorActual, sModeloMedidorActual, regLectu)){*/
+            if(giMovimientos==1){
+				/*$OPEN curLecturas using :lNroCliente, :lFechaValTarifa;*/
+               $OPEN curLecturas using :lNroCliente, :lFechaPivote;
+   				while(LeoLecturas(&regLectu) ){
+                  /*if(!EsMedidorVigente(lNroMedidorActual, sMarcaMedidorActual, sModeloMedidorActual, regLectu)){*/
+      					if (!GenerarPlanos(regLectu)){
+      						/*$ROLLBACK WORK;*/
+      						exit(2);
+      					}			
+      					iNroIndex++;
+      					iNx++;
+                  /*}*/
+   				}
+   				$CLOSE curLecturas;
+            }
+			}
+			if(giMovimientos==1){
+   			if(iNx==0){
+   				/* CUANDO NO ENCONTRE MOVIMIENTOS EN El Periodo */
+   				
+   				/* hay algunos que no tuvieron factura despues del cambio de medidor */
+   				/*$OPEN curSinFactura using :lNroCliente,:lFechaValTarifa;*/
+               $OPEN curSinFactura using :lNroCliente,:lFechaPivote;
+   				
+   				if(LeoSinFactura(&regLectu)){
    					if (!GenerarPlanos(regLectu)){
-   						$ROLLBACK WORK;
+   						/*$ROLLBACK WORK;*/
    						exit(2);
-   					}			
-   					iNroIndex++;
+   					}				
    					iNx++;
-               /*}*/
-				}
-				$CLOSE curLecturas;
-			}
-			
-			if(iNx==0){
-				/* CUANDO NO ENCONTRE MOVIMIENTOS EN El Periodo */
-				
-				/* hay algunos que no tuvieron factura despues del cambio de medidor */
-				$OPEN curSinFactura using :lNroCliente,:lFechaValTarifa;
-				
-				if(LeoSinFactura(&regLectu)){
-					if (!GenerarPlanos(regLectu)){
-
-						$ROLLBACK WORK;
-						exit(2);
-					}				
-					iNx++;
-				}
-					
-				$CLOSE curSinFactura;
-				
-				if(iNx==0){
-					if(!LeoUltInstalacion(lNroCliente, &regLectu)){
-						$ROLLBACK WORK;
-						exit(2);
-					}				
-					if (!GenerarPlanos(regLectu)){
-						$ROLLBACK WORK;
-						exit(2);
-					}
-				}
-								
-				if(giEstadoCliente==1){
-					if(LeoUltRetiro(lNroCliente, &regLectu)){
-						if (!GenerarPlanos(regLectu)){
-
-							$ROLLBACK WORK;
-							exit(2);
-						}
-					}
-				}				
-			}
+   				}
+   					
+   				$CLOSE curSinFactura;
+   				
+   				if(iNx==0){
+   					if(!LeoUltInstalacion(lNroCliente, &regLectu)){
+   						/*$ROLLBACK WORK;*/
+   						exit(2);
+   					}				
+   					if (!GenerarPlanos(regLectu)){
+   						/*$ROLLBACK WORK;*/
+   						exit(2);
+   					}
+   				}
+   								
+   				if(giEstadoCliente==1){
+   					if(LeoUltRetiro(lNroCliente, &regLectu)){
+   						if (!GenerarPlanos(regLectu)){
+   							/*$ROLLBACK WORK;*/
+   							exit(2);
+   						}
+   					}
+   				}				
+   			}
+         }         
+/*         
 			if(!RegistraCliente(lNroCliente, iFlagMigra)){
-
-				$ROLLBACK WORK;
 				exit(2);	
 			}
-         $COMMIT WORK;
+*/
          
 			cantProcesada++;			
 		}else{
@@ -291,7 +298,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc < 5 || argc > 6){
+	if(argc < 6 || argc > 7){
 		MensajeParametros();
 		return 0;
 	}
@@ -301,9 +308,10 @@ char	* argv[];
 	giEstadoCliente=atoi(argv[2]);
 	strcpy(gsTipoGenera, argv[3]);
 	giMovimientos=atoi(argv[4]);
+   giTipoCorrida=atoi(argv[5]);
    
-	if(argc==6){
-		glNroCliente=atoi(argv[5]);
+	if(argc==7){
+		glNroCliente=atoi(argv[6]);
 	}else{
 		glNroCliente=-1;
 	}
@@ -316,7 +324,8 @@ void MensajeParametros(void){
 		printf("\t<Base> = synergia.\n");
 		printf("\t<Estado Cliente> 0=Activos; 1=No Activos\n");
 		printf("\t<Tipo Generación> G = Generación, R = Regeneración.\n");
-      printf("\t<Estado Cliente> 0=Sin Movimientos; 1=Con Movimientos\n");
+      printf("\t<Tipo Frecuencia> 0=Sin Movimientos; 1=Con Movimientos\n");
+      printf("\t<Tipo Corrida> 0=Normal; 1=Reducida\n");
 		printf("\t<Nro.Cliente>(Opcional)\n");
 }
 
@@ -331,12 +340,15 @@ short AbreArchivos()
 	memset(sSoloArchivoMontajeReal,'\0',sizeof(sSoloArchivoMontajeReal));
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+	memset(sPathCopia,'\0',sizeof(sPathCopia));   
 
 	memset(sTipoArchivo, '\0', sizeof(sTipoArchivo));
 	
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 
 	if(giEstadoCliente==0){
 		strcpy(sTipoArchivo, "Activos");
@@ -390,9 +402,11 @@ int		iRcv, i;
 	memset(sDestino, '\0', sizeof(sDestino));
 
 	if(giEstadoCliente==0){		
-		strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+		/*strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+      sprintf(sDestino, "%sActivos/", sPathCopia);
 	}else{
-		strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+		/*strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+      sprintf(sDestino, "%sInactivos/", sPathCopia);
 	}
 
 	if(cantProcesada>0){
@@ -457,8 +471,9 @@ $char sAux[1000];
 	/******** Cursor Clientes  ****************/
 	strcpy(sql, "SELECT c.numero_cliente, NVL(c.corr_facturacion, 0) FROM cliente c ");
 
-strcat(sql, ", migra_activos mg ");
-   
+   if(giTipoCorrida==1){
+      strcat(sql, ", migra_activos mg ");
+   }   
    if(giMovimientos==1){
       strcat(sql, ", sap_cambio_medid ma ");
    }
@@ -495,10 +510,12 @@ strcat(sql, ", migra_activos mg ");
    }else{
       strcat(sql, "AND NOT EXISTS (SELECT 1 FROM sap_cambio_medid ma ");
       strcat(sql, "	WHERE ma.numero_cliente = c.numero_cliente) ");
-   }	
-
-strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
-
+   }
+   	
+   if(giTipoCorrida==1){
+      strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
+   }
+   
 	$PREPARE selClientes FROM $sql;
 	
 	$DECLARE curClientes CURSOR WITH HOLD FOR selClientes;
@@ -528,7 +545,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
    strcat(sql, "la.consumo, "); 
 	strcat(sql, "la.fecha_lectura, ");
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN la.tipo_lectura = 6 THEN TO_CHAR(la.fecha_lectura + 1, '%Y%m%d') ");
+	strcat(sql, "	WHEN la.tipo_lectura = 6 THEN TO_CHAR(la.fecha_lectura, '%Y%m%d') ");
 	strcat(sql, "	ELSE TO_CHAR(la.fecha_lectura, '%Y%m%d') ");
 	strcat(sql, "END, ");
 /*
@@ -538,7 +555,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "m.modelo_medidor, ");
 
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN h.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.acronimo_sap ");
 	strcat(sql, "END, ");
@@ -606,7 +623,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "m.modelo_medidor, ");
 
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN h.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");   
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.acronimo_sap ");
 	strcat(sql, "END, ");
@@ -616,13 +633,20 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 
 	strcat(sql, "me.med_factor, ");
 	strcat(sql, "m.enteros, ");
-	strcat(sql, "m.decimales, ");
+	strcat(sql, "m.decimales ");
+/*   
 	strcat(sql, "MAX(la.fecha_lectura) ");
-	
+*/	
 	strcat(sql, "FROM hislec la, cliente c, hisfac h, medid m, OUTER sap_transforma t1, medidor me ");
 	strcat(sql, "WHERE la.numero_cliente = ? ");
 
+	strcat(sql, "AND la.fecha_lectura = (	SELECT MIN(h2.fecha_lectura) FROM hislec h2 ");
+	strcat(sql, "   WHERE h2.numero_cliente = la.numero_cliente ");
+	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4) "); 
+	strcat(sql, "   AND h2.fecha_lectura >= ?) ");
+/*
    strcat(sql, "AND la.fecha_lectura = ? ");
+*/
 	strcat(sql, "AND la.tipo_lectura IN (1,2,3,4) ");
 	strcat(sql, "AND c.numero_cliente = la.numero_cliente ");
 	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
@@ -651,8 +675,9 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 		
 	strcat(sql, "AND t1.clave = 'TARIFTYP' ");
 	strcat(sql, "AND t1.cod_mac = h.tarifa ");
+/*   
 	strcat(sql, "GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 ");
-	
+*/	
 	$PREPARE selPrimLectu FROM $sql;	
 	
 	$DECLARE curPrimLectu CURSOR FOR selPrimLectu;
@@ -666,11 +691,11 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "la.lectura_terreno, ");
    strcat(sql, "la.consumo, ");
 	strcat(sql, "la.fecha_lectura, ");
-	strcat(sql, "TO_CHAR(la.fecha_lectura + 1, '%Y%m%d'), ");
+	strcat(sql, "TO_CHAR(la.fecha_lectura, '%Y%m%d'), ");
 	strcat(sql, "la.tipo_lectura, ");
 	strcat(sql, "m.modelo_medidor, ");
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");   
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.acronimo_sap ");
 	strcat(sql, "END, ");
@@ -724,7 +749,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -732,7 +757,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -747,10 +772,10 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenInstal FROM $sql;
+	/*$PREPARE insGenInstal FROM $sql;*/
 
 	/********* Select Montaje Cliente ya migrado **********/
-	strcpy(sql, "SELECT montaje, fecha_val_tarifa FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT montaje, fecha_val_tarifa, fecha_pivote FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigradoM FROM $sql;
@@ -842,7 +867,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "NVL(m.tipo_medidor, 'A'), ");
 
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.acronimo_sap ");	
 	strcat(sql, "END, ");	
@@ -876,7 +901,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "NVL(m1.tipo_medidor, 'A'), ");
 	
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.acronimo_sap ");
 	strcat(sql, "END, ");
@@ -918,7 +943,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "m.lectu_instal_reac, ");
 	strcat(sql, "m.tipo_medidor, ");
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");   
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.acronimo_sap ");
 	strcat(sql, "END, ");
@@ -955,7 +980,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "la.tipo_lectura,");
 	strcat(sql, "m.modelo_medidor,");
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.acronimo_sap ");
 	strcat(sql, "END, ");
@@ -1017,7 +1042,7 @@ strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
 	strcat(sql, "m.modelo_medidor, ");
 
 	strcat(sql, "CASE ");
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
 	strcat(sql, "	ELSE t1.acronimo_sap ");
 	strcat(sql, "END, ");
@@ -1109,7 +1134,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -1124,7 +1149,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 char *getFechaFactura(lNroCliente, lCorrFactuInicio, lFechaFactura)
 $long	lNroCliente;
 $long	lCorrFactuInicio;
@@ -1323,17 +1348,19 @@ $ClsLecturas	*regLectu;
 	
 }
 
-short ClienteYaMigrado(nroCliente, iFlagMigra, lFechaTarifa)
+short ClienteYaMigrado(nroCliente, iFlagMigra, lFechaTarifa, lFechaPivote)
 $long	nroCliente;
 int		*iFlagMigra;
 $long    *lFechaTarifa;
+$long    *lFechaPivote;
 {
 	$char	sMarca[2];
    $long lFechaValTarifa;
+   $long lPivote;
 	
 	memset(sMarca, '\0', sizeof(sMarca));
 	
-	$EXECUTE selClienteMigradoM INTO :sMarca, :lFechaValTarifa USING :nroCliente;
+	$EXECUTE selClienteMigradoM INTO :sMarca, :lFechaValTarifa, :lPivote USING :nroCliente;
 		
 	if(SQLCODE != 0){
 		if(SQLCODE==SQLNOTFOUND){
@@ -1346,7 +1373,8 @@ $long    *lFechaTarifa;
 	}
 
    *lFechaTarifa = lFechaValTarifa;
-   
+   *lFechaPivote = lPivote;
+    
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */
    	if(gsTipoGenera[0]=='R'){
@@ -1573,7 +1601,7 @@ $ClsLecturas	regLectu;
 	
 	fprintf(fp, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -1598,7 +1626,7 @@ short RegistraArchivo(void)
 
 	return 1;
 }
-
+*/
 short RegistraCliente(nroCliente, iFlagMigra)
 $long	nroCliente;
 int		iFlagMigra;

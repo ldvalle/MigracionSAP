@@ -32,6 +32,8 @@ char	sMensMail[1024];
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
 $long	glNroCliente;
+int   giTipoCorrida;
+$char sPathCopia[100];
 
 long	cantActivoProcesada;
 long	cantNoActivoProcesada;
@@ -169,63 +171,68 @@ int		iFlagMigra;
 			/* Los Activos */
 			iFlagMigra=0;
 			if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra)){
-            $BEGIN WORK;
+            /*$BEGIN WORK;*/
 				if(! CorporativoT23(&regCliente)){
 
 					/* Generar Plano */
 					if (!GenerarPlanoT1(pFileCtaActivaUnx, regCliente, 2)){
-						$ROLLBACK WORK;
+						/*$ROLLBACK WORK;*/
 						exit(1);	
 					}
 
 					/* Registrar Control Cliente */
+/*               
 					if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
 						$ROLLBACK WORK;
 						exit(1);	
 					}
-
+*/               
 					cantActivoProcesada++;
 					
 				}else{
 					/* Hijo de Corporativo de T23 */	
 					/* Generar Plano */
 					if (!GenerarPlanoT23(pFileCtaFicticiaUnx, regCliente)){
-						$ROLLBACK WORK;
+						/*$ROLLBACK WORK;*/
 						exit(1);	
 					}
 
 					/* Registrar Control Cliente */
+/*               
 					if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
 						$ROLLBACK WORK;
 						exit(1);	
 					}
+*/               
 					cantFicticia++;
 					
 					cantActivoProcesada++;
 
 				}
-				$COMMIT WORK;
+				/*$COMMIT WORK;*/
 			}/* Verif de Cliente ya migrado*/
 		}else{
 			/* CLIENTES NO ACTIVOS */
 
 			iFlagMigra=0;
 			if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra)){
-            $BEGIN WORK;
+            /*$BEGIN WORK;*/
 				iEsCorpo=0;
 
 				/* Generar Plano */
 				if (!GenerarPlanoT1(pFileCtaNoActivaUnx, regCliente, 2)){
-					$ROLLBACK WORK;
+					/*$ROLLBACK WORK;*/
 					exit(1);	
 				}
 
 				/* Registrar Control Cliente */
+/*            
 				if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
 					$ROLLBACK WORK;
 					exit(1);	
 				}
-            $COMMIT WORK;
+*/            
+            /*$COMMIT WORK;*/
 				cantNoActivoProcesada++;
 			}
 		}/* Verif Estado Cliente */
@@ -240,7 +247,7 @@ int		iFlagMigra;
    
    $BEGIN WORK;
       
-	AdministraPlanos();
+	/*AdministraPlanos();*/
 
 	$COMMIT WORK;
 
@@ -289,7 +296,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc > 5 || argc < 4){
+	if(argc > 6 || argc < 5){
 		MensajeParametros();
 		return 0;
 	}
@@ -302,9 +309,10 @@ char	* argv[];
 	
 	giEstadoCliente=atoi(argv[2]);
 	strcpy(gsTipoGenera, argv[3]);
-	
-	if(argc == 5){	
-		glNroCliente=atol(argv[4]);
+	giTipoCorrida=atoi(argv[4]);
+   
+	if(argc == 6){	
+		glNroCliente=atol(argv[5]);
 	}else{
 		glNroCliente=-1;	
 	}
@@ -317,8 +325,8 @@ void MensajeParametros(void){
 		printf("\t<Base> = synergia.\n");
 		printf("\t<Estado Cliente> = 0 Activo - 1 No Activo 2 - Todos.\n");
 		printf("\t<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("\t<Tipo Corrida> 0 = Normal, 1 = Reducida.\n");
 		printf("\t<Nro.Cliente> Opcional.\n");
-
 }
 
 
@@ -360,6 +368,7 @@ $char sAux[1000];
 	strcat(sql, "c.tipo_sum, ");
    strcat(sql, "t8.cod_sap, ");  /* Estado Cobrabilidad */
    strcat(sql, "c.tiene_corte_rest, ");
+   strcat(sql, "c.tiene_cobro_int, ");
    strcat(sql, "t9.cod_sap "); /* Sucursal SAP */   
 	strcat(sql, "FROM corpoT1migrado ct, cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2,  OUTER sap_transforma t4, OUTER sap_transforma t5, sap_transforma t6, ");
 	strcat(sql, "OUTER(postal p, sap_transforma t3), sap_transforma t7, OUTER clientes_digital cd, OUTER sap_transforma t8, sap_transforma t9 ");
@@ -425,12 +434,14 @@ $char sAux[1000];
 	strcat(sql, "c.tipo_sum, ");
    strcat(sql, "t8.cod_sap, ");  /* Estado Cobrabilidad */
    strcat(sql, "c.tiene_corte_rest, ");
+   strcat(sql, "c.tiene_cobro_int, ");
    strcat(sql, "t9.cod_sap ");   /* sucursal SAP */
 	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2,  OUTER sap_transforma t4, OUTER sap_transforma t5, sap_transforma t6, ");
 	strcat(sql, "OUTER(postal p, sap_transforma t3), sap_transforma t7, OUTER clientes_digital cd, OUTER sap_transforma t8, sap_transforma t9 ");
-
-strcat(sql, ", migra_activos ma ");   
    
+if(giTipoCorrida == 1)
+   strcat(sql, ", migra_activos ma ");   
+  
 /*	
 if(giEstadoCliente!=0){
 	strcat(sql, ", sap_inactivos si ");
@@ -481,13 +492,15 @@ if(giEstadoCliente!=0){
 	strcat(sql, "AND (cd.fecha_baja IS NULL OR cd.fecha_baja > TODAY) ");
 	strcat(sql, "AND t8.clave = 'ESTCOB' ");
 	strcat(sql, "AND t8.cod_mac = c.estado_cobrabilida ");
-   strcat(sql, "AND t8.clave = 'CENTROOP' ");
-	strcat(sql, "AND t8.cod_mac = c.sucursal ");
+   strcat(sql, "AND t9.clave = 'CENTROOP' ");
+	strcat(sql, "AND t9.cod_mac = c.sucursal ");
 /*      
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM corpoT1migrado ct ");
 	strcat(sql, "   WHERE ct.numero_cliente = c.numero_cliente) ");
-*/   
-strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
+*/
+if(giTipoCorrida == 1)   
+   strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
+
 /*	
 	strcat(sql, "ORDER BY c.numero_cliente ");
 */
@@ -523,7 +536,7 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/********* Select Tipo Entidad Debito **********/
    
@@ -556,7 +569,7 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -571,7 +584,7 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");	
 	
-	$PREPARE insGenPartner FROM $sql;
+	/*$PREPARE insGenPartner FROM $sql;*/
 	
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
@@ -586,7 +599,22 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE updClientesMigra FROM $sql;
-      
+
+	/********* Exenciones Impositivas **********/
+	strcpy(sql, "SELECT e.numero_cliente, "); 
+	strcat(sql, "e.codigo_cargo, "); 
+	strcat(sql, "TO_CHAR(e.fecha_desde, '%Y%d%m'), ");
+	strcat(sql, "NVL(TO_CHAR(e.fecha_hasta, '%Y%d%m'),'99991231'), ");
+   strcat(sql, "e.porcentaje_nuevo ");
+	strcat(sql, "FROM exencion_imp e ");
+	strcat(sql, "WHERE e.numero_cliente = ? ");
+	strcat(sql, "AND e.fecha_desde <= TODAY ");
+	strcat(sql, "AND (e.fecha_hasta IS NULL OR e.fecha_hasta > TODAY) ");
+
+   $PREPARE selExenciones FROM $sql;
+   
+   $DECLARE curExenciones CURSOR FOR selExenciones;
+         
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -614,13 +642,11 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipo)
 $char	sTipo[21];
 {
 $long iValor=0;
-
-	/*alltrim(sTipo, ' ');*/
 
 	$EXECUTE selCorrelativo INTO :iValor using :sTipo;
 
@@ -631,7 +657,7 @@ $long iValor=0;
 
     return iValor;
 }
-
+*/
 short LeoClientes(regCli)
 $ClsCliente *regCli;
 {
@@ -654,6 +680,7 @@ $ClsCliente *regCli;
 		:regCli->sTipoSum,
       :regCli->sEstadoCobrabilidad,
       :regCli->tiene_corte_rest,
+      :regCli->tiene_cobro_int,
       :regCli->sCodSucurSap;
       			
 
@@ -705,6 +732,7 @@ $ClsCliente *regCli;
 		:regCli->sTipoSum,
       :regCli->sEstadoCobrabilidad,
       :regCli->tiene_corte_rest,
+      :regCli->tiene_cobro_int,
       :regCli->sCodSucurSap;
       			
 
@@ -759,6 +787,7 @@ $ClsCliente	*regCli;
    memset(regCli->sTipoDebito, '\0', sizeof(regCli->sTipoDebito));
    memset(regCli->sEstadoCobrabilidad, '\0', sizeof(regCli->sEstadoCobrabilidad));
    memset(regCli->tiene_corte_rest, '\0', sizeof(regCli->tiene_corte_rest));
+   memset(regCli->tiene_cobro_int, '\0', sizeof(regCli->tiene_cobro_int));
    memset(regCli->sTipoEntidadDebito, '\0', sizeof(regCli->sTipoEntidadDebito));
    
    memset(regCli->sCodSucurSap, '\0', sizeof(regCli->sCodSucurSap));
@@ -811,7 +840,8 @@ FILE 			*fp;
 $ClsCliente		regCliente;
 int         iTipo;
 {
-		
+$ClsExencion   regExen;
+
 	/* INIT */
 	GeneraINIT(fp, regCliente, "T1", iTipo);
 
@@ -821,12 +851,27 @@ int         iTipo;
 	/* VKP */
 	GeneraVKP(fp, regCliente, "T1", iTipo);
 
-	/* VKLOCK */
-	/*GeneraVKLOCK(fp, regCliente, "T1");*/
+   if(regCliente.tiene_corte_rest[0]=='S'){
+   	/* VKLOCK */
+   	GeneraVKLOCK(fp, regCliente, "T1", iTipo, "R");
+   }
 
-	/* VKTXEX */
-	/*GeneraVKTXEX(fp, regCliente);*/
+   if(regCliente.tiene_cobro_int[0]=='N'){
+   	/* VKLOCK */
+   	GeneraVKLOCK(fp, regCliente, "T1", iTipo, "I");
+   }
 
+/* Dejo en suspenso las exenciones impositivas
+
+   $OPEN curExenciones USING :regCliente.numero_cliente;
+   
+   while(LeoExencion(&regExen)){
+   	// VKTXEX 
+   	GeneraVKTXEX(fp, regCliente, regExen, iTipo);
+   }
+   
+   $CLOSE curExenciones;
+*/   
 	/* ENDE */
 	GeneraENDE(fp, regCliente, iTipo);
 
@@ -935,11 +980,12 @@ $ClsCliente	regCliente;
 	fprintf(fp, sLinea);
 }
 
-void GeneraVKLOCK(fp, regCliente, sTarifa, iTipo)
+void GeneraVKLOCK(fp, regCliente, sTarifa, iTipo, sTipo)
 FILE *fp;
 $ClsCliente	regCliente;
 char	sTarifa[3];
 int   iTipo;
+char  sTipo[2];
 {
 	char	sLinea[1000];	
 
@@ -970,33 +1016,25 @@ int   iTipo;
 	}
    
    /* LOTYP_KEY */
-   if(regCliente.tiene_corte_rest[0]=='S'){
-      strcat(sLinea, "04\t"); /* Cuenta */
-   }else{
-      strcat(sLinea, "\t");
-   }
+   strcat(sLinea, "04\t"); /* Cuenta */
    
    /* PROID_KEY */
-   if(regCliente.tiene_corte_rest[0]=='S'){
+   if(sTipo[0]=='R'){
       strcat(sLinea, "01\t"); /* Reclamacion */
    }else{
-      strcat(sLinea, "\t");
+      strcat(sLinea, "04\t"); /* Intereses */
    }
 
-   /* LOCKR_KEY */		
-   if(regCliente.tiene_corte_rest[0]=='S'){
-      strcat(sLinea, "E\t"); /* Lock Reclamacion */
-   }else{
-      strcat(sLinea, "\t");
-   }
+   /* LOCKR_KEY */
+   strcat(sLinea, "X\t"); /* Migracion */
 
    /* FDATE_KEY */
-	strcat(sLinea, "\t");
+	strcat(sLinea, "20150101\t");
    /* TDATE_KEY */
-	strcat(sLinea, "\t");
-	
+	strcat(sLinea, "99991231");
+/*	
 	strcat(sLinea, "\t\t\t\t\t\t\t");
-	
+*/	
 	strcat(sLinea, "\n");
 	
 	fprintf(fp, sLinea);
@@ -1156,8 +1194,11 @@ int iTipo;
    /* FORMKEY */
 	strcat(sLinea, "IS_U_BILL_SSF\t");
 	
-   /* AUSGRUP_IN + MANOUTS_IN */
-	strcat(sLinea, "\t\t");
+   /* AUSGRUP_IN */
+	strcat(sLinea, "T1\t");
+   
+   /* MANOUTS_IN */
+   strcat(sLinea, "\t");
    
    /* GSBER */
    sprintf(sLinea, "%s%s\t", sLinea, regCliente.sCodSucurSap);
@@ -1188,7 +1229,8 @@ int iTipo;
 		if(regCliente.minist_repart > 0){
 			sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.minist_repart);	
 		}else{
-			sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
+			/*sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);*/
+         strcat(sLinea, "\t");
 		}
 	}else{
 		if(strcmp(regCliente.sCodCorpoPadreT23, "")!=0){
@@ -1233,9 +1275,10 @@ int iTipo;
 	fprintf(fp, sLinea);	
 }
 
-void GeneraVKTXEX(fp, regCliente, iTipo)
+void GeneraVKTXEX(fp, regCliente, regExe, iTipo)
 FILE *fp;
 $ClsCliente	regCliente;
+$ClsExencion regExe;
 int   iTipo;
 {
 	char	sLinea[1000];	
@@ -1247,10 +1290,25 @@ int   iTipo;
    }else{
 	  sprintf(sLinea, "T1%ld\tVKTXEX\t", regCliente.numero_cliente);
    }
+   /* TAXEXAKTYP */
 	strcat(sLinea, "I\t");
-	sprintf(sLinea, "%s%s\t", sLinea, regCliente.tipo_iva);
-	strcat(sLinea, "\t\t\t\t\t\t");
-
+   /* MWSKZ */
+	/*sprintf(sLinea, "%s%s\t", sLinea, regCliente.tipo_iva);*/
+   strcat(sLinea, "ZE\t");
+   /* KSCHL */
+   strcat(sLinea, "ED01\t");
+   /* EXDFR */
+   strcat(sLinea, "\t");
+   /* EXDTO */
+   strcat(sLinea, "\t");
+   /* EXNUM */
+   strcat(sLinea, "\t");
+   /* EXRAT */
+   strcat(sLinea, "100.00\t");
+   /* LAUFD */
+   strcat(sLinea, "\t");
+   /* LAUFI */
+   
 	strcat(sLinea, "\n");
 	
 	fprintf(fp, sLinea);	
@@ -1345,7 +1403,7 @@ $ClsCliente *regCliente;
 	return 1;
 }
 
-
+/*
 short RegistraArchivo(nomArchivo, sTipoArchivo, iCant)
 $char	nomArchivo[100];
 $char	sTipoArchivo[21];
@@ -1353,8 +1411,6 @@ $long	iCant;
 {
 	$int iEstado=giEstadoCliente;
 	$long	lNroCliente=glNroCliente;
-	
-	/*alltrim(sTipoArchivo, ' ');*/
 	
 	$EXECUTE updGenArchivos using :sTipoArchivo;
 	
@@ -1376,7 +1432,7 @@ $long	iCant;
 		
 	return 1;
 }
-
+*/
 short AbreArchivos(){
 
 	memset(sArchCtaActivaUnx,'\0',sizeof(sArchCtaActivaUnx));
@@ -1397,15 +1453,18 @@ short AbreArchivos(){
     FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 
 	switch (giEstadoCliente){
 		case 0: /* Activos */
 
-			lCorrelativoActivo = getCorrelativo("CTACONTRA_ACTIVA");
+			/*lCorrelativoActivo = getCorrelativo("CTACONTRA_ACTIVA");*/
 
 		   sprintf( sArchCtaActivaUnx  , "%sT1ACCOUNT_ACTIVA.unx", sPathSalida );
 			strcpy( sSoloArchivoCtaActiva, "T1ACCOUNT_ACTIVA.unx" );
@@ -1430,7 +1489,7 @@ short AbreArchivos(){
 			break;
 			
 		case 1: /* No Activos */
-			lCorrelativoNoActivo = getCorrelativo("CTACONTRA_NOACTIVA");
+			/*lCorrelativoNoActivo = getCorrelativo("CTACONTRA_NOACTIVA");*/
 		
 		   sprintf( sArchCtaNoActivaUnx  , "%sT1ACCOUNT_INACTIVA.unx", sPathSalida );
 			strcpy( sSoloArchivoCtaNoActiva, "T1ACCOUNT_INACTIVA.unx");
@@ -1444,7 +1503,7 @@ short AbreArchivos(){
 			break;
 			
 		case 2:	/* Activos y No Activos */
-			lCorrelativoActivo = getCorrelativo("CTACONTRA_ACTIVA");
+			/*lCorrelativoActivo = getCorrelativo("CTACONTRA_ACTIVA");*/
 		
 		   sprintf( sArchCtaActivaUnx  , "%sCtaContratoActiva_T1_%s_%d.unx", sPathSalida, FechaGeneracion, lCorrelativoActivo );
 			sprintf( sSoloArchivoCtaActiva, "CtaContratoActiva_T1_%s_%d.txt", FechaGeneracion, lCorrelativoActivo );
@@ -1455,7 +1514,7 @@ short AbreArchivos(){
 				return 0;
 			}
 
-			lCorrelativoNoActivo = getCorrelativo("CTACONTRA_NOACTIVA");
+			/*lCorrelativoNoActivo = getCorrelativo("CTACONTRA_NOACTIVA");*/
 		
 		    sprintf( sArchCtaNoActivaUnx  , "%sCtaContratoNoActiva_T1_%s_%d.unx", sPathSalida, FechaGeneracion, lCorrelativoNoActivo );
 			sprintf( sSoloArchivoCtaNoActiva, "CtaContratoNoActiva_T1_%s_%d.txt", FechaGeneracion, lCorrelativoNoActivo );
@@ -1468,9 +1527,9 @@ short AbreArchivos(){
 			break;
 	}
 
-	lCorrelativoFicticia = getCorrelativo("CTACONTRA_FICTICIA");
+	/*lCorrelativoFicticia = getCorrelativo("CTACONTRA_FICTICIA");*/
 
-    sprintf( sArchCtaFicticiaUnx  , "%sT1ACCOUNT_CorpoT23.unx", sPathSalida);
+   sprintf( sArchCtaFicticiaUnx  , "%sT1ACCOUNT_CorpoT23.unx", sPathSalida);
 	strcpy( sSoloArchivoCtaFicticia, "T1ACCOUNT_CorpoT23.unx");
 
 	pFileCtaFicticiaUnx=fopen( sArchCtaFicticiaUnx, "w" );
@@ -1481,7 +1540,7 @@ short AbreArchivos(){
 
 	return 1;	
 }
-
+   
 void CierroArchivos(){
 	switch (giEstadoCliente){
 		case 0:
@@ -1498,7 +1557,7 @@ void CierroArchivos(){
 	}
 	fclose(pFileCtaFicticiaUnx);
 }
-
+/*
 void AdministraPlanos(){
 	switch(giEstadoCliente){
 		case 0:
@@ -1548,7 +1607,7 @@ void AdministraPlanos(){
 			break;			
 	}	
 }
-
+*/
 
 short GenerarPlanoT23(fp, regCliente)
 FILE 			*fp;
@@ -1691,9 +1750,11 @@ int		iRcv, i;
 	memset(sDestino, '\0', sizeof(sDestino));
 	
 	if(giEstadoCliente==0){
-		strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+      sprintf(sDestino, "%sActivos/", sPathCopia);
+		/*strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
 	}else{
-		strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+		/*strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+      sprintf(sDestino, "%sInactivos/", sPathCopia);
 	}
 
 	if(cantActivoProcesada>0){
@@ -1750,5 +1811,37 @@ int		iRcv, i;
 	sprintf(sCommand, "rm -f %s", sArchCtaFicticiaUnx);
 	iRcv=system(sCommand);		
 */
+}
+
+short LeoExencion(reg)
+$ClsExencion   *reg;
+{
+
+   InicializaExencion(reg);
+
+   $FETCH curExenciones INTO
+      :reg->numero_cliente,
+      :reg->MWSKZ,
+      :reg->KSCHL,
+      :reg->sFechaDesde,
+      :reg->sFechaHasta,
+      :reg->EXRAT;
+      
+   if(SQLCODE != 0){
+      return 0;
+   }
+   return 1;
+}
+
+void InicializaExencion(reg)
+ClsExencion *reg;
+{
+
+	rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
+	memset(reg->MWSKZ, '\0', sizeof(reg->MWSKZ));
+	memset(reg->KSCHL, '\0', sizeof(reg->KSCHL));
+	memset(reg->sFechaDesde, '\0', sizeof(reg->sFechaDesde));
+   memset(reg->sFechaHasta, '\0', sizeof(reg->sFechaHasta));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->EXRAT));
 }
 

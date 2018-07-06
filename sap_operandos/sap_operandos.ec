@@ -29,6 +29,7 @@ $include "sap_operandos.h";
 $long	glNroCliente;
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 FILE	*pFileOperandosUnx;
 
@@ -36,6 +37,7 @@ char	sArchOperandosUnx[100];
 char	sSoloArchivoOperandos[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -77,6 +79,7 @@ long			lDifDias;
 char			sFechaAlta[9];
 $long       lFechaIniAux;
 $long       lFechaFinAux;
+$long       lFechaValTarifa;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -95,7 +98,7 @@ $long       lFechaFinAux;
 
 	CreaPrepare();
 
-	$EXECUTE selFechaLimInf into :lFechaLimiteInferior;
+	/*$EXECUTE selFechaLimInf into :lFechaLimiteInferior;*/
 		
 	$EXECUTE selCorrelativos into :iCorrelativos;
 		
@@ -135,7 +138,8 @@ $long       lFechaFinAux;
          lClienteAnterior = regOperandos.numero_cliente;
 			iNx=1;
          
-			if(! ClienteYaMigrado("VIP", regOperandos.numero_cliente, &iFlagMigra)){
+			if(! ClienteYaMigrado("VIP", regOperandos.numero_cliente, &lFechaValTarifa, &iFlagMigra)){
+            rfmtdate(lFechaValTarifa, "yyyymmdd", regOperandos.fecha_vig_tarifa);
             
             if(getFechaIni(regOperandos, &lFechaIniAux)){
                rfmtdate(lFechaIniAux, "yyyymmdd", regOperandos.sFechaInicio);
@@ -203,7 +207,8 @@ $long       lFechaFinAux;
          lClienteAnterior = regOperandos.numero_cliente;
 			iNx=1;
          
-			if(! ClienteYaMigrado("TIS", regOperandos.numero_cliente, &iFlagMigra)){
+			if(! ClienteYaMigrado("TIS", regOperandos.numero_cliente, &lFechaValTarifa, &iFlagMigra)){
+            rfmtdate(lFechaValTarifa, "yyyymmdd", regOperandos.fecha_vig_tarifa);
             
             if(getFechaIni(regOperandos, &lFechaIniAux)){
                rfmtdate(lFechaIniAux, "yyyymmdd", regOperandos.sFechaInicio);
@@ -311,7 +316,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc < 4 || argc > 5){
+	if(argc < 5 || argc > 6){
 		MensajeParametros();
 		return 0;
 	}
@@ -326,9 +331,11 @@ char	* argv[];
 	giEstadoCliente=atoi(argv[2]);
 	
 	strcpy(gsTipoGenera, argv[3]);
+   
+   giTipoCorrida=atoi(argv[4]);
 	
-	if(argc==5){
-		glNroCliente=atoi(argv[4]);
+	if(argc==6){
+		glNroCliente=atoi(argv[5]);
 	}else{
 		glNroCliente=-1;
 	}
@@ -341,6 +348,7 @@ void MensajeParametros(void){
 		printf("	<Base> = synergia.\n");
 		printf("	<Estado Cliente> 0=Activos, 1=No Activos, 2=Ambos\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("	<Tipo Corrida> 0=Normal, 1=Reducida\n");
 		printf("	<Nro.Cliente>(Opcional)\n");
 }
 
@@ -355,12 +363,17 @@ short AbreArchivos()
     FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	lCorrelativo = getCorrelativo("OPERANDOS");
-	
 	alltrim(sPathSalida,' ');
+   
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
+   
+	/*lCorrelativo = getCorrelativo("OPERANDOS");*/
+	
+	
 
 	if(giEstadoCliente==0){
 		sprintf( sArchOperandosUnx  , "%sT1FACTS_Activo.unx", sPathSalida );
@@ -394,9 +407,11 @@ char	sPathCp[100];
 	memset(sPathCp, '\0', sizeof(sPathCp));
 
     if(giEstadoCliente==0){
-	    strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+	    /*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+       sprintf(sPathCp, "%sActivos/", sPathCopia);
 	}else{
-	    strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+	    /*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+       sprintf(sPathCp, "%sInactivos/", sPathCopia);
 	}
 
 	sprintf(sCommand, "chmod 755 %s", sArchOperandosUnx);
@@ -435,8 +450,9 @@ $char sAux[1000];
 	strcat(sql, "NVL(c.corr_facturacion, 0), ");
 	strcat(sql, "NVL(c.nro_beneficiario, 0) ");
 	strcat(sql, "FROM cliente c, clientes_vip v ");
-	
-strcat(sql, ", migra_activos m ");	
+
+   if(giTipoCorrida==1)	
+      strcat(sql, ", migra_activos m ");	
 
 	if(giEstadoCliente!=0){
 		strcat(sql, ", sap_inactivos si ");
@@ -469,8 +485,9 @@ strcat(sql, ", migra_activos m ");
    
 	strcat(sql, "AND v.numero_cliente = c.numero_cliente ");
 	/*strcat(sql, "AND v.fecha_activacion >= ? ");*/
-	
-strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
+
+   if(giTipoCorrida==1)	
+      strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	
 	strcat(sql, "ORDER BY v.numero_cliente, v.fecha_activacion ASC ");
 
@@ -499,7 +516,8 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "NVL(c.nro_beneficiario, 0) ");
 	strcat(sql, "FROM cliente c, tarifa_social v ");
 
-strcat(sql, ", migra_activos m ");	
+   if(giTipoCorrida == 1)
+      strcat(sql, ", migra_activos m ");	
 
 	if(giEstadoCliente!=0){
 		strcat(sql, ", sap_inactivos si ");
@@ -527,12 +545,13 @@ strcat(sql, ", migra_activos m ");
 	strcat(sql, "	AND cm.fecha_activacion < TODAY ");
 	strcat(sql, "	AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
 	strcat(sql, "AND v.numero_cliente = c.numero_cliente ");
+
 /*   
 	strcat(sql, "AND v.fecha_inicio >= ? ");
 */
    
-
-strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
+   if(giTipoCorrida == 1)
+      strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 
 	strcat(sql, "ORDER BY v.numero_cliente, v.fecha_inicio ");
 	
@@ -571,7 +590,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -579,7 +598,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -594,7 +613,7 @@ strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenInstal FROM $sql;
+	/*$PREPARE insGenInstal FROM $sql;*/
 
 	/********* Select Cliente ya migrado VIP **********/
 	strcpy(sql, "SELECT operando_vip FROM sap_regi_cliente ");
@@ -764,7 +783,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -779,7 +798,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoElectroDependencia(regOpe)
 $ClsOperando *regOpe;
 {
@@ -878,29 +897,27 @@ $ClsOperando	*regOpe;
 
 }
 
-short ClienteYaMigrado(sOpe, nroCliente, iFlagMigra)
+short ClienteYaMigrado(sOpe, nroCliente, lFechaTarifa, iFlagMigra)
 char	sOpe[4];
 $long	nroCliente;
+$long *lFechaTarifa;
 int		*iFlagMigra;
 {
 	$char	sMarca[2];
+   $long lFecha;
 	
-	if(gsTipoGenera[0]=='R'){
-		return 0;	
-	}
 	
 	memset(sMarca, '\0', sizeof(sMarca));
 	
 	if(strcmp(sOpe, "VIP")==0){
-		$EXECUTE selClienteMigrado into :sMarca using :nroCliente;
+		$EXECUTE selClienteMigrado into :sMarca, :lFecha using :nroCliente;
 	}else{
-		$EXECUTE selClienteMigrado2 into :sMarca using :nroCliente;
+		$EXECUTE selClienteMigrado2 into :sMarca, :lFecha using :nroCliente;
 	}
 		
 	if(SQLCODE != 0){
 		if(SQLCODE==SQLNOTFOUND){
 			*iFlagMigra=1; /* Indica que se debe hacer un insert */
-			return 0;
 		}else{
 			printf("ErroR al verificar si el cliente %ld ya había sido migrado.\n", nroCliente);
 			exit(1);
@@ -908,12 +925,16 @@ int		*iFlagMigra;
 	}
 	
 	if(strcmp(sMarca, "S")==0){
-		*iFlagMigra=2; /* Indica que se debe hacer un update */	
-		return 1;
+		*iFlagMigra=2; /* Indica que se debe hacer un update */
+   	if(gsTipoGenera[0]=='G'){
+   		return 1;	
+   	}
 	}else{
 		*iFlagMigra=2; /* Indica que se debe hacer un update */	
 	}
-		
+
+   *lFechaTarifa = lFecha;
+   
 	return 0;
 }
 
@@ -1024,7 +1045,7 @@ long			iNx;
 	
 	fprintf(fp, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -1048,7 +1069,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 short RegistraCliente(sOpe, nroCliente, iFlagMigra)
 char	sOpe[4];
 $long	nroCliente;

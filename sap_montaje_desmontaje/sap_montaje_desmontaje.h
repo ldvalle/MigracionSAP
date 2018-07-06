@@ -78,7 +78,7 @@ short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
-short	ClienteYaMigrado(long, int*, long*);
+short	ClienteYaMigrado(long, int*, long*, long*);
 short	RegistraCliente(long, int);
 char	*getFechaFactura(long, long, long*);
 short	LeoPrimerMontajeReal(long, long, ClsLecturas*);

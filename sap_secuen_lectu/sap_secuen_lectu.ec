@@ -25,12 +25,14 @@ $include "sap_secuen_lectu.h";
 
 /* Variables Globales */
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 char	sArchSecuenLectuUnx[100];
 char	sArchSecuenLectuDos[100];
 char	sSoloArchivoSecuenLectu[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -70,30 +72,54 @@ int		iFlagMigra=0;
 	
 	/*$BEGIN WORK;*/
 
-	EXEC SQL SELECT c.sucursal,
-		c.sector, 
-		c.zona, 
-		c.correlativo_ruta,
-		c.numero_cliente, 
-		s.cod_ul_sap || 
-		lpad(case when c.sector>60 and c.sector < 81 then c.sector else c.sector end, 2, 0) || 
-		lpad(c.zona,5,0) unidad_lectura,
-		'T1' || m.numero_medidor || m.marca_medidor || m.modelo_medidor aparato
-		FROM cliente c, sucur_centro_op s, medid m, migra_activos ma 
-		WHERE c.estado_cliente = 0 
-		AND c.tipo_sum != 5 
-		AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm
-			WHERE cm.numero_cliente = c.numero_cliente
-			AND cm.fecha_activacion < TODAY
-			AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY))
-		AND c.sector BETWEEN 41 AND 82
-		AND s.cod_centro_op = c.sucursal
-		AND m.numero_cliente = c.numero_cliente 
-		AND m.estado = 'I'
-      AND ma.numero_cliente = c.numero_cliente 
-
-		INTO TEMP tempo1 WITH NO log;
-
+   if(giTipoCorrida==0){
+   	EXEC SQL SELECT c.sucursal,
+   		c.sector, 
+   		c.zona, 
+   		c.correlativo_ruta,
+   		c.numero_cliente, 
+   		s.cod_ul_sap || 
+   		lpad(case when c.sector>60 and c.sector < 81 then c.sector else c.sector end, 2, 0) || 
+   		lpad(c.zona,5,0) unidad_lectura,
+   		'T1' || m.numero_medidor || m.marca_medidor || m.modelo_medidor aparato
+   		FROM cliente c, sucur_centro_op s, medid m 
+   		WHERE c.estado_cliente = 0 
+   		AND c.tipo_sum != 5 
+   		AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm
+   			WHERE cm.numero_cliente = c.numero_cliente
+   			AND cm.fecha_activacion < TODAY
+   			AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY))
+   		AND c.sector BETWEEN 41 AND 82
+   		AND s.cod_centro_op = c.sucursal
+   		AND m.numero_cliente = c.numero_cliente 
+   		AND m.estado = 'I'
+   
+   		INTO TEMP tempo1 WITH NO log;
+   }else{
+   	EXEC SQL SELECT c.sucursal,
+   		c.sector, 
+   		c.zona, 
+   		c.correlativo_ruta,
+   		c.numero_cliente, 
+   		s.cod_ul_sap || 
+   		lpad(case when c.sector>60 and c.sector < 81 then c.sector else c.sector end, 2, 0) || 
+   		lpad(c.zona,5,0) unidad_lectura,
+   		'T1' || m.numero_medidor || m.marca_medidor || m.modelo_medidor aparato
+   		FROM migra_activos ma, cliente c, sucur_centro_op s, medid m 
+   		WHERE c.numero_cliente = ma.numero_cliente 
+   		AND c.tipo_sum != 5 
+   		AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm
+   			WHERE cm.numero_cliente = c.numero_cliente
+   			AND cm.fecha_activacion < TODAY
+   			AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY))
+   		AND c.sector BETWEEN 41 AND 82
+   		AND s.cod_centro_op = c.sucursal
+   		AND m.numero_cliente = c.numero_cliente 
+   		AND m.estado = 'I'
+   
+   		INTO TEMP tempo1 WITH NO log;
+   
+   }
 	CreaPrepare();
 
 	/* ********************************************
@@ -180,7 +206,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc != 3){
+	if(argc != 4){
 		MensajeParametros();
 		return 0;
 	}
@@ -188,6 +214,7 @@ char	* argv[];
 	memset(gsTipoGenera, '\0', sizeof(gsTipoGenera));
 
 	strcpy(gsTipoGenera, argv[2]);
+   giTipoCorrida=atoi(argv[3]);
 	
 	return 1;
 }
@@ -196,6 +223,7 @@ void MensajeParametros(void){
 		printf("Error en Parametros.\n");
 		printf("	<Base> = synergia.\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("	<Tipo Corrida> 0 = Normal, 1 = Reducida.\n");
 }
 
 short AbreArchivos()
@@ -206,19 +234,20 @@ short AbreArchivos()
 	memset(sSoloArchivoSecuenLectu,'\0',sizeof(sSoloArchivoSecuenLectu));
 	
 	memset(FechaGeneracion,'\0',sizeof(FechaGeneracion));
-    FechaGeneracionFormateada(FechaGeneracion);
+   FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	lCorrelativo = getCorrelativo("SECUENLEC");
-	
 	alltrim(sPathSalida,' ');
 
-	sprintf( sArchSecuenLectuUnx  , "%sSecuenLectu_T1_%s_%d.unx", sPathSalida, FechaGeneracion, lCorrelativo );
-	sprintf( sArchSecuenLectuDos  , "%sSecuenLectu_T1_%s_%d.txt", sPathSalida, FechaGeneracion, lCorrelativo );
-	sprintf( sSoloArchivoSecuenLectu, "SecuenLectu_T1_%s_%d.txt", FechaGeneracion, lCorrelativo );
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
+
+	sprintf( sArchSecuenLectuUnx  , "%sSecuenLectu_T1.unx", sPathSalida);
+	sprintf( sArchSecuenLectuDos  , "%sSecuenLectu_T1.txt", sPathSalida);
+	strcpy( sSoloArchivoSecuenLectu, "SecuenLectu_T1.txt");
 
 	pFileSecuenLectuUnx=fopen( sArchSecuenLectuUnx, "w" );
 	if( !pFileSecuenLectuUnx ){
@@ -242,7 +271,8 @@ char	sPathCp[100];
 	memset(sCommand, '\0', sizeof(sCommand));
    memset(sPathCp, '\0', sizeof(sPathCp));
 
-   strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+   /*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+   sprintf(sPathCp, "%sActivos/", sPathSalida);
    
 	sprintf(sCommand, "chmod 755 %s", sArchSecuenLectuUnx);
 	iRcv=system(sCommand);
@@ -335,7 +365,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -343,7 +373,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -358,7 +388,7 @@ $char sAux[1000];
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, -1, ?) ");
 	
-	$PREPARE insGenSecuen FROM $sql;
+	/*$PREPARE insGenSecuen FROM $sql;*/
 	
 }
 
@@ -387,7 +417,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -402,7 +432,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoSecuencia(regSecu)
 $ClsSecuLectu *regSecu;
 {
@@ -479,7 +509,7 @@ $ClsSecuLectu	regSecu;
 	
 	fprintf(fp, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -502,7 +532,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 void GeneraMRU(fp, regSecu)
 FILE 		*fp;
 ClsSecuLectu	regSecu;

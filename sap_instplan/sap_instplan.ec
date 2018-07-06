@@ -1,17 +1,17 @@
 /********************************************************************************
     Proyecto: Migracion al sistema SAP IS-U
-    Aplicacion: sap_depgar
+    Aplicacion: sap_instplan
     
-	Fecha : 28/04/2017
+	Fecha : 05/04/2018
 
 	Autor : Lucas Daniel Valle(LDV)
 
 	Funcion del programa : 
-		Extractor que genera el archivo plano para las estructura SECURITY (Depositos en Garantia)
+		Extractor que genera el archivo plano para las estructura INSTPLAN (Planes de Pago CONVE)
 		
 	Descripcion de parametros :
 		<Base de Datos> : Base de Datos <synergia>
-		<Estado Cliente> : 0=Activos; 1= No Activos; 2= Todos;		
+      <Estado Cliente> : 0 = Activos; 1 = No Activos
 		<Tipo Generacion>: G = Generacion; R = Regeneracion
 		
 		<Nro.Cliente>: Opcional
@@ -23,21 +23,21 @@
 #include <time.h>
 #include <synmail.h>
 
-$include "sap_depgar.h";
+$include "sap_instplan.h";
 
 /* Variables Globales */
 $long	glNroCliente;
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
 int   giTipoCorrida;
-$char sPathCopia[100];
 
-FILE	*pFileDepgarUnx;
+FILE	*pFileUnx;
 
-char	sArchDepgarUnx[100];
-char	sSoloArchivoDepgar[100];
+char	sArchUnx[100];
+char	sSoloArchivo[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -52,9 +52,10 @@ long 	cantPreexistente;
 char	sMensMail[1024];	
 
 /* Variables Globales Host */
+/*
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
-
+*/
 $WHENEVER ERROR CALL SqlException;
 
 void main( int argc, char **argv ) 
@@ -62,13 +63,9 @@ void main( int argc, char **argv )
 $char 	nombreBase[20];
 time_t 	hora;
 int		iFlagMigra=0;
-$long	   lCorrFactuIni;
-$ClsDepgar	regDepgar;
-int				iNx;
+$ClsConve	regConve;
+int			iNx;
 $long			lFechaAlta;
-$long			lFechaIniAnterior;
-$long			lFechaHastaAnterior;
-long			lDifDias;
 char			sFechaAlta[9];
 
 	if(! AnalizarParametros(argc, argv)){
@@ -90,10 +87,10 @@ char			sFechaAlta[9];
 
 	CreaPrepare();
 
-
+/*
 	$EXECUTE selFechaLimInf into :lFechaLimiteInferior;
-		
 	$EXECUTE selCorrelativos into :iCorrelativos;
+*/
 		
 	/* ********************************************
 				INICIO AREA DE PROCESO
@@ -109,27 +106,16 @@ char			sFechaAlta[9];
 
 
 	if(glNroCliente > 0){
-		$OPEN curDepgar using :glNroCliente;
+		$OPEN curConve using :glNroCliente;
 	}else{
-		$OPEN curDepgar;
+		$OPEN curConve;
 	}
 
 	
-	while(LeoDepgar(&regDepgar)){
-		if(! ClienteYaMigrado(regDepgar.numero_cliente, &iFlagMigra)){
-			/* Obtener la Fecha Montaje */
-			memset(sFechaAlta, '\0', sizeof(sFechaAlta));
-			
-			if(!CargaAltaCliente(&regDepgar)){
-				/*$ROLLBACK WORK;*/
-				exit(1);				
-			}
-         /*
-         if(regDepgar.lFechaVigTarifa > regDepgar.lFechaDeposito){
-            strcpy(regDepgar.sFechaDeposito, regDepgar.sFechaVigTarifa);
-         }
-         */
-         GenerarPlano(pFileDepgarUnx, regDepgar);
+	while(LeoConve(&regConve)){
+		if(! ClienteYaMigrado(regConve.numero_cliente, &iFlagMigra)){
+
+         GenerarPlano(pFileUnx, regConve);
 			
          cantProcesada++;
 		}else{
@@ -173,7 +159,7 @@ char			sFechaAlta[9];
 */
 
 	printf("==============================================\n");
-	printf("DEPOSITOS EN GARANTIA.\n");
+	printf("INSTPLAN (conve).\n");
 	printf("==============================================\n");
 	printf("Proceso Concluido.\n");
 	printf("==============================================\n");
@@ -234,8 +220,8 @@ void MensajeParametros(void){
 short AbreArchivos()
 {
 	
-	memset(sArchDepgarUnx,'\0',sizeof(sArchDepgarUnx));
-	memset(sSoloArchivoDepgar,'\0',sizeof(sSoloArchivoDepgar));
+	memset(sArchUnx,'\0',sizeof(sArchUnx));
+	memset(sSoloArchivo,'\0',sizeof(sSoloArchivo));
 
 	
 	memset(FechaGeneracion,'\0',sizeof(FechaGeneracion));
@@ -246,23 +232,21 @@ short AbreArchivos()
 
 	RutaArchivos( sPathSalida, "SAPISU" );
 	alltrim(sPathSalida,' ');
-   
-	RutaArchivos( sPathCopia, "SAPISU" );
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
 	alltrim(sPathCopia,' ');
-   
-	/*lCorrelativo = getCorrelativo("DEPGAR");*/
-	
+
 	if(giEstadoCliente==0){
-		sprintf( sArchDepgarUnx  , "%sT1SECURITY_Activo.unx", sPathSalida );
-		strcpy( sSoloArchivoDepgar, "T1SECURITY_Activo.unx");
+		sprintf( sArchUnx  , "%sT1INSTPLAN.unx", sPathSalida );
+		strcpy( sSoloArchivo, "T1INSTPLAN.unx");
 	}else{
-		sprintf( sArchDepgarUnx  , "%sT1SECURITY_Inactivo.unx", sPathSalida );
-		strcpy( sSoloArchivoDepgar, "T1SECURITY_Inactivo.unx");
+		sprintf( sArchUnx  , "%sT1INSTPLAN_Inactivo.unx", sPathSalida );
+		strcpy( sSoloArchivo, "T1INSTPLAN_Inactivo.unx");
 	}
 	
-	pFileDepgarUnx=fopen( sArchDepgarUnx, "w" );
-	if( !pFileDepgarUnx ){
-		printf("ERROR al abrir archivo %s.\n", sArchDepgarUnx );
+	pFileUnx=fopen( sArchUnx, "w" );
+	if( !pFileUnx ){
+		printf("ERROR al abrir archivo %s.\n", sArchUnx );
 		return 0;
 	}
 
@@ -272,7 +256,7 @@ short AbreArchivos()
 void CerrarArchivos(void)
 {
     
-	fclose(pFileDepgarUnx);
+	fclose(pFileUnx);
 }
 
 void FormateaArchivos(void){
@@ -285,16 +269,16 @@ char	sPathCp[100];
 
     if(giEstadoCliente==0){
 	    /*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
-       strcpy(sPathCp, "%sActivos/", sPathCopia);
+       sprintf(sPathCp, "%sActivos/", sPathCopia);
 	}else{
 	    /*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
-       strcpy(sPathCp, "%sInactivos/", sPathCopia);
+       sprintf(sPathCp, "%sInactivos/", sPathCopia);
 	}
 
-	sprintf(sCommand, "chmod 755 %s", sArchDepgarUnx);
+	sprintf(sCommand, "chmod 755 %s", sArchUnx);
 	iRcv=system(sCommand);
 	
-	sprintf(sCommand, "cp %s %s", sArchDepgarUnx, sPathCp);
+	sprintf(sCommand, "cp %s %s", sArchUnx, sPathCp);
 	iRcv=system(sCommand);
 }
 
@@ -315,23 +299,21 @@ $char sAux[1000];
 	
 	$PREPARE selFechaActual FROM $sql;	
 	
-	/******** DEPGAR  *********/
-	strcpy(sql, "SELECT d.numero_dg, ");
-	strcat(sql, "d.numero_cliente, ");
-	strcat(sql, "d.nro_comprob, ");
-	strcat(sql, "TO_CHAR(d.fecha_deposito, '%Y%m%d'), ");
-	strcat(sql, "d.fecha_deposito, ");
-	strcat(sql, "TO_CHAR(d.fecha_reintegro, '%Y%m%d'), ");
-	strcat(sql, "d.fecha_reintegro, ");
-	strcat(sql, "d.valor_deposito, ");
-	strcat(sql, "d.estado, ");
-	strcat(sql, "d.estado_dg, ");
-	strcat(sql, "d.origen, ");
-	strcat(sql, "d.motivo, ");
-	strcat(sql, "d.garante ");
-	strcat(sql, "FROM cliente c, depgar d ");   
-
-   if(giTipoCorrida==1)	
+	/******** CONVE  *********/
+	strcpy(sql, "SELECT v.numero_cliente, "); 
+	strcat(sql, "v.corr_convenio, "); 
+	strcat(sql, "v.deuda_origen, ");
+	strcat(sql, "v.saldo_origen, ");
+	strcat(sql, "v.deuda_convenida, ");
+	strcat(sql, "v.numero_tot_cuotas, ");
+	strcat(sql, "v.numero_ult_cuota, ");
+	strcat(sql, "v.valor_cuota, ");
+	strcat(sql, "v.valor_cuota_ini, ");
+	strcat(sql, "v.fecha_vigencia, ");
+	strcat(sql, "TO_CHAR(v.fecha_vigencia, '%Y%m%d') ");   
+	strcat(sql, "FROM cliente c, conve v ");   
+	
+   if(giTipoCorrida==1)
       strcat(sql, ",migra_activos m ");	
 
 	if(giEstadoCliente!=0){
@@ -359,16 +341,16 @@ $char sAux[1000];
 	strcat(sql, "	WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "	AND cm.fecha_activacion < TODAY ");
 	strcat(sql, "	AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
-	strcat(sql, "AND d.numero_cliente = c.numero_cliente ");
-
-   if(giTipoCorrida==1)	
+	strcat(sql, "AND v.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND v.estado = 'V' ");
+	strcat(sql, "AND v.numero_tot_cuotas != v.numero_ult_cuota ");
+	
+   if(giTipoCorrida == 1)
       strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
-	
 
-
-	$PREPARE selDepgar FROM $sql;
+	$PREPARE selConve FROM $sql;
 	
-	$DECLARE curDepgar CURSOR FOR selDepgar;
+	$DECLARE curConve CURSOR FOR selConve;
 		
 	/******** Select Path de Archivos ****************/
 	strcpy(sql, "SELECT valor_alf ");
@@ -386,7 +368,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	/*$PREPARE selCorrelativo FROM $sql;*/
+	$PREPARE selCorrelativo FROM $sql;
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -394,7 +376,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	/*$PREPARE updGenArchivos FROM $sql;*/
+	$PREPARE updGenArchivos FROM $sql;
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -409,7 +391,7 @@ $char sAux[1000];
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	/*$PREPARE insGenInstal FROM $sql;*/
+	$PREPARE insGenInstal FROM $sql;
 
 	/********* Select Cliente ya migrado **********/
 	strcpy(sql, "SELECT depgar FROM sap_regi_cliente ");
@@ -497,7 +479,7 @@ $char clave[7];
         exit(1);
     }
 }
-/*
+
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -512,32 +494,30 @@ $long iValor=0;
     
     return iValor;
 }
-*/
-short LeoDepgar(regDep)
-$ClsDepgar *regDep;
-{
-	InicializaDepgar(regDep);
 
-	$FETCH curDepgar into
-    :regDep->numero_dg,
-    :regDep->numero_cliente,
-    :regDep->numero_comprob,
-    :regDep->sFechaDeposito,
-    :regDep->lFechaDeposito,
-    :regDep->sFechaReintegro,
-    :regDep->lFechaReintegro,
-    :regDep->valor_deposito,
-    :regDep->estado,
-    :regDep->estado_dg,
-    :regDep->origen,
-    :regDep->motivo,
-    :regDep->garante;
+short LeoConve(reg)
+$ClsConve *reg;
+{
+	InicializaConve(reg);
+
+	$FETCH curConve INTO
+      :reg->numero_cliente, 
+      :reg->corr_convenio, 
+      :reg->deuda_origen,
+      :reg->saldo_origen,
+      :reg->deuda_convenida,
+      :reg->numero_tot_cuotas,
+      :reg->numero_ult_cuota,
+      :reg->valor_cuota,
+      :reg->valor_cuota_ini,
+      :reg->lFechaVigencia,
+      :reg->sFechaVigencia;
 
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
 			return 0;
 		}else{
-			printf("Error al leer Cursor de DEPGAR !!!\nProceso Abortado.\n");
+			printf("Error al leer Cursor de CONVE !!!\nProceso Abortado.\n");
 			exit(1);	
 		}
     }			
@@ -546,27 +526,20 @@ $ClsDepgar *regDep;
 }
 
 
-void InicializaDepgar(regDep)
-$ClsDepgar	*regDep;
+void InicializaConve(reg)
+$ClsConve	*reg;
 {
-
-   rsetnull(CLONGTYPE, (char *) &(regDep->numero_dg));
-   rsetnull(CLONGTYPE, (char *) &(regDep->numero_cliente));
-   memset(regDep->sFechaDeposito, '\0', sizeof(regDep->sFechaDeposito));
-   rsetnull(CLONGTYPE, (char *) &(regDep->lFechaDeposito));
-   memset(regDep->sFechaReintegro, '\0', sizeof(regDep->sFechaReintegro));
-   rsetnull(CDOUBLETYPE, (char *) &(regDep->valor_deposito));
-   memset(regDep->estado, '\0', sizeof(regDep->estado));
-   memset(regDep->estado_dg, '\0', sizeof(regDep->estado_dg));
-   memset(regDep->origen, '\0', sizeof(regDep->origen));  
-   memset(regDep->motivo, '\0', sizeof(regDep->motivo));
-   rsetnull(CLONGTYPE, (char *) &(regDep->garante));
-   memset(regDep->sFechaVigTarifa, '\0', sizeof(regDep->sFechaVigTarifa));
-   rsetnull(CLONGTYPE, (char *) &(regDep->lFechaVigTarifa));
-   
-   rsetnull(CLONGTYPE, (char *) &(regDep->lFechaReintegro));
-   rsetnull(CLONGTYPE, (char *) &(regDep->numero_comprob));
-
+   rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente)); 
+   rsetnull(CINTTYPE, (char *) &(reg->corr_convenio)); 
+   rsetnull(CDOUBLETYPE, (char *) &(reg->deuda_origen));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->saldo_origen));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->deuda_convenida));
+   rsetnull(CINTTYPE, (char *) &(reg->numero_tot_cuotas));
+   rsetnull(CINTTYPE, (char *) &(reg->numero_ult_cuota));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->valor_cuota));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->valor_cuota_ini));
+   rsetnull(CLONGTYPE, (char *) &(reg->lFechaVigencia));
+   memset(reg->sFechaVigencia, '\0', sizeof(reg->sFechaVigencia));
 }
 
 short ClienteYaMigrado(nroCliente, iFlagMigra)
@@ -575,9 +548,6 @@ int		*iFlagMigra;
 {
 	$char	sMarca[2];
 	
-	if(gsTipoGenera[0]=='R'){
-		return 0;	
-	}
 	
 	memset(sMarca, '\0', sizeof(sMarca));
 	
@@ -594,8 +564,10 @@ int		*iFlagMigra;
 	}
 	
 	if(strcmp(sMarca, "S")==0){
-		*iFlagMigra=2; /* Indica que se debe hacer un update */	
-		return 1;
+		*iFlagMigra=2; /* Indica que se debe hacer un update */
+   	if(gsTipoGenera[0]=='G'){
+   		return 1;	
+   	}
 	}else{
 		*iFlagMigra=2; /* Indica que se debe hacer un update */	
 	}
@@ -603,6 +575,7 @@ int		*iFlagMigra;
 	return 0;
 }
 
+/*
 short CargaAltaCliente(regDep)
 $ClsDepgar *regDep;
 {
@@ -624,35 +597,6 @@ $ClsDepgar *regDep;
    strcpy(regDep->sFechaVigTarifa, sFechaAlta);
    regDep->lFechaVigTarifa = lFechaAlta;
    
-   
-/*
-	if(regIns->corr_facturacion > 0){
-		
-		iCorrFactuInicio = regIns->corr_facturacion - iCorrelativos;
-		
-		if(iCorrFactuInicio <= 0){
-			iCorrFactuInicio=1;	
-		}
-		
-		strcpy(sFechaAlta, getFechaFactura(regIns->numero_cliente, iCorrFactuInicio));
-	
-		strcpy(regIns->fecha_vig_tarifa, sFechaAlta);
-	
-	}else{
-
-		$EXECUTE selMedid1 into :regIns->fecha_vig_tarifa using :regIns->numero_cliente;
-			
-		if(SQLCODE !=0){
-			$EXECUTE selMedid2 into :regIns->fecha_vig_tarifa using :regIns->numero_cliente;
-			
-			if(SQLCODE !=0){
-				printf("Error al buscar fecha de Alta para cliente %ld.\n", regIns->numero_cliente);
-				exit(2);
-			}
-		}
-	}
-*/   
-	
 	return 1;	
 }
 
@@ -665,7 +609,6 @@ $long   lCorrFactuInicio;
 	
 	memset(sFechaFactura, '\0', sizeof(sFechaFactura));
 	
-	/* Reemplazo la fecha lectura por la fecha de primera factura a migrar */
 	$EXECUTE selFechaFactura into :sFechaFactura using :lNroCliente, :lCorrFactuInicio;
 		
 	if(SQLCODE != 0){
@@ -675,38 +618,85 @@ $long   lCorrFactuInicio;
 		
 	return sFechaFactura;
 }
+*/
 
-short GenerarPlano(fp, regDep)
+short GenerarPlano(fp, reg)
 FILE 				*fp;
-$ClsDepgar		regDep;
+$ClsConve		reg;
 {
-	/* SEC_D */	
-	GeneraSEC_D(fp, regDep);
+   int   iCuotas;
+   int   iCuota;
+   int   i;
+   double   dValorCuota;
+   
+   iCuotas = reg.numero_tot_cuotas - reg.numero_ult_cuota;
+   iCuota = reg.numero_ult_cuota + 1;
 
-	/* SEC_C */	
-	GeneraSEC_C(fp, regDep);
+	/* IPKEY */	
+	GeneraIPKEY(fp, reg);
+
+   for(i=1; i<= iCuotas; i++){
+      if (iCuota == 1){
+         dValorCuota = reg.valor_cuota_ini;
+      }else{
+         dValorCuota = reg.valor_cuota;
+      }
+      /* IPDATA */
+      GeneraIPDATA(fp, i, iCuota, dValorCuota, reg);
+      
+      iCuota++;
+   }
+
+	/* IPOPKY */	
+	GeneraIPOPKY(fp, reg);
 
 	/* ENDE */
-	GeneraENDE(fp, regDep);
+	GeneraENDE(fp, reg);
 	
 	return 1;
 }
 
-void GeneraENDE(fp, regDep)
-FILE *fp;
-$ClsDepgar	regDep;
+void GeneraIPDATA(fp, i, iCuota, dValorCuota, reg)
+FILE  *fp;
+int   i;
+int   iCuota;
+double   dValorCuota;
+ClsConve reg;
 {
 	char	sLinea[1000];	
 
 	memset(sLinea, '\0', sizeof(sLinea));
 	
-	sprintf(sLinea, "T1%ld\t&ENDE", regDep.numero_cliente);
+	sprintf(sLinea, "T1%ld\t&IPDATA", reg.numero_cliente);
+
+   /* FAEDN (?)*/
+   strcat(sLinea, "\t");
+   /* BETRW */
+   sprintf(sLinea, "%s+%.02lf\t", sLinea, dValorCuota);
+   /* OPTXT */
+   sprintf(sLinea, "%sCuota %d", sLinea, iCuota);
+
+	strcat(sLinea, "\n");
+	
+	fprintf(fp, sLinea);	
+
+}
+
+void GeneraENDE(fp, reg)
+FILE *fp;
+$ClsConve	reg;
+{
+	char	sLinea[1000];	
+
+	memset(sLinea, '\0', sizeof(sLinea));
+	
+	sprintf(sLinea, "T1%ld\t&ENDE", reg.numero_cliente);
 
 	strcat(sLinea, "\n");
 	
 	fprintf(fp, sLinea);	
 }
-/*
+
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -716,7 +706,7 @@ short RegistraArchivo(void)
 	
 	if(cantProcesada > 0){
 		strcpy(sTipoArchivo, "DEPGAR");
-		strcpy(sNombreArchivo, sSoloArchivoDepgar);
+		strcpy(sNombreArchivo, sSoloArchivo);
 		lCantidad=cantProcesada;
 				
 		$EXECUTE updGenArchivos using :sTipoArchivo;
@@ -730,7 +720,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-*/
+
 short RegistraCliente(nroCliente, iFlagMigra)
 $long	nroCliente;
 int		iFlagMigra;
@@ -746,93 +736,60 @@ int		iFlagMigra;
 	return 1;
 }
 
-void GeneraSEC_D(fp, regDep)
+void GeneraIPKEY(fp, reg)
 FILE 		*fp;
-ClsDepgar	regDep;
+ClsConve	reg;
 {
 	char	sLinea[1000];	
 	
 	memset(sLinea, '\0', sizeof(sLinea));
 
-	sprintf(sLinea, "T1%ld\tSECD\t", regDep.numero_cliente);
-	
-/* APPLK */
-   strcat(sLinea, "R\t");
-   
-/* NON-CASH */
-	if(risnull(CLONGTYPE, (char *) &regDep.garante)){
-      strcat(sLinea, "X\t");
-   }else{
-      strcat(sLinea, "\t");
-   }
-   
-/* VKONT */
-   sprintf(sLinea, "%sT1%ld\t", sLinea, regDep.numero_cliente);
-   
-/* WAERS */
+   /* LLAVE */
+	sprintf(sLinea, "T1%ld\tIPKEY\t", reg.numero_cliente);
+
+   /* WAERS */
    strcat(sLinea, "ARS\t");
-   
-/* REASON */
-   strcat(sLinea, "0001\t");
-
-/* SEC_START */
-   sprintf(sLinea, "%s%s\t", sLinea, regDep.sFechaDeposito);
-
-/* SEC_RETURN */
-   sprintf(sLinea, "%s%s\t", sLinea, regDep.sFechaReintegro);
-
-/* NC_STATUS ????*/
-   strcat(sLinea, "00\t");
-
-/* TYP */
-   strcat(sLinea, "0003\t");
-
-/* REFNO ????*/
+   /* BUDAT (?) */
    strcat(sLinea, "\t");
-   
-/* SEC_EXPIRE */
+   /* BLDAT (?) */
    strcat(sLinea, "\t");
-
-/* GPART_GUARANTOR */
-   if(!risnull(CLONGTYPE, (char *) &regDep.garante)){
-      sprintf(sLinea, "%sT1%ld\t", sLinea, regDep.garante);
-   }else{
-      strcat(sLinea, "\t");
-   }
-
-/* VKONT_GUARANTOR */
-   if(!risnull(CLONGTYPE, (char *) &regDep.garante)){
-      sprintf(sLinea, "%sT1%ld\t", sLinea, regDep.garante);
-   }else{
-      strcat(sLinea, "\t");
-   }
-
-
-/* BUKRS */
-   strcat(sLinea, "EDES");
+   /* GPART */
+   sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
+   /* VKONT */
+   sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
+   /* BLART */
+   strcat(sLinea, "PP\t");
+   /* BUKRS */
+   strcat(sLinea, "EDES\t");
+   /* RPCAT */
+   strcat(sLinea, "E1\t");
+   /* RPRDA */
+	strcat(sLinea, "0");
 
 	strcat(sLinea, "\n");
 	
 	fprintf(fp, sLinea);	
 }
 
-void GeneraSEC_C(fp, regDep)
+void GeneraIPOPKY(fp, reg)
 FILE 		*fp;
-ClsDepgar	regDep;
+ClsConve	reg;
 {
 	char	sLinea[1000];	
 	
 	memset(sLinea, '\0', sizeof(sLinea));
 
-	sprintf(sLinea, "T1%ld\tSECC\t", regDep.numero_cliente);
-	
-/* VTREF ????*/
-   strcat(sLinea, "\t");
-   
-/* REQUEST */
-	if(risnull(CLONGTYPE, (char *) &regDep.garante)){
-      sprintf(sLinea, "%s%.2f", sLinea, regDep.valor_deposito);
-   }
+   /* LLAVE */
+   sprintf(sLinea, "T1%ld\t&IPOPKY", reg.numero_cliente);
+
+   /* OPBEL (?)*/
+   sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
+   /* OPUPW */
+   strcat(sLinea, "000\t");
+   /* OPUPK */
+   strcat(sLinea, "0001\t");
+   /* OPUPZ */
+   strcat(sLinea, "0000\t");
 
 	strcat(sLinea, "\n");
 	

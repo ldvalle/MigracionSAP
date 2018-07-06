@@ -43,6 +43,7 @@ char	sArchAltasViejasUnx[100];
 char	sSoloArchivoAltasViejas[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -239,13 +240,13 @@ short AbreArchivos()
     FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	iCorrBaja = getCorrelativo("MOVE_OUT");
-	/*iCorrAlta = getCorrelativo("MOVE_IN");*/
-	
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 
 	sprintf( sArchBajasUnx  , "%sT1MOVEOUT.unx", sPathSalida);
 	strcpy( sSoloArchivoBajas, "T1MOVEOUT.unx" );
@@ -292,7 +293,8 @@ char    sPathCp[100];
 	memset(sCommand, '\0', sizeof(sCommand));
 	memset(sPathCp, '\0', sizeof(sPathCp));
 
-    strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+    /*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+    sprintf(sPathCp, "%sInactivos/", sPathCopia);
     
 	if(cantProcesada>0){
 	    sprintf(sCommand, "chmod 777 %s", sArchBajasUnx);
@@ -331,7 +333,7 @@ $char sAux[1000];
 	strcpy(sql, "SELECT c.numero_cliente, ");
 	strcat(sql, "NVL(t1.cod_sap, c.tarifa), ");
 	strcat(sql, "CASE ");		/* tarifa */
-	strcat(sql, "	WHEN c.tarifa[2] = 'G' AND c.tipo_sum = 6 THEN 'T1-GEN-NOM' ");
+   strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");	
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, ");
@@ -398,7 +400,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -406,7 +408,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos Bajas****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -421,7 +423,7 @@ $char sAux[1000];
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenBajas FROM $sql;
+	/*$PREPARE insGenBajas FROM $sql;*/
 
 	/******** Insert gen_archivos Altas ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -510,7 +512,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -525,7 +527,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoBajas(regBaja)
 $ClsBajas *regBaja;
 {
@@ -716,7 +718,7 @@ $ClsBajas	regBaja;
 	
 	fprintf(fp, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -740,7 +742,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 short RegistraCliente(nroCliente, iFlagMigra)
 $long	nroCliente;
 int		iFlagMigra;

@@ -74,6 +74,18 @@ $typedef struct{
 	char	fecha_facturacion[9];	
 }ClsHisfac;
 
+
+$typedef struct{
+   long  numero_cliente;
+   long  fecha_val_tarifa;
+   long  fecha_alta_real;
+   long  fecha_move_in;
+   long  fecha_pivote;
+   char  tarifa[20];
+   char  ul[9];
+   char  motivo_alta[3];
+}ClsEstados;
+
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
 void	MensajeParametros(void);
@@ -99,7 +111,9 @@ char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 
-short	ClienteYaMigrado(long, int*);
+void  InicializaEstados(ClsEstados *);
+short	ClienteYaMigrado(long, int*, int*, ClsEstados *);
+void  CargaCalculados(ClsInstalacion *, ClsEstados);
 short	RegistraCliente(long, char *, long, char *, int);
 char	*getFechaFactura(long, long);
 

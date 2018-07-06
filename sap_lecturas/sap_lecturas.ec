@@ -29,6 +29,7 @@ $include "sap_lecturas.h";
 $int	giEstadoCliente;
 $long	glNroCliente;
 $char	gsTipoGenera[2];
+int   giTipoCorrida;
 
 FILE	*pFileLecturasUnx;
 
@@ -36,6 +37,7 @@ char	sArchLecturasUnx[100];
 char	sSoloArchivoLecturas[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -71,6 +73,7 @@ $char	sSucursal[5];
 int		i;
 $long lFechaValTarifa;
 $long lFechaMoveIn;
+$long lFechaPivote;
 int      iVuelta;
 long  lFechaAux;
 
@@ -92,9 +95,9 @@ long  lFechaAux;
 	
 	CreaPrepare1();
 
-	$EXECUTE selFechaLimInf into :lFechaLimiteInferior;
+	/*$EXECUTE selFechaLimInf into :lFechaLimiteInferior;*/
 		
-	$EXECUTE selCorrelativos into :iCorrelativos;
+	/*$EXECUTE selCorrelativos into :iCorrelativos;*/
 		
 	/* ********************************************
 				INICIO AREA DE PROCESO
@@ -131,7 +134,8 @@ long  lFechaAux;
 		while(LeoClientes(&lNroCliente, &lCorrFactu)){
 			/*$BEGIN WORK;*/
 			if(lCorrFactu > 0){
-				if(! ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaValTarifa, &lFechaMoveIn)){
+				/*if(! ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaValTarifa, &lFechaMoveIn)){*/
+            if(! ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaPivote, &lFechaMoveIn)){
                iVuelta=1;
 					lIndiceArchivo=1;
 					/*lCorrFactu=getCorrFactu(lNroCliente);*/
@@ -147,9 +151,13 @@ long  lFechaAux;
                /*
 					if(ExisteFactura(lNroCliente, lCorrFactu)){
                */										
-						/* Proceso Lecturas Activas */			
-						$OPEN curLectuActi using :lNroCliente, :lFechaLimiteInferior, :lCorrFactu;
-                  /*$OPEN curLectuActi using :lNroCliente, :lFechaValTarifa;*/
+						/* Proceso Lecturas Activas */
+                  /*$OPEN curLectuActi using :lNroCliente, :lFechaValTarifa;*/			
+						/*$OPEN curLectuActi using :lNroCliente, :lFechaLimiteInferior, :lCorrFactu;*/
+                  /*$OPEN curLectuActi using :lNroCliente, :lFechaValTarifa, :lCorrFactu;*/
+                  /*$OPEN curLectuActi using :lNroCliente, :lFechaPivote, :lCorrFactu;*/
+                  $OPEN curLectuActi using :lNroCliente, :lFechaPivote;
+                  
 												
 						while(LeoLecturasActivas(lNroCliente, &regLecturas)){
                      if(iVuelta==1){
@@ -331,7 +339,7 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc < 4 || argc > 5){
+	if(argc < 5 || argc > 6){
 		MensajeParametros();
 		return 0;
 	}
@@ -342,8 +350,10 @@ char	* argv[];
 	
 	strcpy(gsTipoGenera, argv[3]);
 	
-	if(argc==5){
-		glNroCliente=atoi(argv[4]);
+   giTipoCorrida=atoi(argv[4]);
+   
+	if(argc==6){
+		glNroCliente=atoi(argv[5]);
 	}else{
 		glNroCliente=-1;
 	}
@@ -356,6 +366,7 @@ void MensajeParametros(void){
 		printf("	<Base> = synergia.\n");
 		printf("	<Estado Cliente> 0 = Activo,  1 = No Activo.\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("	<Tipo Corrida> 0 = Normal,  1 = Reducida.\n");
 		printf("	<Nro.Cliente>(Opcional)\n");
 }
 
@@ -367,15 +378,17 @@ char	sSucur[5];
 	memset(sSoloArchivoLecturas,'\0',sizeof(sSoloArchivoLecturas));
 	
 	memset(FechaGeneracion,'\0',sizeof(FechaGeneracion));
-    FechaGeneracionFormateada(FechaGeneracion);
+   FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+	memset(sPathCopia,'\0',sizeof(sPathCopia));   
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	lCorrelativo = getCorrelativo("LECTURAS");
-	
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
+
 /*
 	sprintf( sArchLecturasUnx  , "%sLecturas_T1_%s_%d.unx", sPathSalida, FechaGeneracion, lCorrelativo );
 	sprintf( sSoloArchivoLecturas, "Lecturas_T1_%s_%d.txt", FechaGeneracion, lCorrelativo );
@@ -409,9 +422,11 @@ char 	sPathCp[100];
 	iRcv=system(sCommand);
 	
 	if(giEstadoCliente==0){
-		sprintf(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+		/*sprintf(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+      sprintf(sPathCp, "%sActivos/", sPathCopia);
 	}else{
-		sprintf(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");
+		/*sprintf(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+      sprintf(sPathCp, "%sInactivos/", sPathCopia);
 	}
 	
 	sprintf(sCommand, "cp %s %s", sArchLecturasUnx, sPathCp);
@@ -472,7 +487,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -487,7 +502,7 @@ $char sAux[1000];
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");
 	
-	$PREPARE insGenLectu FROM $sql;	
+	/*$PREPARE insGenLectu FROM $sql;*/	
 }
 
 void CreaPrepare(void){
@@ -520,8 +535,9 @@ $char sAux[1000];
 */
 	/******** Cursor CLIENTES  ****************/	
 	strcpy(sql, "SELECT c.numero_cliente, NVL(c.corr_facturacion -1, 0) FROM cliente c ");
-	
-strcat(sql, ", migra_activos ma ");
+
+   if(giTipoCorrida == 1)	
+      strcat(sql, ", migra_activos ma ");
 	
 	if(giEstadoCliente==0){
 		strcat(sql, "WHERE c.estado_cliente = 0 ");
@@ -546,8 +562,8 @@ strcat(sql, ", migra_activos ma ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
 	strcat(sql, "AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");	
 
-strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
-
+   if(giTipoCorrida==1)
+      strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 
 	$PREPARE selClientes FROM $sql;
 	
@@ -608,9 +624,9 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "FROM hislec h1, hisfac h2, medidor med, modelo m, sap_transforma t1 ");
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
    strcat(sql, "AND h1.fecha_lectura >= ? ");
-   
+/*   
 	strcat(sql, "AND h1.corr_facturacion <= ? ");
-   
+*/   
 	strcat(sql, "AND h1.tipo_lectura NOT IN (5, 6, 7) ");
 	strcat(sql, "AND h2.numero_cliente = h1.numero_cliente ");
 	strcat(sql, "AND h2.corr_facturacion = h1.corr_facturacion "); 
@@ -808,10 +824,10 @@ strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/********* Select Cliente ya migrado **********/
-	strcpy(sql, "SELECT lecturas, fecha_val_tarifa, fecha_move_in FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT lecturas, fecha_pivote, fecha_move_in FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigrado FROM $sql;
@@ -892,7 +908,7 @@ $long	lCorrFactu;
     
     return salida;
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -907,7 +923,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 
 short LeoClientes(lNroCliente, lCorrFactura)
 $long *lNroCliente;
@@ -1028,19 +1044,19 @@ $ClsLecturas	*regLectu;
 	
 }
 
-short ClienteYaMigrado(nroCliente, iFlagMigra, lValTarifa, lMoveIn)
+short ClienteYaMigrado(nroCliente, iFlagMigra, lPivote, lMoveIn)
 $long	nroCliente;
 int		*iFlagMigra;
-$long    *lValTarifa;
+$long    *lPivote;
 $long    *lMoveIn;
 {
 	$char	sMarca[2];
-	$long   lFechaValidezTarifa;
+	$long   lFechaPivote;
    $long   lFechaMoveIn;
    
 	memset(sMarca, '\0', sizeof(sMarca));
 	
-	$EXECUTE selClienteMigrado INTO :sMarca, :lFechaValidezTarifa, :lFechaMoveIn 
+	$EXECUTE selClienteMigrado INTO :sMarca, :lFechaPivote, :lFechaMoveIn 
          USING :nroCliente;
 		
 	if(SQLCODE != 0){
@@ -1053,7 +1069,7 @@ $long    *lMoveIn;
 		}
 	}
 	
-   *lValTarifa=lFechaValidezTarifa;
+   *lPivote=lFechaPivote;
    *lMoveIn=lFechaMoveIn;
    
 	if(strcmp(sMarca, "S")==0){
@@ -1098,7 +1114,7 @@ $ClsLecturas	regLectu;
 	fprintf(fp, sLinea);	
 	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -1122,7 +1138,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 short RegistraCliente(nroCliente, iFlagMigra)
 $long	nroCliente;
 int		iFlagMigra;

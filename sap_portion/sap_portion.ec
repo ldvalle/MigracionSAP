@@ -49,6 +49,7 @@ char	sSoloArchivoPortionActivo[100];
 char	sSoloArchivoULActivo[100];
 
 char	sPathSalida[100];
+char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
 $char	fecha[9];
@@ -68,6 +69,10 @@ long 	cantPreexistenteUL;
 $ClsPortion	regPortion;
 $ClsUnLectu regUnLectu;
 $long       lFechaPivote;
+char        sFechaPivote[11];
+
+$long       lFechaPivote2;
+char        sFechaPivote2[11];
 
 char	sMensMail[1024];	/*jhuck ME089 */
 
@@ -96,7 +101,7 @@ FILE	*fpUL;
 	$SET LOCK MODE TO WAIT 600;
 	$SET ISOLATION TO DIRTY READ;
 	
-	$BEGIN WORK;
+	/* $BEGIN WORK;*/
 
 	CreaPrepare();
 
@@ -118,8 +123,20 @@ FILE	*fpUL;
 	**********************************************/
    /*$EXECUTE selFechaRti into :lFechaPivote;*/
 
-   $EXECUTE selAnoRetro into :lFechaPivote;
+   /*$EXECUTE selAnoRetro into :lFechaPivote;*/
+/*   
+   strcpy(sFechaPivote, "20141201");
+   rdefmtdate(&lFechaPivote, "yyyymmdd", sFechaPivote); //char a long
+*/   
+   $EXECUTE selPivote INTO :lFechaPivote;
    
+/*   
+   strcpy(sFechaPivote2, "20171001");
+   rdefmtdate(&lFechaPivote2, "yyyymmdd", sFechaPivote2); //char a long
+*/   
+   
+   $EXECUTE selPivote2 INTO :lFechaPivote2;
+      
 	if(giArchivosGen==0 || giArchivosGen==1){
 
 		/* Hago el PORTION */
@@ -153,12 +170,12 @@ FILE	*fpUL;
 	
 		while(LeoUnLectu(&regUnLectu)){
          if(!getDifFechas(&regUnLectu)){
-				$ROLLBACK WORK;
+				/*$ROLLBACK WORK;*/
 				exit(1);	
          }
       
 			if (!GenerarPlanoUL(fpUL, regUnLectu)){
-				$ROLLBACK WORK;
+				/*$ROLLBACK WORK;*/
 				exit(1);	
 			}
 			cantProcesadaULActivo++;
@@ -169,13 +186,14 @@ FILE	*fpUL;
 	CerrarArchivos();
 
 	/* Registrar Control Plano */
+/*
 	if(!RegistraArchivo()){
 		$ROLLBACK WORK;
 		exit(1);
 	}
 	
 	$COMMIT WORK;
-
+*/
 	$CLOSE DATABASE;
 
 	$DISCONNECT CURRENT;
@@ -263,16 +281,16 @@ short AbreArchivos()
 	/*memset(sSoloArchivoULNoActivo,'\0',sizeof(sSoloArchivoULNoActivo));*/
 	
 	memset(FechaGeneracion,'\0',sizeof(FechaGeneracion));
-    FechaGeneracionFormateada(FechaGeneracion);
+   FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
+   memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
-	
-	lCorrelativoPortion = getCorrelativo("PORTION");
-	lCorrelativoUL = getCorrelativo("UNLECTU");
-	
 	alltrim(sPathSalida,' ');
+
+	RutaArchivos( sPathCopia, "SAPCPY" );
+	alltrim(sPathCopia,' ');
 	
 	switch(giArchivosGen){
 		case 0:	/* PORTION y UL */
@@ -348,7 +366,9 @@ char	sPathCp[100];
 	memset(sCommand, '\0', sizeof(sCommand));
 	memset(sPathCp, '\0', sizeof(sPathCp));
 
-	strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");
+	/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+   sprintf(sPathCp, "%sActivos/", sPathCopia);
+   
 
 	if(cantProcesadaPortionActivo>0){
 		sprintf(sCommand, "chmod 755 %s", sArchPortionActivoUnx);
@@ -404,6 +424,16 @@ $char sAux[1000];
 	strcpy(sql, "SELECT TO_CHAR(TODAY, '%d/%m/%Y') FROM dual ");
 	
 	$PREPARE selFechaActual FROM $sql;	
+
+   /******** Fecha Pivote  ****************/
+   strcpy(sql, "SELECT TODAY - 420 FROM dual ");
+   
+   $PREPARE selPivote FROM $sql;
+
+   /******** Fecha Pivote 2  ****************/
+   strcpy(sql, "SELECT TODAY - 70 FROM dual ");
+   
+   $PREPARE selPivote2 FROM $sql;
 	
 	/******** Cursor Porcion  ****************/	
 	strcpy(sql, "SELECT TO_CHAR(MAX(a1.fecha_generacion), '%d.%m.%Y'), ");
@@ -418,12 +448,26 @@ $char sAux[1000];
 	strcat(sql, "a1.sector, ");
 	strcat(sql, "a1.zona ");   
 	strcat(sql, "FROM agenda a1, sap_transforma s, sucur_centro_op sc ");
-	strcat(sql, "WHERE a1.sector BETWEEN 41 AND 82 ");
+	/*strcat(sql, "WHERE a1.sector BETWEEN 41 AND 82 ");*/
+   strcat(sql, "WHERE a1.sector <= 82 ");
+
+   strcat(sql, "AND a1.identif_agenda IN ( SELECT d2.identif_agenda ");
+   strcat(sql, "	FROM det_agenda d2 ");
+   strcat(sql, "	WHERE d2.sucursal = a1.sucursal ");
+   strcat(sql, "	AND d2.sector = a1.sector ");
+   strcat(sql, "	AND d2.fecha_generacion = (SELECT MAX(d3.fecha_generacion) FROM det_agenda d3 ");
+   strcat(sql, "		WHERE d3.sucursal = d2.sucursal ");
+   strcat(sql, "	 	AND d3.sector = d2.sector ");
+   strcat(sql, "	  AND d3.zona = d2.zona ");
+   strcat(sql, "	  AND d3.fecha_generacion >= ?)) ");
+   
+/*   
 	strcat(sql, "AND a1.fecha_emision_real = ( select max(a2.fecha_emision_real)  ");
 	strcat(sql, "	FROM agenda a2  ");
    strcat(sql, " 	WHERE a2.sucursal = a1.sucursal ");
 	strcat(sql, " 	AND a2.sector = a1.sector ");
    strcat(sql, "  AND a2.fecha_emision_real >= ? ) ");
+*/   
 	strcat(sql, "AND s.clave = 'PORTION_NDIAS' ");
 	strcat(sql, "AND sc.cod_centro_op = a1.sucursal ");   
 	strcat(sql, "GROUP BY 3,4,6,7,8 ");
@@ -453,12 +497,27 @@ $char sAux[1000];
 	strcat(sql, "a1.zona, "); 
 	strcat(sql, "TO_CHAR(MAX(a3.fecha_generacion), '%Y%m%d') ");
 	strcat(sql, "FROM agenda a1, sucur_centro_op sc, det_agenda d, susec s, OUTER reparto_facturas r, agenda a3, OUTER area_crisis ac ");
-	strcat(sql, "WHERE a1.sector BETWEEN 41 AND 82 ");
+	/*strcat(sql, "WHERE a1.sector BETWEEN 41 AND 82 ");*/
+   strcat(sql, "WHERE a1.sector <= 82 ");
+
+   strcat(sql, "AND a1.identif_agenda IN ( SELECT d2.identif_agenda ");
+   strcat(sql, "	FROM det_agenda d2 ");
+   strcat(sql, "	WHERE d2.sucursal = a1.sucursal ");
+   strcat(sql, "	AND d2.sector = a1.sector ");
+   strcat(sql, "	AND d2.fecha_generacion = (SELECT MAX(d3.fecha_generacion) FROM det_agenda d3 ");
+   strcat(sql, "		WHERE d3.sucursal = d2.sucursal ");
+   strcat(sql, "	 	AND d3.sector = d2.sector ");
+   strcat(sql, "	  AND d3.zona = d2.zona ");
+   strcat(sql, "	  AND d3.fecha_generacion >= ?)) ");
+   
+/*   
 	strcat(sql, "AND a1.fecha_emision_real = ( select max(a2.fecha_emision_real) ");
 	strcat(sql, "	FROM agenda a2 ");
 	strcat(sql, "  	WHERE a2.sucursal = a1.sucursal ");
 	strcat(sql, "  	AND a2.sector = a1.sector ");
    strcat(sql, "     AND a2.fecha_emision_real >= ? ) ");
+*/   
+   
 	strcat(sql, "AND sc.cod_centro_op = a1.sucursal ");
 	strcat(sql, "AND sc.fecha_activacion <= TODAY ");
 	strcat(sql, "AND (sc.fecha_desactivac IS NULL OR sc.fecha_desactivac > TODAY) ");
@@ -475,7 +534,7 @@ $char sAux[1000];
 	strcat(sql, "AND a3.sucursal= a1.sucursal ");
 	strcat(sql, "AND a3.sector = a1.sector ");
 	strcat(sql, "AND a3.zona = a1.zona ");
-	strcat(sql, "AND a3.estado = 1 ");
+	/*strcat(sql, "AND a3.estado = 1 ");*/
 	strcat(sql, "AND a3.tipo_agenda = 'L' ");
 	strcat(sql, "GROUP BY 1,2,3,4,5,6,7,8,9 ");
 	strcat(sql, "ORDER BY 1,2 ");
@@ -500,7 +559,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE selCorrelativo FROM $sql;
+	/*$PREPARE selCorrelativo FROM $sql;*/
 
 	/******** Update Correlativo ****************/
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
@@ -508,7 +567,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
-	$PREPARE updGenArchivos FROM $sql;
+	/*$PREPARE updGenArchivos FROM $sql;*/
 		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
@@ -523,7 +582,7 @@ $char sAux[1000];
 	strcat(sql, "CURRENT, ");
 	strcat(sql, "?, ?, ?, ?) ");	
 	
-	$PREPARE insGenArchivo FROM $sql;
+	/*$PREPARE insGenArchivo FROM $sql;*/
 
    /********* Fecha RTi **********/
 	strcpy(sql, "SELECT fecha_modificacion ");
@@ -593,7 +652,7 @@ $char clave[7];
         exit(1);
     }
 }
-
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -608,7 +667,7 @@ $long iValor=0;
     
     return iValor;
 }
-
+*/
 short LeoPortion(regPor)
 $ClsPortion *regPor;
 {
@@ -766,7 +825,7 @@ $ClsUnLectu	regUl;
 	
 	fprintf(fp, sLinea);	
 }
-
+/*
 short RegistraArchivo(void)
 {
 	$long	lCantidad;
@@ -776,7 +835,7 @@ short RegistraArchivo(void)
 	
 	lNroCliente=-1;
 	
-	/* Portion */	
+	// Portion	
 	if(cantProcesadaPortionActivo > 0){
 		strcpy(sTipoArchivo, "PORTION");
 		strcpy(sNombreArchivo, sSoloArchivoPortionActivo);
@@ -791,9 +850,8 @@ short RegistraArchivo(void)
 				:lNroCliente,
 				:sNombreArchivo;
 	}
-	
 
-	/* Unidad Lectura */
+	// Unidad Lectura
 	if(cantProcesadaULActivo > 0){
 		strcpy(sTipoArchivo, "UNLECTU");
 		strcpy(sNombreArchivo, sSoloArchivoULActivo);
@@ -811,7 +869,7 @@ short RegistraArchivo(void)
 	
 	return 1;
 }
-
+*/
 void GeneraTE420(fp, regPor)
 FILE 		*fp;
 ClsPortion	regPor;
@@ -971,7 +1029,10 @@ ClsUnLectu	regUl;
    strcat(sLinea, "IS_U_METER_READING_ORDER\t");
    
    /* DOWN_FORM */
-   strcat(sLinea, "IS_U_METER_READING_DOWNLOAD");
+   strcat(sLinea, "IS_U_METER_READING_DOWNLOAD\t");
+
+   /* DOWN_FORM */
+   strcat(sLinea, "04");
       	
 	strcat(sLinea, "\n");
 	
@@ -1009,29 +1070,31 @@ $ClsPortion *reg;
    $EXECUTE selFacturaAnter INTO :lFecha USING :reg->sucursal,
                                                             :reg->sector,
                                                             :reg->zona,
-                                                            :lFechaPivote;
+                                                            :lFechaPivote2;
 
    if(SQLCODE != 0){
       printf("No se encontro facturacion anterior para Suc.%s Sector %ld Zona %ld POR\n", reg->sucursal, reg->sector, reg->zona);
       return 0;
-   }                                                            
-
+   }
    /*
    lFechaAux1 = lFecha - 1;
    lFechaAux2 = lFecha - 3;
    */
   
-   lFDesde = lFechaPivote-100;
+   
 
    if(!risnull(CLONGTYPE, (char *)&lFecha) && lFecha > 0){
+      lFecha=lFecha-420; /* Le resto 14 meses */
+      lFDesde = lFecha-100;
       lFechaAux1 = RestarDiasHabiles(lFecha, 1, lFDesde);
-      lFechaAux2 = RestarDiasHabiles(lFechaAux1, 2, lFDesde); 
+      lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
    }else{
    
       rdefmtdate(&lFechaAux, "dd.mm.yyyy", reg->fecha_generacion);
-      
+      lFechaAux=lFechaAux-420; /* Le resto 14 meses */
+      lFDesde = lFechaAux-100;
       lFechaAux1 = RestarDiasHabiles(lFechaAux, 1, lFDesde);
-      lFechaAux2 = RestarDiasHabiles(lFechaAux1, 2, lFDesde); 
+      lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
    }
    
    rfmtdate(lFechaAux1, "dd.mm.yyyy", reg->termerst); /* long to char */
@@ -1053,7 +1116,7 @@ $ClsUnLectu *reg;
    $EXECUTE selFacturaAnter INTO :lFecha USING :reg->sucursal,
                                                 :reg->sector,
                                                 :reg->zona,
-                                                :lFechaPivote;
+                                                :lFechaPivote2;
 
    if(SQLCODE != 0){
       printf("No se encontro facturacion anterior para Suc.%s Sector %ld Zona %ld UL\n", reg->sucursal, reg->sector, reg->zona);
@@ -1064,23 +1127,28 @@ $ClsUnLectu *reg;
    lFechaAux1 = lFecha - 1;
    lFechaAux2 = lFecha - 3;
    */
-   lFDesde = lFechaPivote-100;
+   
    
    if(!risnull(CLONGTYPE, (char *)&lFecha) && lFecha > 0){
+      lFecha=lFecha-420; /* Le resto 14 meses */
+      lFDesde = lFecha-100;
       lFechaAux1 = RestarDiasHabiles(lFecha, 1, lFDesde);
-      lFechaAux2 = RestarDiasHabiles(lFechaAux1, 2, lFDesde); 
+      lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
    }else{
       $EXECUTE selMinGen INTO :lFechaAux USING  :reg->sucursal,
                                                 :reg->sector,
                                                 :reg->zona,
-                                                :lFechaPivote;
+                                                :lFechaPivote2;
    
       if(SQLCODE != 0){
          printf("No se encontro Agenda para para Suc.%s Sector %ld Zona %ld F.Pivote %ld UL\n", reg->sucursal, reg->sector, reg->zona, lFechaPivote);
          return 0;
-      }                                                            
+      }
+      lFechaAux=lFechaAux-420; /* Le resto 14 meses */
+      lFDesde = lFechaAux-100;
+                                                                  
       lFechaAux1 = RestarDiasHabiles(lFechaAux, 1, lFDesde);
-      lFechaAux2 = RestarDiasHabiles(lFechaAux1, 2, lFDesde); 
+      lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
    }
    
    iDiffer = lFechaAux1 - lFechaAux2;
