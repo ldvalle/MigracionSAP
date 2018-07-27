@@ -85,7 +85,7 @@ int		iFlagCambio;
 int      iSec;
 $long    lFechaValTarifa;
 $long    lFechaAltaReal;
-$long    lFechaPivote;
+$long    lFechaMoveIn;
 int      iCantOcurr;
 int      iTeniaPendiente;
 
@@ -152,10 +152,10 @@ $ClsFacturas   regAux;
 	fpIntalacion=pFileInstalacionUnx;
 
 	while(LeoCliente(&regCliente)){
-		if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra, &lFechaValTarifa, &lFechaPivote, &lFechaAltaReal)){
+		if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra, &lFechaValTarifa, &lFechaMoveIn, &lFechaAltaReal)){
          /*$OPEN curFacturas using :regCliente.numero_cliente, :lFechaRti;*/
 			/*$OPEN curFacturas using :regCliente.numero_cliente, :lFechaValTarifa;*/
-         $OPEN curFacturas using :regCliente.numero_cliente, :lFechaPivote;
+         $OPEN curFacturas using :regCliente.numero_cliente, :lFechaMoveIn;
 
          memset(sFechaFactuAnterior, '\0', sizeof(sFechaFactuAnterior));
          memset(sTarifaAnterior, '\0', sizeof(sTarifaAnterior));
@@ -559,8 +559,13 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 		
 	/******** Cursor Facturas **********/
 	strcpy(sql, "SELECT h.corr_facturacion, ");
+	strcat(sql, "a.fecha_generacion, ");
+	strcat(sql, "TO_CHAR(a.fecha_generacion, '%Y%m%d'), ");
+   
+/*   
 	strcat(sql, "h.fecha_facturacion, ");
 	strcat(sql, "TO_CHAR(h.fecha_facturacion - 1 UNITS DAY, '%Y%m%d'), ");
+*/   
 	strcat(sql, "CASE ");
    strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
@@ -569,7 +574,7 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "s.cod_ul_sap || ");
 	strcat(sql, "LPAD(CASE WHEN h.sector>60 AND h.sector < 81 THEN h.sector ELSE h.sector END, 2, 0) || "); 
 	strcat(sql, "LPAD(h.zona,5,0) "); 
-	strcat(sql, "FROM cliente c, hisfac h, sap_transforma t1, sucur_centro_op s ");
+	strcat(sql, "FROM cliente c, hisfac h, sap_transforma t1, sucur_centro_op s, agenda a ");
 	strcat(sql, "WHERE c.numero_cliente = ? ");
 	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND h.fecha_lectura >= ? ");
@@ -578,6 +583,10 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND s.cod_centro_op = h.sucursal ");
 	strcat(sql, "AND s.fecha_activacion <= TODAY ");
 	strcat(sql, "AND (s.fecha_desactivac IS NULL OR s.fecha_desactivac > TODAY) ");
+	strcat(sql, "AND a.sucursal = h.sucursal ");
+	strcat(sql, "AND a.sector = h.sector ");
+	strcat(sql, "AND a.fecha_emision_real = h.fecha_facturacion ");
+   
    strcat(sql, "ORDER BY h.corr_facturacion ASC ");   
    
 	$PREPARE selFacturas FROM $sql;
@@ -626,7 +635,7 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	/*$PREPARE insGenInstal FROM $sql;*/
 
 	/********* Select Cliente ya migrado **********/
-	strcpy(sql, "SELECT modif, fecha_val_tarifa, fecha_alta_real, fecha_pivote FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT modif, fecha_val_tarifa, fecha_alta_real, fecha_move_in FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigrado FROM $sql;
@@ -701,10 +710,18 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
    
    /************ Electro Actual Actual *************/
 	strcpy(sql, "SELECT NVL(s.cod_sap, '00') ");
-	strcat(sql, "FROM clientes_vip t, sap_transforma s ");
+	strcat(sql, "FROM clientes_vip t, sap_transforma s, tabla tb1 ");
 	strcat(sql, "WHERE t.numero_cliente = ? ");
 	strcat(sql, "AND t.fecha_activacion <= TODAY ");
-	strcat(sql, "AND (t.fecha_desactivac IS NULL OR t.fecha_desactivac > TODAY) ");   
+	strcat(sql, "AND (t.fecha_desactivac IS NULL OR t.fecha_desactivac > TODAY) ");
+
+	strcat(sql, "AND tb1.nomtabla = 'SDCLIV' ");
+	strcat(sql, "AND tb1.codigo = t.motivo ");
+   strcat(sql, "AND tb1.valor_alf[4] = 'S' ");
+	strcat(sql, "AND tb1.sucursal = '0000' ");
+	strcat(sql, "AND tb1.fecha_activacion <= TODAY "); 
+	strcat(sql, "AND ( tb1.fecha_desactivac >= TODAY OR tb1.fecha_desactivac IS NULL ) ");    
+      
 	strcat(sql, "AND s.clave = 'NODISCONCT' ");
 	strcat(sql, "AND s.cod_mac = t.motivo ");
    
@@ -754,21 +771,21 @@ $long iValor=0;
 }
 */
 
-short ClienteYaMigrado(nroCliente, iFlagMigra, lFecha, lPivote, lFechaReal)
+short ClienteYaMigrado(nroCliente, iFlagMigra, lFecha, lMoveIn, lFechaReal)
 $long	nroCliente;
 int		*iFlagMigra;
 $long    *lFecha;
-$long    *lPivote;
+$long    *lMoveIn;
 $long    *lFechaReal;
 {
 	$char	sMarca[2];
    $long lFechaVig;
 	$long lFechaAlta;
-   $long lFechaPivote;
+   $long lFechaMoveIn;
    
 	memset(sMarca, '\0', sizeof(sMarca));
 	
-	$EXECUTE selClienteMigrado INTO :sMarca, :lFechaVig, :lFechaAlta, :lFechaPivote using :nroCliente;
+	$EXECUTE selClienteMigrado INTO :sMarca, :lFechaVig, :lFechaAlta, :lFechaMoveIn using :nroCliente;
 		
 	if(SQLCODE != 0){
  		if(SQLCODE==SQLNOTFOUND){
@@ -782,7 +799,7 @@ $long    *lFechaReal;
 
    *lFecha = lFechaVig;
    *lFechaReal = lFechaAlta;
-   *lPivote = lFechaPivote;
+   *lMoveIn = lFechaMoveIn;
 
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */

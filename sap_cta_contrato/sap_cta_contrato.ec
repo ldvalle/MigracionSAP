@@ -614,7 +614,20 @@ if(giTipoCorrida == 1)
    $PREPARE selExenciones FROM $sql;
    
    $DECLARE curExenciones CURSOR FOR selExenciones;
-         
+
+	/********* Electrodependientes *********/
+	strcpy(sql, "SELECT COUNT(*) FROM clientes_vip v, tabla t ");
+	strcat(sql, "WHERE v.numero_cliente = ? ");
+	strcat(sql, "AND v.fecha_activacion <= TODAY ");
+	strcat(sql, "AND (v.fecha_desactivac IS NULL OR v.fecha_desactivac > TODAY) ");
+	strcat(sql, "AND t.nomtabla = 'SDCLIV' ");
+	strcat(sql, "AND t.codigo = v.motivo ");
+   strcat(sql, "AND t.valor_alf[4] = 'S' ");
+	strcat(sql, "AND t.sucursal = '0000' ");
+	strcat(sql, "AND t.fecha_activacion <= TODAY "); 
+	strcat(sql, "AND ( t.fecha_desactivac >= TODAY OR t.fecha_desactivac IS NULL ) ");    
+
+   $PREPARE selElectro FROM $sql;         
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -661,6 +674,8 @@ $long iValor=0;
 short LeoClientes(regCli)
 $ClsCliente *regCli;
 {
+   $int iRcv;
+   
 	InicializaCliente(regCli);
 	
 	$FETCH curClientes into
@@ -706,7 +721,21 @@ $ClsCliente *regCli;
       strcpy(regCli->sTipoDebito, getTipoDebito(regCli->numero_cliente));
       strcpy(regCli->sTipoEntidadDebito, getTipoEntidad(regCli->numero_cliente));
    }
-			
+	
+   iRcv=0;
+   $EXECUTE selElectro INTO :iRcv USING :regCli->numero_cliente;
+   
+   if(SQLCODE != 0){
+		printf("Error al verificar si cliente %ld es Electro !!!\nProceso Abortado.\n", regCli->numero_cliente);
+		exit(1);	
+   }
+   
+   if(iRcv > 0){
+      strcpy(regCli->sElectrodependiente, "S");
+   }else{
+      strcpy(regCli->sElectrodependiente, "N");
+   }
+   		
 	return 1;	
 }
 
@@ -734,7 +763,6 @@ $ClsCliente *regCli;
       :regCli->tiene_corte_rest,
       :regCli->tiene_cobro_int,
       :regCli->sCodSucurSap;
-      			
 
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -791,6 +819,7 @@ $ClsCliente	*regCli;
    memset(regCli->sTipoEntidadDebito, '\0', sizeof(regCli->sTipoEntidadDebito));
    
    memset(regCli->sCodSucurSap, '\0', sizeof(regCli->sCodSucurSap));
+   memset(regCli->sElectrodependiente, '\0', sizeof(regCli->sElectrodependiente));
  
 }
 
@@ -859,6 +888,11 @@ $ClsExencion   regExen;
    if(regCliente.tiene_cobro_int[0]=='N'){
    	/* VKLOCK */
    	GeneraVKLOCK(fp, regCliente, "T1", iTipo, "I");
+   }
+
+   if(regCliente.sElectrodependiente[0]=='S'){
+   	/* VKLOCK */
+   	GeneraVKLOCK(fp, regCliente, "T1", iTipo, "E");
    }
 
 /* Dejo en suspenso las exenciones impositivas
@@ -998,8 +1032,9 @@ char  sTipo[2];
    }
    
    /* LOCKAKTYP */
+   /*
 	strcat(sLinea, "I\t");
-	
+	*/
    /* LOCKPARTNER */
 	if(strcmp(sTarifa, "T1")==0){
 		if(regCliente.minist_repart > 0){
@@ -1016,22 +1051,38 @@ char  sTipo[2];
 	}
    
    /* LOTYP_KEY */
-   strcat(sLinea, "04\t"); /* Cuenta */
+   strcat(sLinea, "06\t"); /* Cuenta */
    
-   /* PROID_KEY */
-   if(sTipo[0]=='R'){
-      strcat(sLinea, "01\t"); /* Reclamacion */
-   }else{
-      strcat(sLinea, "04\t"); /* Intereses */
+   switch (sTipo[0]){
+      case 'R': /* Corte Restringido */
+         /* PROID_KEY */
+         strcat(sLinea, "01\t");
+         /* LOCKR_KEY */
+         strcat(sLinea, "C\t"); /* Migracion */
+          
+         break;
+      case 'I': /* Intereses */
+         /* PROID_KEY */
+         strcat(sLinea, "04\t");
+         /* LOCKR_KEY */
+         strcat(sLinea, "C\t"); /* Migracion */
+          
+         break;
+      case 'E': /* Electrodependiente */
+         /* PROID_KEY */
+         strcat(sLinea, "01\t");
+         /* LOCKR_KEY */
+         strcat(sLinea, "E\t"); /* Migracion */
+          
+         break;
    }
 
-   /* LOCKR_KEY */
-   strcat(sLinea, "X\t"); /* Migracion */
-
    /* FDATE_KEY */
-	strcat(sLinea, "20150101\t");
+	strcat(sLinea, "20150101");
    /* TDATE_KEY */
+   /*
 	strcat(sLinea, "99991231");
+   */
 /*	
 	strcat(sLinea, "\t\t\t\t\t\t\t");
 */	
@@ -1112,6 +1163,9 @@ int iTipo;
    /* IKEY */
    strcat(sLinea, "Z1\t");
    
+   /* MAHNV  */
+   strcat(sLinea, "1N\t");
+   
 	/* MANSP */
 	if(strcmp(sTarifa, "T1")==0){
 		sprintf(sLinea, "%s%s\t", sLinea, sTipoReclamo);
@@ -1164,8 +1218,9 @@ int iTipo;
 	}else{
 		sprintf(sAux, "SUM_%ld", regCliente.numero_cliente);
 	}
-	sprintf(sLinea, "%s%s\t", sLinea, sAux);
-	
+	/*sprintf(sLinea, "%s%s\t", sLinea, sAux); AHORA LO QUIEREN VACIO 11/07/2018 */
+	strcat(sLinea, "\t"); 
+   
    /* BEGRU  + TOGRU */
 	strcat(sLinea, "T1\tGTED\t");
    /* VBUND*/

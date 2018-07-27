@@ -449,7 +449,7 @@ $char sAux[1000];
 	strcat(sql, "v.motivo, ");
 	strcat(sql, "NVL(c.corr_facturacion, 0), ");
 	strcat(sql, "NVL(c.nro_beneficiario, 0) ");
-	strcat(sql, "FROM cliente c, clientes_vip v ");
+	strcat(sql, "FROM cliente c, clientes_vip v, tabla tb1 ");
 
    if(giTipoCorrida==1)	
       strcat(sql, ", migra_activos m ");	
@@ -484,6 +484,14 @@ $char sAux[1000];
 	strcat(sql, "	AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
    
 	strcat(sql, "AND v.numero_cliente = c.numero_cliente ");
+   
+	strcat(sql, "AND tb1.nomtabla = 'SDCLIV' ");
+	strcat(sql, "AND tb1.codigo = v.motivo ");
+   strcat(sql, "AND tb1.valor_alf[4] = 'S' ");
+	strcat(sql, "AND tb1.sucursal = '0000' ");
+	strcat(sql, "AND tb1.fecha_activacion <= TODAY "); 
+	strcat(sql, "AND ( tb1.fecha_desactivac >= TODAY OR tb1.fecha_desactivac IS NULL ) ");    
+   
 	/*strcat(sql, "AND v.fecha_activacion >= ? ");*/
 
    if(giTipoCorrida==1)	
@@ -1152,7 +1160,9 @@ long			iNx;
 	
 	sprintf(sLinea, "T1%ld-%ld\tV_FLAG\t", regOpe.numero_cliente, iNx);
 	
+   /* AB */
 	sprintf(sLinea, "%s%s\t", sLinea, regOpe.sFechaInicio);
+   /* BIS */
 	sprintf(sLinea, "%s%s\t", sLinea, regOpe.sFechaFin);
 	
 	if(sTipo[0]=='R'){

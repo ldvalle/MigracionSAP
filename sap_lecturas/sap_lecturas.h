@@ -28,6 +28,7 @@ $typedef struct{
 	char	marca_medidor[4];
 	char	modelo_medidor[3];
 	char 	tipo_medidor[2];
+   char  fecha_generacion[9];
 }ClsLecturas;
 
 $typedef struct{

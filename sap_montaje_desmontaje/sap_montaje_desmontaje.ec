@@ -80,8 +80,9 @@ $long		lFechaFactura;
 int		iSuperaMedid;
 long	   lCantOperaciones;
 long	   lMaxTrx;
-$long    lFechaValTarifa;
-$long    lFechaPivote;      
+$long    lFechaMoveIn;
+$long    lFechaPivote;
+$long    lFechaAlta;      
 
 $long    lNroMedidorActual;
 $char    sMarcaMedidorActual[4];
@@ -138,7 +139,7 @@ $char    sModeloMedidorActual[3];
 		
 		iSuperaMedid=EncontroMedid(lNroCliente);
 
-		if(!ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaValTarifa, &lFechaPivote) && iSuperaMedid==1 ){
+		if(!ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaMoveIn, &lFechaPivote, &lFechaAlta) && iSuperaMedid==1 ){
 			iNx=0;
 			iNroIndex=1;
          
@@ -157,21 +158,23 @@ $char    sModeloMedidorActual[3];
 					GeneraMontajeReal(regLectu);
 					cantMontajesReal++;
 				}else{
-					if(LeoUltInstalacion(lNroCliente, &regLectu)){	
+					if(LeoUltInstalacion(lNroCliente, lFechaMoveIn, &regLectu)){	
 						GeneraMontajeReal(regLectu);
 						cantMontajesReal++;
 					}
 				}
 				
 				/*if(LeoPrimeraLectura(lNroCliente, lFechaValTarifa, &regLectu)){*/
-            if(LeoPrimeraLectura(lNroCliente, lFechaPivote, &regLectu)){
-					if (!GenerarPlanos(regLectu)){
-						/*$ROLLBACK WORK;*/
-						exit(2);
-					}
-					iNx++;				
-					iNroIndex++;
-				}
+            if(lFechaAlta < lFechaPivote ){
+               if(LeoPrimeraLectura(lNroCliente, lFechaPivote, lFechaMoveIn, &regLectu)){
+                  if (!GenerarPlanos(regLectu)){
+                  	/*$ROLLBACK WORK;*/
+                  	exit(2);
+                  }
+                  iNx++;				
+                  iNroIndex++;
+               }
+ 				}
 	
             if(giMovimientos==1){
 				/*$OPEN curLecturas using :lNroCliente, :lFechaValTarifa;*/
@@ -197,7 +200,7 @@ $char    sModeloMedidorActual[3];
    				/*$OPEN curSinFactura using :lNroCliente,:lFechaValTarifa;*/
                $OPEN curSinFactura using :lNroCliente,:lFechaPivote;
    				
-   				if(LeoSinFactura(&regLectu)){
+   				if(LeoSinFactura(lFechaMoveIn, &regLectu)){
    					if (!GenerarPlanos(regLectu)){
    						/*$ROLLBACK WORK;*/
    						exit(2);
@@ -208,7 +211,7 @@ $char    sModeloMedidorActual[3];
    				$CLOSE curSinFactura;
    				
    				if(iNx==0){
-   					if(!LeoUltInstalacion(lNroCliente, &regLectu)){
+   					if(!LeoUltInstalacion(lNroCliente, lFechaMoveIn, &regLectu)){
    						/*$ROLLBACK WORK;*/
    						exit(2);
    					}				
@@ -775,7 +778,7 @@ $char sAux[1000];
 	/*$PREPARE insGenInstal FROM $sql;*/
 
 	/********* Select Montaje Cliente ya migrado **********/
-	strcpy(sql, "SELECT montaje, fecha_val_tarifa, fecha_pivote FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT montaje, fecha_move_in, fecha_pivote, fecha_alta_real FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigradoM FROM $sql;
@@ -1272,9 +1275,10 @@ $ClsLecturas *regLectu;
 	return 1;	
 }
 
-short LeoPrimeraLectura(lNroCliente, lFechaPrimFactu, regLectu)
+short LeoPrimeraLectura(lNroCliente, lFechaPrimFactu, lFechaMoveIn, regLectu)
 $long lNroCliente;
 $long lFechaPrimFactu;
+$long lFechaMoveIn;
 $ClsLecturas *regLectu;
 {
 	$long	lFechaInstal;
@@ -1320,6 +1324,8 @@ $ClsLecturas *regLectu;
     $CLOSE curPrimLectu;
  
     alltrim(regLectu->tarifa, ' ');
+    regLectu->fecha_lectura = lFechaMoveIn;
+    rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu->sFechaLectura); /* long to char */
     
 	return 1;
 }
@@ -1348,19 +1354,21 @@ $ClsLecturas	*regLectu;
 	
 }
 
-short ClienteYaMigrado(nroCliente, iFlagMigra, lFechaTarifa, lFechaPivote)
+short ClienteYaMigrado(nroCliente, iFlagMigra, lMoveIn, lFechaPivote, lAlta)
 $long	nroCliente;
 int		*iFlagMigra;
-$long    *lFechaTarifa;
+$long    *lMoveIn;
 $long    *lFechaPivote;
+$long    *lAlta;
 {
 	$char	sMarca[2];
-   $long lFechaValTarifa;
+   $long lFechaMoveIn;
    $long lPivote;
+   $long lFechaAlta;
 	
 	memset(sMarca, '\0', sizeof(sMarca));
 	
-	$EXECUTE selClienteMigradoM INTO :sMarca, :lFechaValTarifa, :lPivote USING :nroCliente;
+	$EXECUTE selClienteMigradoM INTO :sMarca, :lFechaMoveIn, :lPivote, :lFechaAlta USING :nroCliente;
 		
 	if(SQLCODE != 0){
 		if(SQLCODE==SQLNOTFOUND){
@@ -1372,8 +1380,9 @@ $long    *lFechaPivote;
 		}
 	}
 
-   *lFechaTarifa = lFechaValTarifa;
+   *lMoveIn = lFechaMoveIn;
    *lFechaPivote = lPivote;
+   *lAlta = lFechaAlta;
     
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */
@@ -1861,8 +1870,9 @@ $ClsLecturas	*regLectu;
 	return 1;		
 }
 
-short LeoUltInstalacion(lNroCliente, regLectu)
+short LeoUltInstalacion(lNroCliente, lFechaMoveIn, regLectu)
 $long			lNroCliente;
+long        lFechaMoveIn;
 $ClsLecturas	*regLectu;
 {
 	InicializaLecturas(regLectu);
@@ -1914,6 +1924,9 @@ $ClsLecturas	*regLectu;
 	regLectu->tipo_lectura = 6;
 	
 	alltrim(regLectu->tarifa, ' ');
+   regLectu->fecha_lectura = lFechaMoveIn;
+   rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu->sFechaLectura); /* long to char */
+   
 	
 	return 1;	
 }
@@ -2072,7 +2085,8 @@ ClsLecturas *regLectuAux;
 	
 }
 
-short LeoSinFactura(regLectu)
+short LeoSinFactura(lFechaMoveIn, regLectu)
+long  lFechaMoveIn;
 $ClsLecturas *regLectu;
 {
 	$FETCH curSinFactura into
@@ -2097,6 +2111,9 @@ $ClsLecturas *regLectu;
 	if(SQLCODE!=0){
 		return 0;	
 	}
+
+    regLectu->fecha_lectura = lFechaMoveIn;
+    rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu->sFechaLectura); /* long to char */
 	
 	return 1;
 }

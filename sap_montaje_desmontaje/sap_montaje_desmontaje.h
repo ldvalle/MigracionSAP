@@ -50,7 +50,7 @@ short   LeoClientes(long *, long *);
 long  getMedidorActual(long , char *, char *);
 
 short   LeoLecturas(ClsLecturas *);
-short	LeoPrimeraLectura(long, long, ClsLecturas *);
+short	LeoPrimeraLectura(long, long, long, ClsLecturas *);
 void    InicializaLecturas(ClsLecturas *);
 short	CargaLecturasActivasRefact(ClsLecturas *);
 short   CargaLecturasReactivasRefact(ClsLecturas *);
@@ -67,7 +67,7 @@ void	GeneraMontajeReal(ClsLecturas);
 
 short  EsMedidorVigente(long, char *, char *, ClsLecturas);
 
-short	LeoUltInstalacion(long, ClsLecturas *);
+short	LeoUltInstalacion(long, long, ClsLecturas *);
 short   GenerarMontaje(ClsLecturas);
 short	LeoUltRetiro(long, ClsLecturas *);
 short   GenerarDesmontaje(ClsLecturas);
@@ -78,13 +78,13 @@ short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
-short	ClienteYaMigrado(long, int*, long*, long*);
+short	ClienteYaMigrado(long, int*, long*, long*, long*);
 short	RegistraCliente(long, int);
 char	*getFechaFactura(long, long, long*);
 short	LeoPrimerMontajeReal(long, long, ClsLecturas*);
 short	EncontroMedid(long);
 void	CopiaEstructura(ClsLecturas, ClsLecturas*);
-short	LeoSinFactura(ClsLecturas*);
+short	LeoSinFactura(long, ClsLecturas*);
 
 /*
 short	EnviarMail( char *, char *);

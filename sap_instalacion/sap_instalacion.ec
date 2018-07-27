@@ -32,15 +32,14 @@ $char	gsTipoGenera[2];
 int   giTipoCorrida;
 
 FILE	*pFileInstalacionUnx;
-FILE	*pFileInstalInactivoUnx;
+FILE	*pFileInstalZZUnx;
 
 char	sArchInstalacionUnx[100];
 char	sArchInstalacionDos[100];
 char	sSoloArchivoInstalacion[100];
 
-char	sArchInstalInactivoUnx[100];
-char	sArchInstalInactivoDos[100];
-char	sSoloArchivoInstalInactivo[100];
+char	sArchInstalZZUnx[100];
+char	sSoloArchivoInstalZZ[100];
 
 char	sPathSalida[100];
 char	sPathCopia[100];
@@ -147,11 +146,14 @@ int      iRecupero=0;
             CargaCalculados(&regInstal, regSts);
             iRecupero++;                    
         }else{
-printf("Calculando cliente %ld\n", regInstal.numero_cliente);        
+        
+            /* Esto no lo hacemos mas xq es un valor fijo 20141201
             if(!CargaAltaCliente(&regInstal)){
             	printf("No se pudo cargar Fecha Vigencia Tarifa cliente nro %ld\n", regInstal.numero_cliente);
             	exit(1);				
             }
+            */
+            strcpy(regInstal.fecha_vig_tarifa, "20141201");
             
             if(!CargaTarifaInstal(&regInstal)){
             	printf("No se pudo cargar Tarifa y UL Instal a cliente nro %ld\n", regInstal.numero_cliente);
@@ -165,17 +167,16 @@ printf("Calculando cliente %ld\n", regInstal.numero_cliente);
             iCalculo++;
         }
 
+			if (!GenerarPlano(fpIntalacion, regInstal)){
+				printf("Fallo generacion planos cliente nro %ld\n", regInstal.numero_cliente);
+				exit(1);	
+			}
+
+         GenerarZZ(pFileInstalZZUnx, regInstal);
+         
 			if(regInstal.estado_cliente[0]=='0'){
-				if (!GenerarPlano(fpIntalacion, regInstal)){
-					printf("Fallo generacion planos cliente nro %ld\n", regInstal.numero_cliente);
-					exit(1);	
-				}
 				cantActivos++;
 			}else{
-				if (!GenerarPlano(pFileInstalInactivoUnx, regInstal)){
-					printf("Fallo generacion planos cliente nro %ld\n", regInstal.numero_cliente);
-					exit(1);	
-				}
 				cantInactivos++;
 			}
          
@@ -299,9 +300,8 @@ short AbreArchivos()
 	memset(sArchInstalacionDos,'\0',sizeof(sArchInstalacionDos));
 	memset(sSoloArchivoInstalacion,'\0',sizeof(sSoloArchivoInstalacion));
 
-	memset(sArchInstalInactivoUnx,'\0',sizeof(sArchInstalInactivoUnx));
-	memset(sArchInstalInactivoDos,'\0',sizeof(sArchInstalInactivoDos));
-	memset(sSoloArchivoInstalInactivo,'\0',sizeof(sSoloArchivoInstalInactivo));
+	memset(sArchInstalZZUnx,'\0',sizeof(sArchInstalZZUnx));
+	memset(sSoloArchivoInstalZZ,'\0',sizeof(sSoloArchivoInstalZZ));
 	
 	memset(FechaGeneracion,'\0',sizeof(FechaGeneracion));
     FechaGeneracionFormateada(FechaGeneracion);
@@ -315,8 +315,13 @@ short AbreArchivos()
 	RutaArchivos( sPathCopia, "SAPCPY" );
 	alltrim(sPathCopia,' ');
 
-	sprintf( sArchInstalacionUnx  , "%sT1INSTALN_Activos.unx", sPathSalida );
-	strcpy( sSoloArchivoInstalacion, "T1INSTALN_Activos.unx");
+   if(giEstadoCliente==0){
+   	sprintf( sArchInstalacionUnx  , "%sT1INSTALN_Activos.unx", sPathSalida );
+   	strcpy( sSoloArchivoInstalacion, "T1INSTALN_Activos.unx");
+   }else{
+   	sprintf( sArchInstalacionUnx  , "%sT1INSTALN_Inactivos.unx", sPathSalida);
+   	strcpy( sSoloArchivoInstalacion, "T1INSTALN_Inactivos");
+   }
 
 	pFileInstalacionUnx=fopen( sArchInstalacionUnx, "w" );
 	if( !pFileInstalacionUnx ){
@@ -324,12 +329,12 @@ short AbreArchivos()
 		return 0;
 	}
 
-	sprintf( sArchInstalInactivoUnx  , "%sT1INSTALN_Inactivos.unx", sPathSalida);
-	strcpy( sSoloArchivoInstalInactivo, "T1INSTALN_Inactivos");
+	sprintf( sArchInstalZZUnx  , "%sT1INSTALN_ZZ.unx", sPathSalida);
+	strcpy( sSoloArchivoInstalZZ, "T1INSTALN_ZZ");
 
-	pFileInstalInactivoUnx=fopen( sArchInstalInactivoUnx, "w" );
-	if( !pFileInstalInactivoUnx ){
-		printf("ERROR al abrir archivo %s.\n", sArchInstalInactivoUnx );
+	pFileInstalZZUnx=fopen( sArchInstalZZUnx, "w" );
+	if( !pFileInstalZZUnx ){
+		printf("ERROR al abrir archivo %s.\n", sArchInstalZZUnx );
 		return 0;
 	}
 		
@@ -339,7 +344,7 @@ short AbreArchivos()
 void CerrarArchivos(void)
 {
 	fclose(pFileInstalacionUnx);
-	fclose(pFileInstalInactivoUnx);
+	fclose(pFileInstalZZUnx);
 }
 
 void FormateaArchivos(void){
@@ -358,24 +363,20 @@ char	sPathCp[100];
 		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
       sprintf(sPathCp, "%sInactivos/", sPathCopia);
 	}
+
+   /* El de Instalacion */
+	sprintf(sCommand, "chmod 755 %s", sArchInstalacionUnx);
+	iRcv=system(sCommand);
 	
-	if(cantActivos>0){
-		sprintf(sCommand, "chmod 755 %s", sArchInstalacionUnx);
-		iRcv=system(sCommand);
-		
-		sprintf(sCommand, "cp %s %s", sArchInstalacionUnx, sPathCp);
-		iRcv=system(sCommand);
-      		
-	}	
+	sprintf(sCommand, "cp %s %s", sArchInstalacionUnx, sPathCp);
+	iRcv=system(sCommand);
 	
-	if(cantInactivos>0){
-		sprintf(sCommand, "chmod 755 %s", sArchInstalInactivoUnx);
-		iRcv=system(sCommand);
-		
-		sprintf(sCommand, "cp %s %s", sArchInstalInactivoUnx, sPathCp);
-		iRcv=system(sCommand);
-      
-	}
+   /* El archivo ZZ */
+	sprintf(sCommand, "chmod 755 %s", sArchInstalZZUnx);
+	iRcv=system(sCommand);
+	
+	sprintf(sCommand, "cp %s %s", sArchInstalZZUnx, sPathCp);
+	iRcv=system(sCommand);
 
 }
 
@@ -469,7 +470,7 @@ strcat(sql, "END unidad_lectura, ");
 	strcat(sql, "' ', ");		/* Neutro Metal */
    strcat(sql, "c.correlativo_ruta ");
 	strcat(sql, "FROM cliente c, sucur_centro_op sc, OUTER (tecni t, sap_transforma t1), sap_transforma t2, ");
-	strcat(sql, "OUTER sap_transforma t3, OUTER (clientes_vip cv, sap_transforma t4), OUTER ubica_geo_cliente g ");
+	strcat(sql, "OUTER sap_transforma t3, OUTER (clientes_vip cv, tabla tb1, sap_transforma t4), OUTER ubica_geo_cliente g ");
 
    if(giTipoCorrida==1)
       strcat(sql, ", migra_activos m ");
@@ -510,6 +511,14 @@ strcat(sql, ", sap_sin_fecha m ");
 	strcat(sql, "AND cv.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cv.fecha_activacion <= TODAY ");
 	strcat(sql, "AND (cv.fecha_desactivac IS NULL OR cv.fecha_desactivac > TODAY) ");
+
+	strcat(sql, "AND tb1.nomtabla = 'SDCLIV' ");
+	strcat(sql, "AND tb1.codigo = cv.motivo ");
+   strcat(sql, "AND tb1.valor_alf[4] = 'S' ");
+	strcat(sql, "AND tb1.sucursal = '0000' ");
+	strcat(sql, "AND tb1.fecha_activacion <= TODAY "); 
+	strcat(sql, "AND ( tb1.fecha_desactivac >= TODAY OR tb1.fecha_desactivac IS NULL ) ");    
+   
 	strcat(sql, "AND t1.clave = 'SPEBENE' ");			/* voltaje*/
 	strcat(sql, "AND t1.cod_mac = t.codigo_voltaje ");
 	strcat(sql, "AND t4.clave = 'NODISCONCT' ");		/* categoria electrodepe */
@@ -1744,10 +1753,109 @@ ClsInstalacion	regIns;
    /* ABLEINH */
 	sprintf(sLinea, "%s%s\t", sLinea, regIns.cod_ul);
    /* ERDAT */
-	sprintf(sLinea, "%s%s\t", sLinea, regIns.fecha_instalacion);
+	/*sprintf(sLinea, "%s%s\t", sLinea, regIns.fecha_instalacion);*/
+   strcat(sLinea, "\t");
+   
    /* BEGRU + ETIMEZONE */
-	strcat(sLinea, "T1\tUTC-3\t");
+	strcat(sLinea, "T1\tUTC-3");
+   
+	strcat(sLinea, "\n");
+	
+	fprintf(fp, sLinea);
+}
 
+/*
+short CargaIdSF(reg)
+$ClsInstalacion *reg;
+{
+   $char sValor[21];
+   
+   memset(sValor, '\0', sizeof(sValor));
+   
+   $EXECUTE selPod INTO :sValor USING :reg->numero_cliente;
+   
+   if(SQLCODE != 0){
+      return 0;
+   }
+
+   alltrim(sValor, ' ');
+   strcpy(reg->sPod, sValor);   
+
+   return 1;
+}
+*/
+void CargaLimiteInferior(void){
+char  sFecha[11];
+
+   strcpy(sFecha, "20141201");
+   
+   rdefmtdate(&lFechaLimiteInferior, "yyyymmdd", sFecha); /*char a long*/
+
+}
+
+short CargaTarifaInstal(reg)
+$ClsInstalacion *reg;
+{
+   $long lFechaAlta;
+   $long lCorr;
+/*   
+   rdefmtdate(&lFechaAlta, "yyyymmdd", reg->fecha_vig_tarifa); // char a long
+*/
+   $EXECUTE selTarifInstal INTO :reg->tarifa, :reg->cod_ul, :lCorr 
+                           USING :reg->numero_cliente, :lFechaPivote;
+
+   if(SQLCODE != 0){
+      if(SQLCODE == 100){
+         $EXECUTE selTarifInstal2 INTO :reg->tarifa, :reg->cod_ul, :lCorr 
+                                 USING :reg->numero_cliente;
+      
+      }else{ 
+         return 0;
+      }
+   }
+                                 
+   return 1;
+}
+
+void  InicializaEstados(reg)
+ClsEstados  *reg;
+{
+   rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_val_tarifa));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_alta_real));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_move_in));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_pivote));
+   memset(reg->tarifa, '\0', sizeof(reg->tarifa));
+   memset(reg->ul, '\0', sizeof(reg->ul));
+   memset(reg->motivo_alta, '\0', sizeof(reg->motivo_alta));
+}
+
+void CargaCalculados(regIns, regSts)
+ClsInstalacion *regIns;
+ClsEstados     regSts;
+{
+
+   rfmtdate(regSts.fecha_val_tarifa, "yyyymmdd", regIns->fecha_vig_tarifa); /* long to char */
+   strcpy(regIns->fecha_instalacion, regIns->fecha_vig_tarifa);
+
+   alltrim(regSts.tarifa, ' ');
+   alltrim(regSts.ul, ' ');
+   strcpy(regIns->tarifa, regSts.tarifa);
+   strcpy(regIns->cod_ul, regSts.ul);
+   
+   rfmtdate(regSts.fecha_alta_real, "yyyymmdd", regIns->sFechaAltaReal); /* long to char */
+}
+
+void GenerarZZ(fp, regIns)
+FILE 			    *fp;
+ClsInstalacion	 regIns;
+{
+	char	sLinea[1000];	
+   
+	memset(sLinea, '\0', sizeof(sLinea));
+	
+   /* LLAVE */
+	sprintf(sLinea, "T1%ld\t", regIns.numero_cliente);
 
    /* ZZ_SUBESTACION */
 	if(strcmp(regIns.nro_subestacion, "")==0){
@@ -1902,96 +2010,14 @@ ClsInstalacion	regIns;
       strcat(sLinea, "\t");         
    }	
 
-   /* SEC_LECT */
+   /* ZZSEC_LECT */
    sprintf(sLinea, "%s%ld", sLinea, regIns.correlativo_ruta);
    
 	strcat(sLinea, "\n");
 	
 	fprintf(fp, sLinea);
-}
-
-/*
-short CargaIdSF(reg)
-$ClsInstalacion *reg;
-{
-   $char sValor[21];
-   
-   memset(sValor, '\0', sizeof(sValor));
-   
-   $EXECUTE selPod INTO :sValor USING :reg->numero_cliente;
-   
-   if(SQLCODE != 0){
-      return 0;
-   }
-
-   alltrim(sValor, ' ');
-   strcpy(reg->sPod, sValor);   
-
-   return 1;
-}
-*/
-void CargaLimiteInferior(void){
-char  sFecha[11];
-
-   strcpy(sFecha, "20141201");
-   
-   rdefmtdate(&lFechaLimiteInferior, "yyyymmdd", sFecha); /*char a long*/
 
 }
-
-short CargaTarifaInstal(reg)
-$ClsInstalacion *reg;
-{
-   $long lFechaAlta;
-   $long lCorr;
-/*   
-   rdefmtdate(&lFechaAlta, "yyyymmdd", reg->fecha_vig_tarifa); // char a long
-*/
-   $EXECUTE selTarifInstal INTO :reg->tarifa, :reg->cod_ul, :lCorr 
-                           USING :reg->numero_cliente, :lFechaPivote;
-
-   if(SQLCODE != 0){
-      if(SQLCODE == 100){
-         $EXECUTE selTarifInstal2 INTO :reg->tarifa, :reg->cod_ul, :lCorr 
-                                 USING :reg->numero_cliente;
-      
-      }else{ 
-         return 0;
-      }
-   }
-                                 
-   return 1;
-}
-
-void  InicializaEstados(reg)
-ClsEstados  *reg;
-{
-   rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
-   rsetnull(CLONGTYPE, (char *) &(reg->fecha_val_tarifa));
-   rsetnull(CLONGTYPE, (char *) &(reg->fecha_alta_real));
-   rsetnull(CLONGTYPE, (char *) &(reg->fecha_move_in));
-   rsetnull(CLONGTYPE, (char *) &(reg->fecha_pivote));
-   memset(reg->tarifa, '\0', sizeof(reg->tarifa));
-   memset(reg->ul, '\0', sizeof(reg->ul));
-   memset(reg->motivo_alta, '\0', sizeof(reg->motivo_alta));
-}
-
-void CargaCalculados(regIns, regSts)
-ClsInstalacion *regIns;
-ClsEstados     regSts;
-{
-
-   rfmtdate(regSts.fecha_val_tarifa, "yyyymmdd", regIns->fecha_vig_tarifa); /* long to char */
-   strcpy(regIns->fecha_instalacion, regIns->fecha_vig_tarifa);
-
-   alltrim(regSts.tarifa, ' ');
-   alltrim(regSts.ul, ' ');
-   strcpy(regIns->tarifa, regSts.tarifa);
-   strcpy(regIns->cod_ul, regSts.ul);
-   
-   rfmtdate(regSts.fecha_alta_real, "yyyymmdd", regIns->sFechaAltaReal); /* long to char */
-}
-
 
 /****************************
 		GENERALES

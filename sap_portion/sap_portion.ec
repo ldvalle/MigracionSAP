@@ -602,6 +602,18 @@ $char sAux[1000];
 	strcat(sql, "AND sector = ? ");
 	strcat(sql, "AND zona = ? ");
 	strcat(sql, "AND fecha_emision_real < ? ");
+
+	strcpy(sql, "SELECT a1.fecha_emision_real, a1.fecha_generacion ");
+	strcat(sql, "FROM agenda a1 ");
+	strcat(sql, "WHERE a1.sucursal = ? ");
+	strcat(sql, "AND a1.sector = ? ");
+	strcat(sql, "AND a1.zona = ? "); 
+	strcat(sql, "AND a1.fecha_emision_real = (SELECT MAX(a2.fecha_emision_real) ");
+	strcat(sql, "	FROM agenda a2 ");
+	strcat(sql, "	WHERE a2.sucursal = a1.sucursal ");
+	strcat(sql, "	AND a2.sector = a1.sector ");
+	strcat(sql, "	AND a2.zona = a1.zona ");
+	strcat(sql, "   AND a2.fecha_emision_real < ?) ");
    
    $PREPARE selFacturaAnter FROM $sql;
    
@@ -1063,14 +1075,16 @@ $ClsPortion *reg;
 {
    $long lFecha;
    long  lFechaAux;
-   long lFechaAux1;
-   long lFechaAux2;
+   $long lFechaAux1;
+   $long lFechaAux2;
    long lFDesde;
    
-   $EXECUTE selFacturaAnter INTO :lFecha USING :reg->sucursal,
+   $EXECUTE selFacturaAnter INTO :lFechaAux1, :lFechaAux2 USING :reg->sucursal,
                                                             :reg->sector,
                                                             :reg->zona,
-                                                            :lFechaPivote2;
+                                                            :lFechaPivote;
+                                                            
+                                                            /*:lFechaPivote2;*/
 
    if(SQLCODE != 0){
       printf("No se encontro facturacion anterior para Suc.%s Sector %ld Zona %ld POR\n", reg->sucursal, reg->sector, reg->zona);
@@ -1082,21 +1096,21 @@ $ClsPortion *reg;
    */
   
    
-
+/*
    if(!risnull(CLONGTYPE, (char *)&lFecha) && lFecha > 0){
-      lFecha=lFecha-420; /* Le resto 14 meses */
+      lFecha=lFecha-420; // Le resto 14 meses 
       lFDesde = lFecha-100;
       lFechaAux1 = RestarDiasHabiles(lFecha, 1, lFDesde);
       lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
    }else{
    
       rdefmtdate(&lFechaAux, "dd.mm.yyyy", reg->fecha_generacion);
-      lFechaAux=lFechaAux-420; /* Le resto 14 meses */
+      lFechaAux=lFechaAux-420; // Le resto 14 meses 
       lFDesde = lFechaAux-100;
       lFechaAux1 = RestarDiasHabiles(lFechaAux, 1, lFDesde);
       lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
    }
-   
+*/   
    rfmtdate(lFechaAux1, "dd.mm.yyyy", reg->termerst); /* long to char */
    rfmtdate(lFechaAux2, "dd.mm.yyyy", reg->abrdats);  /* long to char */
 
@@ -1108,15 +1122,15 @@ $ClsUnLectu *reg;
 {
    $long lFecha;
    $long lFechaAux;
-   long  lFechaAux1;
-   long  lFechaAux2;
+   $long  lFechaAux1;
+   $long  lFechaAux2;
    long  lFDesde;
    int   iDiffer;
    
-   $EXECUTE selFacturaAnter INTO :lFecha USING :reg->sucursal,
+   $EXECUTE selFacturaAnter INTO :lFechaAux1, :lFechaAux2 USING :reg->sucursal,
                                                 :reg->sector,
                                                 :reg->zona,
-                                                :lFechaPivote2;
+                                                :lFechaPivote;
 
    if(SQLCODE != 0){
       printf("No se encontro facturacion anterior para Suc.%s Sector %ld Zona %ld UL\n", reg->sucursal, reg->sector, reg->zona);
@@ -1128,9 +1142,9 @@ $ClsUnLectu *reg;
    lFechaAux2 = lFecha - 3;
    */
    
-   
+   /*
    if(!risnull(CLONGTYPE, (char *)&lFecha) && lFecha > 0){
-      lFecha=lFecha-420; /* Le resto 14 meses */
+      lFecha=lFecha-420; // Le resto 14 meses 
       lFDesde = lFecha-100;
       lFechaAux1 = RestarDiasHabiles(lFecha, 1, lFDesde);
       lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
@@ -1144,12 +1158,13 @@ $ClsUnLectu *reg;
          printf("No se encontro Agenda para para Suc.%s Sector %ld Zona %ld F.Pivote %ld UL\n", reg->sucursal, reg->sector, reg->zona, lFechaPivote);
          return 0;
       }
-      lFechaAux=lFechaAux-420; /* Le resto 14 meses */
+      lFechaAux=lFechaAux-420; // Le resto 14 meses 
       lFDesde = lFechaAux-100;
                                                                   
       lFechaAux1 = RestarDiasHabiles(lFechaAux, 1, lFDesde);
       lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
    }
+   */
    
    iDiffer = lFechaAux1 - lFechaAux2;
    

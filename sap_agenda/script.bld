@@ -1,0 +1,48 @@
+PROGRAM = sap_agenda.exe
+
+OBJECTS = sap_agenda.o 
+
+OBJS_LIB = sqlerror.o ustring.o macmath.o errores.o mfecha.o
+
+OTROS =
+
+LXFLAGS = -lsynmail -lmail
+
+%If "$(SYSTEM)" == "AIX/RS-6000"
+.include /usr/pvcs/etc/build.def
+%Else
+.include /pvcs/etc/build.def
+%EndIf
+
+#UPDATE#
+
+sap_agenda.o : sap_agenda.ec   \
+              sap_agenda.h      \
+              codigos.h          \
+              sqlerror.h         \
+              lotes.h            \
+              pardud.h           \
+              tabla_errores.h    \
+              ustring.h				\
+              macmath.h          \
+              synmail.h          \
+              mfecha.h
+
+sqlerror.o : sqlerror.ec         \
+             sqlerror.h
+
+ustring.o : ustring.c            \
+            ustring.h
+
+macmath.o : macmath.c 
+
+errores.o : errores.ec           \
+            errores.h            \
+            tabla_errores.h 
+
+mfecha.o : mfecha.ec             \
+           mfecha.h              \
+           errores.h             \
+           tabla_errores.h
+           
+#ENDUPDATE#

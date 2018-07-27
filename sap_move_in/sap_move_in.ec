@@ -48,6 +48,7 @@ long 	cantPreexistente;
 $ClsAltas	regAltas;
 $long	lFechaLimiteInferior;
 $long lFechaRti;
+$long lFechaPivote;
 $int	iCorrelativos;
 
 char	sMensMail[1024];	
@@ -87,6 +88,8 @@ $ClsEstados regSts;
    */
    
    $EXECUTE selFechaRti INTO :lFechaRti;	
+   
+   $EXECUTE selFechaPivote INTO :lFechaPivote;
 		
 	/* ********************************************
 				INICIO AREA DE PROCESO
@@ -301,6 +304,11 @@ $char sAux[1000];
 	
 	$PREPARE selFechaActual FROM $sql;	
 	
+   /******** Fecha Pivote  ****************/
+   strcpy(sql, "SELECT TODAY - 420 FROM dual");
+   
+   $PREPARE selFechaPivote FROM $sql;
+   
 	/******** Cursor Altas  ****************/	
 	strcpy(sql, "SELECT c.numero_cliente, ");
 	strcat(sql, "NVL(t1.cod_sap, c.tarifa), ");
@@ -314,7 +322,7 @@ $char sAux[1000];
 	strcat(sql, "	ELSE 'NO' ");
 	strcat(sql, "END, ");
    strcat(sql, "c.sucursal ");
-	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2, OUTER clientes_vip cv ");
+	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2, OUTER (clientes_vip cv, tabla tb1) ");
    strcat(sql, ", OUTER sap_transforma t3 ");
 
    if(giTipoCorrida==1)	
@@ -352,6 +360,14 @@ $char sAux[1000];
 	strcat(sql, "AND cv.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cv.fecha_activacion <= TODAY ");
 	strcat(sql, "AND (cv.fecha_desactivac IS NULL OR cv.fecha_desactivac > TODAY) ");
+   
+	strcat(sql, "AND tb1.nomtabla = 'SDCLIV' ");
+	strcat(sql, "AND tb1.codigo = cv.motivo ");
+   strcat(sql, "AND tb1.valor_alf[4] = 'S' ");
+	strcat(sql, "AND tb1.sucursal = '0000' ");
+	strcat(sql, "AND tb1.fecha_activacion <= TODAY "); 
+	strcat(sql, "AND ( tb1.fecha_desactivac >= TODAY OR tb1.fecha_desactivac IS NULL ) ");    
+   
 	strcat(sql, "AND t3.clave = 'CENTROOP' ");
 	strcat(sql, "AND t3.cod_mac = c.sucursal ");
 	
@@ -510,6 +526,25 @@ $char sAux[1000];
 	strcat(sql, "  AND h2.fecha_lectura > ?) ");
    
    $PREPARE selFechaAlta FROM $sql;
+
+   /*********** Fecha Move In 1 ***********/
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura + 1) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.fecha_lectura >= ? ");
+	strcat(sql, "AND tipo_lectura in (1, 2, 3, 4) ");
+      
+   $PREPARE selMoveIn1 FROM $sql;
+               
+   /******** FEcha Move In 2 *********/
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura + 1) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.fecha_lectura >= ? ");
+	strcat(sql, "AND tipo_lectura in (6, 7) ");
+      
+   $PREPARE selMoveIn2 FROM $sql;
+
 
    /******** FEcha Primera factura *********/
 	strcpy(sql, "SELECT TO_CHAR(h1.fecha_facturacion, '%Y%m%d') ");
@@ -991,8 +1026,30 @@ $ClsAltas   *regAlta;
 {
 	$long	lCorrFactuInicio;
 	$char sMotivo[7];
+   long  lFechaAltaReal;
+   $long lFecha;
+   
+   if(!CargaAltaReal(regAlta)){
+       printf("Error al buscar fecha de Alta Real para cliente %ld.\n", regAlta->numero_cliente);
+       exit(2);
+   }
 
+   rdefmtdate(&lFechaAltaReal, "yyyymmdd", regAlta->fecha_alta_sistema);
+   
+   if(lFechaAltaReal < lFechaPivote){
+      $EXECUTE selMoveIn1 INTO :lFecha USING :regAlta->numero_cliente, :lFechaPivote;
+   }else{
+      $EXECUTE selMoveIn2 INTO :lFecha USING :regAlta->numero_cliente, :lFechaPivote;
+   }
+   
+   if(SQLCODE != 0){
+      lFecha = lFechaAltaReal;
+   }
+   
+   rfmtdate(lFecha, "yyyymmdd", regAlta->fecha_alta);
+   
 	/* Ahora es la fecha de la primera factura que se migra */
+/*   
 	if(regAlta->corr_facturacion > 0){
    
       $EXECUTE selFechaAlta INTO :regAlta->fecha_alta
@@ -1010,17 +1067,14 @@ $ClsAltas   *regAlta;
    		    printf("Error al buscar fecha de Alta para cliente %ld.\n", regAlta->numero_cliente);
    		    exit(2);
          }
-
       }
-         
 	}else{
-
       if(!CargaAlta(regAlta)){
 		    printf("Error al buscar fecha de Alta para cliente %ld.\n", regAlta->numero_cliente);
 		    exit(2);
       }
 	}
-	
+*/	
    /* Motivo de Alta */
    memset(sMotivo, '\0', sizeof(sMotivo));
    
@@ -1037,10 +1091,6 @@ $ClsAltas   *regAlta;
       }
    }
    
-   if(!CargaAltaReal(regAlta)){
-       printf("Error al buscar fecha de Alta Real para cliente %ld.\n", regAlta->numero_cliente);
-       exit(2);
-   }
 
 }
 

@@ -620,8 +620,9 @@ $char sAux[1000];
 	strcat(sql, "h1.numero_medidor, ");
 	strcat(sql, "h1.marca_medidor, ");
 	strcat(sql, "med.mod_codigo, ");
-	strcat(sql, "NVL(m.tipo_medidor, 'A') ");
-	strcat(sql, "FROM hislec h1, hisfac h2, medidor med, modelo m, sap_transforma t1 ");
+	strcat(sql, "NVL(m.tipo_medidor, 'A'), ");
+	strcat(sql, "TO_CHAR(a.fecha_generacion, '%Y%m%d') ");
+	strcat(sql, "FROM hislec h1, hisfac h2, medidor med, modelo m, sap_transforma t1, agenda a ");
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
    strcat(sql, "AND h1.fecha_lectura >= ? ");
 /*   
@@ -637,6 +638,9 @@ $char sAux[1000];
 	strcat(sql, "AND m.mod_codigo = med.mod_codigo ");
 	strcat(sql, "AND t1.clave = 'TIPOLECTU' ");
 	strcat(sql, "AND t1.cod_mac = h1.tipo_lectura ");
+	strcat(sql, "AND a.sucursal = h2.sucursal ");
+	strcat(sql, "AND a.sector = h2.sector ");
+	strcat(sql, "AND a.fecha_emision_real = h2.fecha_facturacion ");
 
 	strcat(sql, "ORDER BY 2 ASC ");
 	
@@ -657,11 +661,12 @@ $char sAux[1000];
 	strcat(sql, "h1.numero_medidor, ");
 	strcat(sql, "h1.marca_medidor, ");
 	strcat(sql, "m.modelo_medidor, ");
-	strcat(sql, "NVL(m.tipo_medidor, 'A') ");
+	strcat(sql, "NVL(m.tipo_medidor, 'A'), ");
+   strcat(sql, "TO_CHAR(a.fecha_generacion, '%Y%m%d') ");
 /*	
 	strcat(sql, "FROM hislec h1, hisfac h2, medidor med, modelo m, sap_transforma t1 ");
 */
-	strcat(sql, "FROM hislec h1, hisfac h2, medid m, sap_transforma t1 ");
+	strcat(sql, "FROM hislec h1, hisfac h2, medid m, sap_transforma t1, agenda a ");
 	
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
    
@@ -681,6 +686,9 @@ $char sAux[1000];
 */	
 	strcat(sql, "AND t1.clave = 'TIPOLECTU' ");
 	strcat(sql, "AND t1.cod_mac = h1.tipo_lectura ");
+	strcat(sql, "AND a.sucursal = h2.sucursal ");
+	strcat(sql, "AND a.sector = h2.sector ");
+	strcat(sql, "AND a.fecha_emision_real = h2.fecha_facturacion ");
 	
 	$PREPARE selConsuActi FROM $sql;	
 	$DECLARE curConsuActi cursor for selConsuActi;
@@ -697,11 +705,12 @@ $char sAux[1000];
 	strcat(sql, "h1.numero_medidor, ");
 	strcat(sql, "h1.marca_medidor, ");
 	strcat(sql, "m.modelo_medidor, ");
-	strcat(sql, "NVL(m.tipo_medidor, 'A') ");
+	strcat(sql, "NVL(m.tipo_medidor, 'A'), ");
+   strcat(sql, "TO_CHAR(a.fecha_generacion, '%Y%m%d') ");
 	/*
 	strcat(sql, "FROM hislec_reac h1, hisfac h2, medidor med, modelo m, sap_transforma t1 ");
 	*/
-	strcat(sql, "FROM hislec_reac h1, hisfac h2, medid m, sap_transforma t1 ");
+	strcat(sql, "FROM hislec_reac h1, hisfac h2, medid m, sap_transforma t1, agenda a ");
 	
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
   
@@ -723,6 +732,9 @@ $char sAux[1000];
 	
 	strcat(sql, "AND t1.clave = 'TIPOLECTU' ");
 	strcat(sql, "AND t1.cod_mac = h1.tipo_lectura ");
+	strcat(sql, "AND a.sucursal = h2.sucursal ");
+	strcat(sql, "AND a.sector = h2.sector ");
+	strcat(sql, "AND a.fecha_emision_real = h2.fecha_facturacion ");
 		
 	$PREPARE selLectuReac FROM $sql;
 	$DECLARE curLectuReac cursor for selLectuReac;
@@ -991,7 +1003,8 @@ $ClsLecturas *regLectu;
 		:regLectu->numero_medidor,
 		:regLectu->marca_medidor,
 		:regLectu->modelo_medidor,
-		:regLectu->tipo_medidor;
+		:regLectu->tipo_medidor,
+      :regLectu->fecha_generacion;
 	
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -1041,7 +1054,7 @@ $ClsLecturas	*regLectu;
 	memset(regLectu->marca_medidor, '\0', sizeof(regLectu->marca_medidor));
 	memset(regLectu->modelo_medidor, '\0', sizeof(regLectu->modelo_medidor));
 	memset(regLectu->tipo_medidor, '\0', sizeof(regLectu->tipo_medidor));
-	
+	memset(regLectu->fecha_generacion, '\0', sizeof(regLectu->fecha_generacion));
 }
 
 short ClienteYaMigrado(nroCliente, iFlagMigra, lPivote, lMoveIn)
@@ -1162,10 +1175,16 @@ long        lFechaMv;
 	char	   sLinea[1000];	
 	int		iNumerador;
    long     lFechaLectura;
-	
+	long     lFechaAux;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
    rdefmtdate(&lFechaLectura, "yyyymmdd", regLectu.fecha_lectura); /*char a long*/
+   
+   if(lFechaLectura == lFechaMv){
+      lFechaAux=lFechaLectura+1;
+      rfmtdate(lFechaAux, "yyyymmdd", regLectu.fecha_lectura); /* long to char */   
+   }
    
 	/****** Ficticia Tramo 1 o 2 *****/
    
@@ -1266,16 +1285,19 @@ long        lFechaMv;
       /* ISTABLART */
 		sprintf(sLinea, "%s%s\t", sLinea, regLectu.tipo_lectu_sap);
       /* ADAT */
-		sprintf(sLinea, "%s%s\t", sLinea, regLectu.fecha_lectura);
+      sprintf(sLinea, "%s%s\t", sLinea, regLectu.fecha_lectura);
+	
       /* ATIM */
 		strcat(sLinea, "0000\t");
+      
       /* ADATTATS */
       sprintf(sLinea, "%s%s\t", sLinea, regLectu.fecha_lectura);
+      
       /* AKTIV */
 		strcat(sLinea, "1\t");
       /* ADATSOLL */
       if(lFechaLectura != lFechaMv){
-		    sprintf(sLinea, "%s%s", sLinea, regLectu.fecha_lectura);
+		    sprintf(sLinea, "%s%s", sLinea, regLectu.fecha_generacion);
       }
 			
 		strcat(sLinea, "\n");
@@ -1439,7 +1461,8 @@ $ClsLecturas	*regLectu;
 		:regLectu->numero_medidor,
 		:regLectu->marca_medidor,
 		:regLectu->modelo_medidor,
-		:regLectu->tipo_medidor;
+		:regLectu->tipo_medidor,
+      :regLectu->fecha_generacion;
 	
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -1500,7 +1523,8 @@ $ClsLecturas	*regLectu;
 		:regLectu->numero_medidor,
 		:regLectu->marca_medidor,
 		:regLectu->modelo_medidor,
-		:regLectu->tipo_medidor;
+		:regLectu->tipo_medidor,
+      :regLectu->fecha_generacion;
 	
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){

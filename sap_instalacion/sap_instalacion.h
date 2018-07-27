@@ -105,6 +105,7 @@ short	GenerarPlano(FILE *, ClsInstalacion);
 void	GeneraKEY(FILE *, ClsInstalacion);
 void	GeneraDATA(FILE *, ClsInstalacion);
 void	GeneraENDE(FILE *, ClsInstalacion);
+void  GenerarZZ(FILE *, ClsInstalacion);
 
 short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);

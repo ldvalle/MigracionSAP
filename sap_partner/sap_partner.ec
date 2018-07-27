@@ -214,7 +214,7 @@ int		iFlagMigra;
 			iFlagMigra=0;
 			if(! ClienteYaMigrado(regCliente.numero_cliente, 1, &iFlagMigra)){
 
-				if(! CorporativoT23(regCliente.numero_cliente)){
+				if(! CorporativoT23(regCliente.numero_cliente)){  /* Modifique esta función para que diga siempre que no es corpot23 */
 					/* Vemos que no sea hijo de un corporativo propio */
 
 					if(risnull(CLONGTYPE, (char *) &regCliente.minist_repart) || regCliente.minist_repart <= 0){
@@ -232,13 +232,6 @@ int		iFlagMigra;
 							exit(1);
 						}		
 
-                  /* Carga ID Sales Forces */
-/*                  
-                  if(! CargaIdSF(&regCliente)){
-							$ROLLBACK WORK;
-							exit(1);
-                  }
-*/
 						/* Generar Plano */
 						if (!GenerarPlano(pFileUnx, regCliente, regFP, regTelefonos, regEmail, iCantTelefonos, iCantEmail, iEsCorpo)){
 							printf("Error al generar el archivo\n");
@@ -255,7 +248,32 @@ int		iFlagMigra;
 						cantProcesada++;
 						cantActivos++;
 					}else{
-
+/***************  Se le crea el partner al hijo y luego veo si le tengo que generar el partner a su papa 06/07/2018 */
+						/* Cargar Telefonos */
+						iCantTelefonos=0;
+						if(! CargaTelefonos(regCliente, &(regTelefonos), &iCantTelefonos)){
+							exit(1);
+						}
+						/* Cargar eMail */
+						iCantEmail=0;
+						if(! CargaEmail(regCliente, &regEmail, &iCantEmail)){
+							exit(1);
+						}		
+						/* Generar Plano */
+						if (!GenerarPlano(pFileUnx, regCliente, regFP, regTelefonos, regEmail, iCantTelefonos, iCantEmail, iEsCorpo)){
+							printf("Error al generar el archivo\n");
+							exit(1);	
+						}
+						/* Registrar Control Cliente */
+                  $BEGIN WORK;
+						if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
+							$ROLLBACK WORK;
+							exit(1);	
+						}
+                  $COMMIT WORK;
+						cantProcesada++;
+						cantActivos++;
+/****************/
 						if(LeoCorpoPropio(&regCliente, &regFP)){
 
 							iEsCorpo=1;
@@ -273,15 +291,7 @@ int		iFlagMigra;
 									if(! CargaEmail(regCliente, &regEmail, &iCantEmail)){
 										exit(1);
 									}		
-
-                           /* Carga ID Sales Forces */
-/*                           
-                           if(! CargaIdSF(&regCliente)){
-                              printf("\t era un corpo propio \n");
-         							$ROLLBACK WORK;
-         							exit(1);
-                           }
-*/									
+									
 									/* Generar Plano */
 									if (!GenerarPlano(pFileCorpoUnx, regCliente, regFP, regTelefonos, regEmail, iCantTelefonos, iCantEmail, iEsCorpo)){
                               printf("Error al generar el archivo\n");
@@ -1299,11 +1309,11 @@ $ClsCliente	regCliente;
    sprintf(sLinea, "%s%ld\t", sLinea, regCliente.numero_cliente);
    
    /* MASTER_KUN */
-   strcat(sLinea, "9000000000\t");
+   strcat(sLinea, "CALL\t");
    
 	sprintf(sLinea, "%s%d\t", sLinea, iTipoPersona);
 	
-	sprintf(sLinea, "%sZEIN\t", sLinea);
+	sprintf(sLinea, "%sZEMG\t", sLinea);
 	/*sprintf(sLinea, "%sZT1\t", sLinea);*/
 	
 	sprintf(sLinea, "%s%s\t", sLinea, sAux);
@@ -1843,6 +1853,8 @@ $long	nroCliente;
 {
 	$int	iCant=0;
 	
+   return 0; /* 06/07/2018 */
+   
 	$EXECUTE selCorpoT23 into :iCant using :nroCliente;
 
 	if(SQLCODE != 0){
