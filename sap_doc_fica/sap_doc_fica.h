@@ -32,6 +32,8 @@ $typedef struct{
    int      antiguedad_saldo;
    char     sucur_sap[11];
    char     sFechaVigTarifa[11];
+   int      corr_facturacion;
+   char     sFechaUltFactura[11];
 }ClsCliente;
 
 $typedef struct{
@@ -40,8 +42,8 @@ $typedef struct{
    double   saldo; 
    char     ind_afecto_int[2];
    char     hvorg[5]; 
-   char     hkont[4]; 
-   char     tvorg[4]; 
+   char     hkont[11]; 
+   char     tvorg[5]; 
    char     optxt[61];
 }ClsImpuesto;
 
@@ -106,8 +108,8 @@ $typedef struct{
    char  cod_cargo[4];
    double   valor_cargo;
    char  hvorg[5];
-   char  hkont[4];
-   char  tvorg[4];
+   char  hkont[11];
+   char  tvorg[5];
    char  optxt[61];
 }ClsAgeing;
 
@@ -150,26 +152,29 @@ short LeoAgeing(ClsAgeing *);
 void  InicializaAgeing(ClsAgeing *);
 void  CopiaClienteAgeToOp(ClsCliente, ClsAgeing, ClsOP *);
 
-void  ProcesaConvenios(ClsCliente);
+void  ProcesaConvenios(ClsCliente, char*);
 short LeoConvenio(ClsConve *);
 void  InicializaConvenio(ClsConve *);
 
-void  ProcesaDisputa(ClsCliente);
+void  ProcesaDisputa(ClsCliente, char*);
 short LeoDisputa(ClsDisputa *);
 void  InicializaDisputa(ClsDisputa *);
 
 short LeoImpuDispu(ClsImpuesto *);
+short LeoImpuConve(ClsImpuesto *);
 
 void  inicializaOPL(ClsOPL **);
-void  CargaOPL(ClsCliente, long, ClsOPL **);
+void  CargaOPL(ClsCliente, long, ClsOPL **, char *);
 
-void  GeneraSaldoCliente(ClsCliente);
+void  InicializaOP( ClsOP *);
+void  GeneraSaldoCliente(FILE *, ClsCliente);
 void  GenerarPlanos(ClsCliente);
-void  GenerarKO(ClsCliente);
-void  GenerarOP(ClsOP, int);
-void  GenerarOPK(ClsOPK, int);
-void  GenerarOPL(ClsCliente, ClsOPL *);
-void  GeneraENDE(ClsCliente);
+void  GenerarKO(FILE*, ClsCliente);
+void  GenerarOP(FILE*, ClsOP, int, char*);
+void  InicializaOPK(ClsOPK *);
+void  GenerarOPK(FILE*, ClsOPK, int, char*);
+void  GenerarOPL(FILE*, ClsCliente, ClsOPL *);
+void  GeneraENDE(FILE *, ClsCliente);
 
 void CopiaClienteToOp(ClsCliente, ClsOP *);
 void CopiaClienteToOpk(ClsCliente, double, ClsOPK *);
