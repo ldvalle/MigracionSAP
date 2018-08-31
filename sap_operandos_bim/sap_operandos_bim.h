@@ -85,7 +85,7 @@ void  GenerarPlanos(FILE*, int, ClsFacts);
 void  GeneraKey(FILE*, int, ClsFacts);
 void  GeneraCuerpo(FILE*, int, ClsFacts);
 void  GeneraPie(FILE*, int, ClsFacts);
-void  GeneraENDE(FILE*, ClsFacts);
+void  GeneraENDE(FILE*, int, ClsFacts);
 
 short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);

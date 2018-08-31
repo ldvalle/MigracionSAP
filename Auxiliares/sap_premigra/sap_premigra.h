@@ -36,8 +36,8 @@ $typedef struct{
 	long lFechaAlta;
 	long lFechaMoveIn;
 	long lFechaPivote;
-	char sTarifa[10];
-	char sUL[10];
+	char sTarifa[11];
+	char sUL[11];
 	char sMotivoAlta[4];
 }ClsEstado;
    

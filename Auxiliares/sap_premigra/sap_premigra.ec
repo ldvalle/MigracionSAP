@@ -72,6 +72,8 @@ $long			lFechaIniAnterior;
 $long			lFechaHastaAnterior;
 long			lDifDias;
 char			sFechaAlta[9];
+char        sFechaValTarifa[9];
+long        lFechaValTarifa;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -103,6 +105,9 @@ char			sFechaAlta[9];
    strcpy(sFechaMac, "24-09-1995");
    rdefmtdate(&lFechaMac, "dd-mm-yyyy", sFechaMac);   
 
+   strcpy(sFechaValTarifa, "01-12-2014");
+   rdefmtdate(&lFechaValTarifa, "dd-mm-yyyy", sFechaValTarifa);   
+
    $EXECUTE selFechaPivote INTO :lFechaPivote;
 
    if(SQLCODE != 0){
@@ -123,12 +128,15 @@ char			sFechaAlta[9];
       
       regEstado.numero_cliente = regCliente.numero_cliente;
       regEstado.lFechaPivote = lFechaPivote;
-      
-      /* Fecha Validez de Tarifa */
-      regEstado.lFechaValTar = getValTar(regCliente);
-      
+
       /* Fecha Alta Real */
       regEstado.lFechaAlta = getAlta(regCliente);
+      
+      /* Fecha Validez de Tarifa */
+      /* Ahora será una constante
+      regEstado.lFechaValTar = getValTar(regCliente);
+      */
+      regEstado.lFechaValTar = lFechaValTarifa;
       
       /* Fecha Move In */
       regEstado.lFechaMoveIn = getMoveIn(regCliente, regEstado.lFechaAlta);
@@ -277,6 +285,9 @@ if(giTipoCorrida == 1){
    
 	strcat(sql, "WHERE c.estado_cliente = 0 ");
 	strcat(sql, "AND c.tipo_sum != 5 ");
+   
+strcat(sql, "AND not exists ( select 1 from sap_regi_cliente s where s.numero_cliente = c.numero_cliente ) ");
+   
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
@@ -329,7 +340,7 @@ if(giTipoCorrida == 1){
    
    $PREPARE selPrimFactu FROM $sql;
             
-   /******** FEcha Move In *********/
+   /******** FEcha Move In 1 *********/
 	strcpy(sql, "SELECT MIN(h1.fecha_lectura) ");
 	strcat(sql, "FROM hislec h1 ");
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
@@ -339,9 +350,24 @@ if(giTipoCorrida == 1){
 	strcat(sql, " 	WHERE h2.numero_cliente = h1.numero_cliente ");
 	strcat(sql, "  AND h2.tipo_lectura IN (1,2,3,4) ");
 	strcat(sql, "  AND h2.fecha_lectura > ?) ");
-   
+
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura + 1) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.fecha_lectura >= ? ");
+	strcat(sql, "AND tipo_lectura in (1, 2, 3, 4) ");
+      
    $PREPARE selMoveIn FROM $sql;
                
+   /******** FEcha Move In 2 *********/
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura + 1) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.fecha_lectura >= ? ");
+	strcat(sql, "AND tipo_lectura in (6, 7) ");
+      
+   $PREPARE selMoveIn2 FROM $sql;
+                  
    /******** Estados *********/
 	strcpy(sql, "SELECT first 1 ");
 	strcat(sql, "CASE ");
@@ -569,7 +595,13 @@ $long       lFechaAlta;
 {
    $long lFecha;
 
-   $EXECUTE selMoveIn INTO :lFecha USING :reg.numero_cliente, :lFechaRti;
+   /*$EXECUTE selMoveIn INTO :lFecha USING :reg.numero_cliente, :lFechaRti;*/
+   
+   if(lFechaAlta < lFechaPivote ){
+      $EXECUTE selMoveIn INTO :lFecha USING :reg.numero_cliente, :lFechaPivote;
+   }else{
+      $EXECUTE selMoveIn2 INTO :lFecha USING :reg.numero_cliente, :lFechaPivote;
+   }
    
    if(SQLCODE != 0){
       lFecha = lFechaAlta;
@@ -586,7 +618,7 @@ $ClsEstado  *regEstado;
    $EXECUTE selEstados INTO :regEstado->sTarifa, 
                             :regEstado->sUL
                        USING :regCliente.numero_cliente,
-                             :lFechaPivote;
+                             :regEstado->lFechaMoveIn;    /* :lFechaPivote; */ 
                              
    if(SQLCODE != 0){
       if(SQLCODE != SQLNOTFOUND){

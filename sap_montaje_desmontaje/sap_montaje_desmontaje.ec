@@ -406,7 +406,7 @@ int		iRcv, i;
 
 	if(giEstadoCliente==0){		
 		/*strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
-      sprintf(sDestino, "%sActivos/", sPathCopia);
+      sprintf(sDestino, "%sActivos/Montajes/", sPathCopia);
 	}else{
 		/*strcpy(sDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
       sprintf(sDestino, "%sInactivos/", sPathCopia);

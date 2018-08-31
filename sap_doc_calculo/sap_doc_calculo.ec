@@ -347,7 +347,7 @@ char	sPathCp[100];
 
 	if(giEstadoCliente==0){
 		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
-      sprintf(sPathCp, "%sActivos/", sPathCopia);
+      sprintf(sPathCp, "%sActivos/BillDoc/", sPathCopia);
 	}else{
 		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
       sprintf(sPathCp, "%sInactivos/", sPathCopia);

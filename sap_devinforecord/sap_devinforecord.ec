@@ -255,7 +255,7 @@ void MensajeParametros(void){
 		printf("Error en Parametros.\n");
 		printf("	<Base> = synergia.\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
-      printf("	<Tipo Corrida> 0=Normal 1=Reducida.\n");
+      printf("	<Tipo Corrida> 0=Normal; 1=Reducida Clientes; 2=Reducida Medidores\n");
 }
 
 short AbreArchivos()
@@ -352,7 +352,7 @@ char	sPathCp[100];
 	memset(sPathCp, '\0', sizeof(sPathCp));
 	
 	/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
-   sprintf(sPathCp, "%sActivos/", sPathCopia);
+   sprintf(sPathCp, "%sActivos/Equipos/", sPathCopia);
    
    /* Los Instalados */
    for(i=1; i <= indice; i++){
@@ -448,13 +448,11 @@ $char sAux[1000];
 if(giTipoCorrida==1){
    strcat(sql, ", migra_activos mac ");
 }
-   
+if(giTipoCorrida==2){
+   strcat(sql, ", sap_lst_medidores l ");
+}
+
    strcat(sql, "WHERE mi.estado = 'I' ");
-/*
-   strcat(sql, "AND mi.numero_medidor = 37124714 ");
-   strcat(sql, "AND mi.marca_medidor = 'AMP' ");
-   strcat(sql, "AND mi.modelo_medidor = '03' ");
-*/   
    strcat(sql, "AND md.med_numero = mi.numero_medidor ");
    strcat(sql, "AND md.mar_codigo = mi.marca_medidor ");
    strcat(sql, "AND md.mod_codigo = mi.modelo_medidor ");
@@ -469,6 +467,11 @@ if(giTipoCorrida==1){
 if(giTipoCorrida==1){   
    strcat(sql, "AND mac.numero_cliente = mi.numero_cliente ");
 }
+if(giTipoCorrida==2){
+   strcat(sql, "AND mi.numero_medidor = l.numero_medidor ");
+   strcat(sql, "AND mi.marca_medidor = l.marca_medidor ");
+   strcat(sql, "AND mi.modelo_medidor = l.modelo_medidor ");
+}   
 
    $PREPARE selMedInstal FROM $sql;
    
@@ -497,6 +500,10 @@ if(giTipoCorrida==1){
    strcat(sql, ", medidores@medidor_test:marca ma ");
    strcat(sql, ", medidores@medidor_test:fabricante f ");
 
+if(giTipoCorrida==2){
+   strcat(sql, ", sap_lst_medidores l ");
+}
+
    strcat(sql, "WHERE (mi.estado !='I' OR mi.estado IS NULL) ");
    strcat(sql, "AND md.med_numero = mi.numero_medidor ");
    strcat(sql, "AND md.mar_codigo = mi.marca_medidor ");
@@ -511,6 +518,12 @@ if(giTipoCorrida==1){
 
 	strcat(sql, "AND ma.mar_codigo = md.mar_codigo ");
 	strcat(sql, "AND f.fab_codigo = ma.fab_codigo ");
+   
+if(giTipoCorrida==2){
+   strcat(sql, "AND mi.numero_medidor = l.numero_medidor ");
+   strcat(sql, "AND mi.marca_medidor = l.marca_medidor ");
+   strcat(sql, "AND mi.modelo_medidor = l.modelo_medidor ");
+}
 
    $PREPARE selMedNoInstal FROM $sql;
    

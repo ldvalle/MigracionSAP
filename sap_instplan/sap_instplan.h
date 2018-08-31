@@ -40,14 +40,15 @@ long  getCorrelativo(char*);
 
 short LeoConve(ClsConve *);
 void  InicializaConve(ClsConve *);
+int   getFica(long);
 
 /*
 short CargaAltaCliente(ClsDepgar *);
 */
-short	GenerarPlano(FILE *, ClsConve);
+short	GenerarPlano(FILE *, int, ClsConve);
 void	GeneraIPKEY(FILE *, ClsConve);
 void  GeneraIPDATA(FILE *, int, int, double, ClsConve);
-void	GeneraIPOPKY(FILE *, ClsConve);
+void	GeneraIPOPKY(FILE *, int, ClsConve);
 void	GeneraENDE(FILE *, ClsConve);
 /*
 short   LeoInstalacion(ClsInstalacion *);

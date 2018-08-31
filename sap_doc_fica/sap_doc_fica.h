@@ -65,7 +65,7 @@ typedef struct{
    char  XANZA[2];
    char  STAKZ[2];
    char  BUDAT[11];
-   char  OPTXT[51];
+   char  OPTXT[61];
    char  FAEDN[11];
    char  BETRW[20];
    char  SBETW[20];
@@ -167,14 +167,14 @@ void  inicializaOPL(ClsOPL **);
 void  CargaOPL(ClsCliente, long, ClsOPL **, char *);
 
 void  InicializaOP( ClsOP *);
+void  InicializaOPK(ClsOPK *);
 void  GeneraSaldoCliente(FILE *, ClsCliente);
 void  GenerarPlanos(ClsCliente);
-void  GenerarKO(FILE*, ClsCliente);
-void  GenerarOP(FILE*, ClsOP, int, char*);
-void  InicializaOPK(ClsOPK *);
+void  GenerarKO(FILE*, ClsCliente, int);
+void  GenerarOP(FILE*, ClsOP, int, char*, int);
 void  GenerarOPK(FILE*, ClsOPK, int, char*);
-void  GenerarOPL(FILE*, ClsCliente, ClsOPL *);
-void  GeneraENDE(FILE *, ClsCliente);
+void  GenerarOPL(FILE*, ClsCliente, ClsOPL *, char*, int);
+void  GeneraENDE(FILE *, ClsCliente, int);
 
 void CopiaClienteToOp(ClsCliente, ClsOP *);
 void CopiaClienteToOpk(ClsCliente, double, ClsOPK *);

@@ -91,6 +91,8 @@ int		iCantEmail;
 int		iEsCorpo;
 int		iFlagMigra;
 
+long  lCantInFiles;
+
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
 	}
@@ -206,7 +208,7 @@ int		iFlagMigra;
 	/*********************************************
 				AREA CURSOR PPAL
 	**********************************************/
-
+   lCantInFiles=0;
 	iEsCorpo=0;
 	while(LeoClientes(&regCliente, &regFP)){
       /*$BEGIN WORK;*/
@@ -237,6 +239,7 @@ int		iFlagMigra;
 							printf("Error al generar el archivo\n");
 							exit(1);	
 						}
+                  lCantInFiles++;
 
 						/* Registrar Control Cliente */
                   $BEGIN WORK;
@@ -264,6 +267,7 @@ int		iFlagMigra;
 							printf("Error al generar el archivo\n");
 							exit(1);	
 						}
+                  lCantInFiles++;
 						/* Registrar Control Cliente */
                   $BEGIN WORK;
 						if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
@@ -297,6 +301,7 @@ int		iFlagMigra;
                               printf("Error al generar el archivo\n");
 										exit(1);	
 									}
+                           lCantInFiles++;
 									$BEGIN WORK;
 									/* Registrar Control Cliente */
 									if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
@@ -348,7 +353,7 @@ int		iFlagMigra;
 					printf("Error al generar archivo\n");
 					exit(1);	
 				}
-				
+				lCantInFiles++;
 				/* Registrar Control Cliente */
             $BEGIN WORK;
 				if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
@@ -438,6 +443,7 @@ int		iFlagMigra;
 	printf("Clientes Activos :      %ld \n",cantActivos);
 	printf("Clientes No Activos :   %ld \n",cantNoActivos);
 	printf("Clientes Preexistentes: %ld \n",cantPreexistente);
+   printf("Clientes En Archivo   : %ld \n",lCantInFiles);
 	printf("==============================================\n");
 	printf("Archivo Salida: %s\n", sArchUnx);
 	printf("==============================================\n");

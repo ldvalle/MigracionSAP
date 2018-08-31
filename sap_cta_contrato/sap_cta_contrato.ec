@@ -87,6 +87,7 @@ time_t 	hora;
 int		idArchivo;
 int		iEsCorpo;
 int		iFlagMigra;
+long     lCantInFiles;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -157,6 +158,7 @@ int		iFlagMigra;
 	/*********************************************
 				AREA CURSOR PPAL
 	**********************************************/
+   lCantInFiles=0;
 	if(glNroCliente > 0 ){
     	$OPEN curClientes using :glNroCliente;
     }else{
@@ -179,6 +181,7 @@ int		iFlagMigra;
 						/*$ROLLBACK WORK;*/
 						exit(1);	
 					}
+               lCantInFiles++;
 
 					/* Registrar Control Cliente */
 /*               
@@ -224,7 +227,7 @@ int		iFlagMigra;
 					/*$ROLLBACK WORK;*/
 					exit(1);	
 				}
-
+            lCantInFiles++;
 				/* Registrar Control Cliente */
 /*            
 				if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
@@ -280,6 +283,7 @@ int		iFlagMigra;
 	printf("Cuentas No Activas:        %ld \n", cantNoActivoProcesada);
 	printf("Cuentas a Ficticias T23:   %ld \n", cantFicticia);
 	printf("Clientes Preexistentes:    %ld \n", cantPreexistente);
+   printf("Cantidad en archivos       %ld \n", lCantInFiles);
 	printf("==============================================\n");
 	printf("\nHora antes de comenzar proceso : %s\n", ctime(&hora));						
 

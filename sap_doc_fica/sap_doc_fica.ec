@@ -70,7 +70,7 @@ long     iCantOPL;
 /* Variables Globales Host */
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
-
+$char sFechaCorrida[11];
 
 $WHENEVER ERROR CALL SqlException;
 
@@ -92,8 +92,6 @@ double   dSaldoGral;
 double   sumaOp;
 $long    lFechaVigTarifa;
 char     sTipo[2];
-
-
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -137,6 +135,15 @@ char     sTipo[2];
       exit(2);
    }
    		
+   memset(sFechaCorrida, '\0', sizeof(sFechaCorrida));
+   $EXECUTE selFechaActualFmt INTO :sFechaCorrida;
+   
+   if(SQLCODE != 0){
+      printf("No se logró recuperar fecha Corrida\n");
+      exit(2);
+   }
+   
+   
 	/* ********************************************
 				INICIO AREA DE PROCESO
 	********************************************* */
@@ -658,6 +665,7 @@ $char sAux[1000];
       FROM sap_ageing a, sap_trafo_fica t
       WHERE a.numero_cliente = ?
       AND a.valor_cargo != 0
+      AND a.cod_cargo NOT IN ('SA8', 'SA9')
       AND t.cod_mac = a.cod_cargo
       AND ((a.tipo_saldo != 'CNR' and t.cnr='N' 
       		and(a.valor_cargo >=0 and t.tipo_cargo = 'S') OR (a.valor_cargo < 0 and t.tipo_cargo = 'H'))      
@@ -740,6 +748,15 @@ $char sAux[1000];
       AND ((i.saldo >=0 and t1.tipo_cargo = 'S') OR (i.saldo < 0 and t1.tipo_cargo = 'H'))";
 
    $DECLARE curImpuConve CURSOR FOR selImpuConve;
+   
+   /********** Registra Corrida **********/
+   $PREPARE insCorrida FROM "INSERT INTO sap_regiextra (
+      estructura,
+      fecha_corrida
+      )VALUES(
+      'FICA',
+      CURRENT)";
+   
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -910,7 +927,7 @@ $ClsCliente     regClie;
    
    BORRA_STR(&regOP);
    
-   GenerarKO(fp, regClie);
+   GenerarKO(fp, regClie, 1);
    
    CopiaClienteToOp(regClie, &regOP);
 
@@ -919,39 +936,44 @@ $ClsCliente     regClie;
    /* Operacion Plana Cliente */
    
    /*strcpy(regOP.TVORG, "996");*/
-   if(regClie.saldo_actual >= 0){
-      strcpy(regOP.TVORG, "0100");
-   }else{
-      strcpy(regOP.TVORG, "1100");   
+   if(regClie.saldo_actual!= 0){
+      if(regClie.saldo_actual > 0){
+         strcpy(regOP.TVORG, "0001");
+      }else{
+         strcpy(regOP.TVORG, "1001");   
+      }
+      strcpy(regOP.OPTXT, "MIG - Saldo Actual");
+      sprintf(regOP.BETRW, "%.02lf", regClie.saldo_actual);
+      strcpy(regOP.PSWBT, regOP.BETRW);
+      GenerarOP(fp, regOP, inx1, "C", 1);
+      CargaOPL(regClie, inx1, &(regOPL), "M");
+      
+      inx1++;
    }
-   strcpy(regOP.OPTXT, "MIG - Saldo Actual");
-   sprintf(regOP.BETRW, "%.02lf", regClie.saldo_actual);
-   strcpy(regOP.PSWBT, regOP.BETRW);
-   GenerarOP(fp, regOP, 1, "C");
-   /*CargaOPL(regClie, 1, &(regOPL));*/
 
    /*strcpy(regOP.TVORG, "995");*/
-   if(regClie.saldo_int_acum >= 0){
-      strcpy(regOP.TVORG, "0101");
-   }else{
-      strcpy(regOP.TVORG, "1101");   
+   if(regClie.saldo_int_acum != 0){
+      if(regClie.saldo_int_acum >= 0){
+         strcpy(regOP.TVORG, "0002");
+      }else{
+         strcpy(regOP.TVORG, "1002");   
+      }
+      strcpy(regOP.OPTXT, "MIG - Intereses Acumulados");
+      sprintf(regOP.BETRW, "%.02lf", regClie.saldo_int_acum);
+      strcpy(regOP.PSWBT, regOP.BETRW);
+      GenerarOP(fp, regOP, inx1, "C", 1);
+      CargaOPL(regClie, inx1, &(regOPL), "M");
+      inx1++;
    }
-   strcpy(regOP.OPTXT, "MIG - Intereses Acumulados");
-   sprintf(regOP.BETRW, "%.02lf", regClie.saldo_int_acum);
-   strcpy(regOP.PSWBT, regOP.BETRW);
-   GenerarOP(fp, regOP, 2, "C");
-   /*CargaOPL(regClie, 2, &(regOPL));*/
 
    if(fabs(regClie.valor_anticipo) >= 0.01){
-      strcpy(regOP.TVORG, "0102");
+      strcpy(regOP.TVORG, "0003");
       strcpy(regOP.OPTXT, "MIG - Valor Anticipo");
       sprintf(regOP.BETRW, "%.02lf", regClie.valor_anticipo);
       strcpy(regOP.PSWBT, regOP.BETRW);
-      GenerarOP(fp, regOP, 3, "C");
-      /*CargaOPL(regClie, 3, &(regOPL));*/
-      inx1=4;
-   }else{
-      inx1=3;
+      GenerarOP(fp, regOP, inx1, "C", 1);
+      CargaOPL(regClie, inx1, &(regOPL), "M");
+      inx1++;
    }   
 
 /*
@@ -995,7 +1017,8 @@ $ClsCliente     regClie;
    GenerarOPK(regOPK, 1);
 
 */
-   dMonto = (regClie.saldo_int_acum + regClie.saldo_imp_no_suj_i + regClie.saldo_imp_suj_int);
+   dMonto = regClie.saldo_actual + regClie.saldo_int_acum + regClie.valor_anticipo;
+   /*dMonto = (regClie.saldo_int_acum + regClie.saldo_imp_no_suj_i + regClie.saldo_imp_suj_int);*/
 
    /* Saldos Impuestos */               
    
@@ -1005,33 +1028,33 @@ $ClsCliente     regClie;
    while(LeoImpuestos(&regImpu, regClie.numero_cliente)){
       BORRA_STR(&regOP);
       CopiaImpuToOp(regClie, regImpu, &regOP);
-      GenerarOP(fp, regOP, inx1, "C");
-      /*
-      CargaOPL(regClie, inx1, &(regOPL));
+      GenerarOP(fp, regOP, inx1, "C", 1);
+      
+      CargaOPL(regClie, inx1, &(regOPL), "M");
       inx1++;
-      */
+      
       dMonto+=regImpu.saldo;
       
    }
    $CLOSE curImpuestos;
 
-   if(dMonto != 0.00){
-      dMonto=dMonto * -1;
-   }
-   
 	if(risnull(CDOUBLETYPE, (char *) &dMonto)){
       dMonto=0;
+   }
+
+   if(dMonto != 0.00){
+      dMonto=dMonto * -1;
    }
    
    BORRA_STR(&regOPK);
    CopiaClienteToOpk(regClie, dMonto, &regOPK);
    GenerarOPK(fp, regOPK, 1, "C");
-/*
+
    if(iCantOPL>0){
-      GenerarOPL(fp, regClie, regOPL);
+      GenerarOPL(fp, regClie, regOPL, "G", 1);
    }
-*/               
-   GeneraENDE(fp, regClie);
+               
+   GeneraENDE(fp, regClie, 1);
 }
 
 /*
@@ -1066,16 +1089,17 @@ ClsCliente     regClie;
 }
 */
 
-void GenerarKO(fp, regClie)
+void GenerarKO(fp, regClie, inx)
 FILE *fp;
 ClsCliente  regClie;
+int   inx;
 {
    char  sLinea[1000];
    
    memset(sLinea, '\0', sizeof(sLinea));
 
    /* LLAVE */
-   sprintf(sLinea, "T1%ld\tKO\t", regClie.numero_cliente);   
+   sprintf(sLinea, "T1%ld-%ld\tKO\t", regClie.numero_cliente, inx);   
 
    /* FIKEY */
    sprintf(sLinea, "%sMSGD%02dT1\t", sLinea, iCorrelativos);
@@ -1094,10 +1118,12 @@ ClsCliente  regClie;
    strcat(sLinea, "ARS\t");
    
    /* BLDAT */
-   sprintf(sLinea, "%s%s\t", sLinea, FechaGeneracion);
+   /*sprintf(sLinea, "%s%s\t", sLinea, FechaGeneracion);*/
+   sprintf(sLinea, "%s%s\t", sLinea, sFechaCorrida);
    
    /* BUDAT */
-   sprintf(sLinea, "%s%s\t", sLinea, FechaGeneracion);
+   /*sprintf(sLinea, "%s%s\t", sLinea, FechaGeneracion);*/
+   sprintf(sLinea, "%s%s\t", sLinea, sFechaCorrida);
    
    /* XBLNR */
    sprintf(sLinea, "%s%ld", sLinea, regClie.numero_cliente);
@@ -1109,11 +1135,12 @@ ClsCliente  regClie;
 }
 
 
-void GenerarOP(fp, regOp, inx, sTipo)
+void GenerarOP(fp, regOp, inx, sTipo, inx1)
 FILE  *fp;
 ClsOP regOp;
 int   inx;
 char  sTipo[2];
+int   inx1;
 {
    char  sLinea[1000];
    double   auxDbl;
@@ -1147,7 +1174,7 @@ char  sTipo[2];
    alltrim(regOp.SEGMENT, ' ');
    
    /* LLAVE */
-   sprintf(sLinea, "T1%s\tOP\t", regOp.nroCliente);   
+   sprintf(sLinea, "T1%s-%ld\tOP\t", regOp.nroCliente, inx1);   
 
    /* OPUPK */
    sprintf(sLinea, "%s%04d\t", sLinea, inx);
@@ -1180,8 +1207,8 @@ char  sTipo[2];
    strcat(sLinea, "\t");
    
    /* HKONT (a definir) */
-   /*strcat(sLinea, "0099999994\t");*/
-   strcat(sLinea, "0099999996\t");
+   strcat(sLinea, "0099999994\t");
+   /*strcat(sLinea, "0099999996\t");*/
    /*
    if(strcmp(regOp.HKONT, "")!=0){
       sprintf(sLinea, "%s%s\t", sLinea, regOp.HKONT);
@@ -1294,7 +1321,7 @@ char        sTipo[2];
 
 
    /* LLAVE */
-   sprintf(sLinea, "T1%s\tOPK\t", regOpk.nroCliente);   
+   sprintf(sLinea, "T1%s-%ld\tOPK\t", regOpk.nroCliente, inx);   
 
    /* OPUPK */
    sprintf(sLinea, "%s%04d\t", sLinea, inx);
@@ -1304,7 +1331,8 @@ char        sTipo[2];
    
    /* HKONT (?) */
    strcat(sLinea, "0099999996\t");
-   
+   /*strcat(sLinea, "0099999994\t");*/
+         
    /* PRCTR (vacio) */
    strcat(sLinea, "\t");
    
@@ -1358,10 +1386,12 @@ char        sTipo[2];
 
 }
 
-void GenerarOPL(fp, regClie, regOpl)
+void GenerarOPL(fp, regClie, regOpl, sTipo, inx)
 FILE *fp;
 ClsCliente regClie;
 ClsOPL      *regOpl;
+char        sTipo[2];
+int         inx;
 {
 	char	sLinea[1000];
    long  iFila;	
@@ -1372,7 +1402,7 @@ ClsOPL      *regOpl;
 
       /**** El de Intereses ****/   
       /* LLAVE */
-      sprintf(sLinea, "T1%ld\tOPL\t", regClie.numero_cliente);   
+      sprintf(sLinea, "T1%ld-%d\tOPL\t", regClie.numero_cliente, inx);   
       /* OPUPK (vacio) */
       sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].OPUPK);
       /* PROID (vacio) */
@@ -1387,74 +1417,76 @@ ClsOPL      *regOpl;
       strcat(sLinea, "\n");
       fprintf(fp, sLinea);
    
-      /**** El de Reclamaciones ****/
-      memset(sLinea, '\0', sizeof(sLinea));
-      /* LLAVE */
-      sprintf(sLinea, "T1%ld\tOPL\t", regClie.numero_cliente);   
-      /* OPUPK (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].OPUPK);
-      /* PROID (vacio) */
-      sprintf(sLinea, "%s01\t", sLinea);
-      /* LOCKR (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].LOCKR);
-      /* FDATE (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regClie.sFechaVigTarifa);
-      /* TDATE (vacio) */
-      sprintf(sLinea, "%s99991231", sLinea);
-      
-      strcat(sLinea, "\n");
-      fprintf(fp, sLinea);
-
-      /**** El de Contabilizar ****/
-      memset(sLinea, '\0', sizeof(sLinea));
-      /* LLAVE */
-      sprintf(sLinea, "T1%ld\tOPL\t", regClie.numero_cliente);   
-      /* OPUPK (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].OPUPK);
-      /* PROID (vacio) */
-      sprintf(sLinea, "%s09\t", sLinea);
-      /* LOCKR (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].LOCKR);
-      /* FDATE (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regClie.sFechaVigTarifa);
-      /* TDATE (vacio) */
-      sprintf(sLinea, "%s99991231", sLinea);
-      
-      strcat(sLinea, "\n");
-      fprintf(fp, sLinea);
-      
-      /**** El de Pagos ****/
-      memset(sLinea, '\0', sizeof(sLinea));
-      /* LLAVE */
-      sprintf(sLinea, "T1%ld\tOPL\t", regClie.numero_cliente);   
-      /* OPUPK (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].OPUPK);
-      /* PROID (vacio) */
-      sprintf(sLinea, "%s10\t", sLinea);
-      /* LOCKR (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].LOCKR);
-      /* FDATE (vacio) */
-      sprintf(sLinea, "%s%s\t", sLinea, regClie.sFechaVigTarifa);
-      /* TDATE (vacio) */
-      sprintf(sLinea, "%s99991231", sLinea);
-      
-      strcat(sLinea, "\n");
-      fprintf(fp, sLinea);
-      
+      if(sTipo[0]=='D'){
+         /**** El de Reclamaciones ****/
+         memset(sLinea, '\0', sizeof(sLinea));
+         /* LLAVE */
+         sprintf(sLinea, "T1%ld-%d\tOPL\t", regClie.numero_cliente, inx);   
+         /* OPUPK (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].OPUPK);
+         /* PROID (vacio) */
+         sprintf(sLinea, "%s01\t", sLinea);
+         /* LOCKR (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].LOCKR);
+         /* FDATE (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regClie.sFechaVigTarifa);
+         /* TDATE (vacio) */
+         sprintf(sLinea, "%s99991231", sLinea);
+         
+         strcat(sLinea, "\n");
+         fprintf(fp, sLinea);
+   
+         /**** El de Contabilizar ****/
+         memset(sLinea, '\0', sizeof(sLinea));
+         /* LLAVE */
+         sprintf(sLinea, "T1%ld-%d\tOPL\t", regClie.numero_cliente, inx);   
+         /* OPUPK (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].OPUPK);
+         /* PROID (vacio) */
+         sprintf(sLinea, "%s09\t", sLinea);
+         /* LOCKR (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].LOCKR);
+         /* FDATE (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regClie.sFechaVigTarifa);
+         /* TDATE (vacio) */
+         sprintf(sLinea, "%s99991231", sLinea);
+         
+         strcat(sLinea, "\n");
+         fprintf(fp, sLinea);
+         
+         /**** El de Pagos ****/
+         memset(sLinea, '\0', sizeof(sLinea));
+         /* LLAVE */
+         sprintf(sLinea, "T1%ld-%d\tOPL\t", regClie.numero_cliente, inx);   
+         /* OPUPK (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].OPUPK);
+         /* PROID (vacio) */
+         sprintf(sLinea, "%s10\t", sLinea);
+         /* LOCKR (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regOpl[iFila].LOCKR);
+         /* FDATE (vacio) */
+         sprintf(sLinea, "%s%s\t", sLinea, regClie.sFechaVigTarifa);
+         /* TDATE (vacio) */
+         sprintf(sLinea, "%s99991231", sLinea);
+         
+         strcat(sLinea, "\n");
+         fprintf(fp, sLinea);
+      }      
    }
    
 
 }
 
-void GeneraENDE(fp, regCli)
+void GeneraENDE(fp, regCli, inx)
 FILE *fp;
 ClsCliente  regCli;
+int   inx;
 {
 	char	sLinea[1000];	
 
 	memset(sLinea, '\0', sizeof(sLinea));
 	
-   sprintf(sLinea, "T1%ld\t&ENDE", regCli.numero_cliente);
+   sprintf(sLinea, "T1%ld-%ld\t&ENDE", regCli.numero_cliente, inx);
    
 	strcat(sLinea, "\n");
 	
@@ -1466,9 +1498,9 @@ short RegistraArchivo(void)
 	$long	lCantidad;
 	$char	sTipoArchivo[10];
 	$char	sNombreArchivo[100];
-	
+/*	
 	$EXECUTE updGenArchivos using :sTipoArchivo;
-/*   
+  
 	if(cantProcesada > 0){
 		strcpy(sTipoArchivo, "FICA");
 		strcpy(sNombreArchivo, sSoloArchSalidaGral);
@@ -1482,7 +1514,9 @@ short RegistraArchivo(void)
 				:glNroCliente,
 				:sNombreArchivo;
 	}
-*/	
+*/
+   $EXECUTE insCorrida;
+   	
 	return 1;
 }
 
@@ -1746,6 +1780,7 @@ $ClsCliente regCli;
    ClsOP   regOP;
    ClsOPK  regOPK;
    int   inx1, inx2;
+   $ClsImpuesto regImpu;
    
    inx1=1; inx2=1;
    
@@ -1765,7 +1800,7 @@ $ClsCliente regCli;
             printf("Tipo de saldo [%s] desconocido para cliente %ld del ageing.\n", regAge.tipo_saldo, regCli.numero_cliente);
             return;
          }
-         GenerarKO(fpLocal, regCli);
+         GenerarKO(fpLocal, regCli, inx2);
          strcpy(sTipoAnterior, regAge.tipo_saldo);
          iCorrelAnterior = regAge.corr_facturacion;
          dSuma=0;
@@ -1774,7 +1809,7 @@ $ClsCliente regCli;
          dSuma += regAge.valor_cargo;
          BORRA_STR(&regOP);
          CopiaClienteAgeToOp(regCli, regAge, &regOP);
-         GenerarOP(fpLocal, regOP, inx1, "D");
+         GenerarOP(fpLocal, regOP, inx1, "D", inx2);
          CargaOPL(regCli, inx1, &(regOPL), "M");
          inx1++;
       }else{
@@ -1789,15 +1824,18 @@ $ClsCliente regCli;
          BORRA_STR(&regOPK);
          CopiaClienteToOpk(regCli, dSuma, &regOPK);
          GenerarOPK(fpLocal, regOPK, inx2, "D");
-         inx2++; 
 
          /* Cierre y reapertura*/
          if(iCantOPL>0){
-            GenerarOPL(fpLocal, regCli, regOPL);
+            GenerarOPL(fpLocal, regCli, regOPL, "A", inx2);
             inicializaOPL(&(regOPL));
-         }            
-         GeneraENDE(fpLocal, regCli);
+         }
+         GeneraENDE(fpLocal, regCli, inx2);
+
+         inx2++;
          
+         /* Siguiente documento del cliente */         
+         inx1=1;
          if(strcmp(regAge.tipo_saldo, "SCL")){
             fpLocal = pFileGral; 
          }else if(strcmp(regAge.tipo_saldo, "CNR")){
@@ -1808,19 +1846,19 @@ $ClsCliente regCli;
             printf("Tipo de saldo [%s] desconocido para cliente %ld del ageing.\n", regAge.tipo_saldo, regCli.numero_cliente);
             return;
          }
-         GenerarKO(fpLocal, regCli);
+         GenerarKO(fpLocal, regCli, inx2);
          
          /*************************/
 
          BORRA_STR(&regOP);
          CopiaClienteAgeToOp(regCli, regAge, &regOP);
-         GenerarOP(fpLocal, regOP, inx1, "D");
+         GenerarOP(fpLocal, regOP, inx1, "D", inx2);
          CargaOPL(regCli, inx1, &(regOPL), "M");
          inx1++;
 
          strcpy(sTipoAnterior, regAge.tipo_saldo);
          iCorrelAnterior = regAge.corr_facturacion;
-         dSuma=0;
+         dSuma = regAge.valor_cargo;
           
       }
       
@@ -1828,6 +1866,25 @@ $ClsCliente regCli;
    }
 
    if(iTeracion > 0){
+      /* El Ultimo es el Saldo General */
+      /* Le hago el saldos Impuestos */
+/*      
+      $OPEN curImpuestos USING :regCli.numero_cliente;
+      
+      while(LeoImpuestos(&regImpu, regCli.numero_cliente)){
+         BORRA_STR(&regOP);
+         CopiaImpuToOp(regCli, regImpu, &regOP);
+         GenerarOP(fpLocal, regOP, inx1, "C");
+         
+         CargaOPL(regCli, inx1, &(regOPL), "M");
+         inx1++;
+         
+         dSuma+=regImpu.saldo;
+         
+      }
+      $CLOSE curImpuestos;
+*/   
+   
    	if(risnull(CDOUBLETYPE, (char *) &dSuma)){
          dSuma=0;
       }
@@ -1840,11 +1897,11 @@ $ClsCliente regCli;
       GenerarOPK(fpLocal, regOPK, inx2, "D");
 
       if(iCantOPL>0){
-         GenerarOPL(fpLocal, regCli, regOPL);
+         GenerarOPL(fpLocal, regCli, regOPL, "A", inx2);
          inicializaOPL(&(regOPL));
       }            
       
-      GeneraENDE(fpLocal, regCli);
+      GeneraENDE(fpLocal, regCli, inx2);
       
       inx2++; 
       
@@ -2000,7 +2057,7 @@ int   inx1, inx2;
    /*$OPEN curConvenio USING :regClie.numero_cliente;*/
    
    if(SQLCODE == 0){
-      GenerarKO(pFileConve, regClie);
+      GenerarKO(pFileConve, regClie, 1);
       dMonto += regConve.saldo_actual + regConve.saldo_int_acum;
       
       BORRA_STR(&regOP);
@@ -2011,27 +2068,27 @@ int   inx1, inx2;
 
       if(regConve.saldo_actual != 0.001){
          if(regConve.saldo_actual>=0){
-            strcpy(regOP.TVORG, "0100");
+            strcpy(regOP.TVORG, "0001");
          }else{
-            strcpy(regOP.TVORG, "1100");
+            strcpy(regOP.TVORG, "1001");
          }
          strcpy(regOP.OPTXT, "MIG - Saldo Actual");
          sprintf(regOP.BETRW, "%.02lf", regConve.saldo_actual);
          strcpy(regOP.PSWBT, regOP.BETRW);
-         GenerarOP(pFileConve, regOP, inx1, sTipo);
+         GenerarOP(pFileConve, regOP, inx1, sTipo, 1);
          inx1++;
       }
       
       if(regConve.saldo_int_acum != 0.001){
          if(regConve.saldo_int_acum>=0){
-            strcpy(regOP.TVORG, "0101");
+            strcpy(regOP.TVORG, "0002");
          }else{
-            strcpy(regOP.TVORG, "1101");
+            strcpy(regOP.TVORG, "1002");
          }
          strcpy(regOP.OPTXT, "MIG - Intereses Acumulados");
          sprintf(regOP.BETRW, "%.02lf", regConve.saldo_int_acum);
          strcpy(regOP.PSWBT, regOP.BETRW);
-         GenerarOP(pFileConve, regOP, inx1, sTipo);
+         GenerarOP(pFileConve, regOP, inx1, sTipo, 1);
          inx1++;
       }
 
@@ -2041,7 +2098,7 @@ int   inx1, inx2;
       while(LeoImpuConve(&regImpu)){
          BORRA_STR(&regOP);
          CopiaImpuToOp(regClie, regImpu, &regOP);
-         GenerarOP(pFileConve, regOP, inx1, sTipo);
+         GenerarOP(pFileConve, regOP, inx1, sTipo, 1);
          inx1++;
          dMonto+=regImpu.saldo;
       }
@@ -2054,7 +2111,7 @@ int   inx1, inx2;
       CopiaClienteToOpk(regClie, dMonto, &regOPK);
       GenerarOPK(pFileConve, regOPK, inx2, sTipo);
      
-      GeneraENDE(pFileConve, regClie);
+      GeneraENDE(pFileConve, regClie, 1);
       inx2++;
             
    }
@@ -2192,7 +2249,7 @@ char  sTipo[2];
 
    while(LeoDisputa(&regDispu)){
       if(iPrimaVolta==0){
-         GenerarKO(pFileDispu, regCli);
+         GenerarKO(pFileDispu, regCli, 1);
          iPrimaVolta=1;
       }
       
@@ -2206,27 +2263,27 @@ char  sTipo[2];
       memset(regOP.HKONT, '\0', sizeof(regOP.HKONT));
       
       if(regDispu.saldo_actual >=0){
-         strcpy(regOP.TVORG, "0100");
+         strcpy(regOP.TVORG, "0001");
       }else{
-         strcpy(regOP.TVORG, "1100");
+         strcpy(regOP.TVORG, "1001");
       }
       strcpy(regOP.OPTXT, "MIG - Saldo Actual");
       sprintf(regOP.BETRW, "%.02lf", regDispu.saldo_actual);
       strcpy(regOP.PSWBT, regOP.BETRW);
-      GenerarOP(pFileDispu, regOP, inx1, sTipo);
+      GenerarOP(pFileDispu, regOP, inx1, sTipo, 1);
       CargaOPL(regCli, inx1, &(regOPL), "D");
       inx1++;
 
       if(regDispu.saldo_int_acum >=0){
-         strcpy(regOP.TVORG, "0101");
+         strcpy(regOP.TVORG, "0002");
       }else{
-         strcpy(regOP.TVORG, "1101");
+         strcpy(regOP.TVORG, "1002");
       }
       strcpy(regOP.TVORG, "0002");
       strcpy(regOP.OPTXT, "MIG - Intereses Acumulados");
       sprintf(regOP.BETRW, "%.02lf", regDispu.saldo_int_acum);
       strcpy(regOP.PSWBT, regOP.BETRW);
-      GenerarOP(pFileDispu, regOP, inx1, sTipo);
+      GenerarOP(pFileDispu, regOP, inx1, sTipo, 1);
       CargaOPL(regCli, inx1, &(regOPL), "D");
       inx1++;
 /*
@@ -2260,15 +2317,12 @@ char  sTipo[2];
       while(LeoImpuDispu(&regImpu)){
          BORRA_STR(&regOP);
          CopiaImpuToOp(regCli, regImpu, &regOP);
-         GenerarOP(pFileDispu, regOP, inx1, sTipo);
+         GenerarOP(pFileDispu, regOP, inx1, sTipo, 1);
          CargaOPL(regCli, inx1, &(regOPL), "D");
          inx1++;
          dMonto+=regImpu.saldo;
-         
       }
-      
       $CLOSE curImpDispu;
-
    }
 
    if(iPrimaVolta==1){
@@ -2285,14 +2339,13 @@ char  sTipo[2];
       inx2++;
    
       if(iCantOPL>0){
-         GenerarOPL(pFileDispu, regCli, regOPL);
+         GenerarOPL(pFileDispu, regCli, regOPL, "D", 1);
       }            
       iCantOPL=0;
-      GeneraENDE(pFileDispu, regCli);
+      GeneraENDE(pFileDispu, regCli, 1);
       iExisteDispu++;
    
    }
-   
 }
 
 short LeoDisputa(reg)
@@ -2419,8 +2472,9 @@ char        sTipo[2];
 $ClsOPL	*regAux=NULL;
 $ClsOPL	reg;
 int      indice=index-1;
-
+/*
    if(regCli.tiene_cobro_int[0]=='N'){
+*/   
       /* El de Intereses */
 		regAux = (ClsOPL*) realloc(*regOpl, sizeof(ClsOPL) * (++indice) );
 		if(regAux == NULL){
@@ -2436,8 +2490,9 @@ int      indice=index-1;
 		strcpy((*regOpl)[indice-1].TDATE, regCli.sFechaUltFactura);
          
       iCantOPL++;
-      
+/*      
    }
+*/   
 }
 
 void InicializaOP(reg)

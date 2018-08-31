@@ -431,7 +431,7 @@ char	sPathCp[100];
 
 	if(giEstadoCliente==0){
 		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
-      sprintf(sPathCp, "%sActivos/", sPathCopia);
+      sprintf(sPathCp, "%sActivos/Operandos/", sPathCopia);
 	}else{
 		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
       sprintf(sPathCp, "%sInactivos/", sPathCopia);
@@ -1069,7 +1069,7 @@ int		*iFlagMigra;
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */
       if(gsTipoGenera[0]=='G'){	
-		    return 1;
+		    /*return 1;*/
       }
 	}else{
 		*iFlagMigra=2; /* Indica que se debe hacer un update */	
@@ -1093,7 +1093,7 @@ ClsFacts regFact;
    
    GeneraPie(fpSalida, iMarca, regFact);
    
-   GeneraENDE(fpSalida, regFact);
+   GeneraENDE(fpSalida, iMarca, regFact);
 
 }
 
@@ -1103,11 +1103,19 @@ int      iMarca;
 ClsFacts regFact;
 {
 	char	sLinea[1000];	
-    
+   char  sMarca[3];
+       
 	memset(sLinea, '\0', sizeof(sLinea));
+   memset(sMarca, '\0', sizeof(sMarca));
+
+   if(iMarca==1){
+      strcpy(sMarca, "QC");
+   }else{
+      strcpy(sMarca, "FP");
+   }
 
    /* llave */
-   sprintf(sLinea, "T1%ld-%ld\tKEY\t", regFact.numero_cliente, regFact.corr_facturacion);
+   sprintf(sLinea, "T1%ld-%ld%s\tKEY\t", regFact.numero_cliente, regFact.corr_facturacion, sMarca);
    
    /* ANLAGE */
    sprintf(sLinea, "%s%s\t", sLinea, regFact.anlage);
@@ -1126,15 +1134,15 @@ FILE     *fpSalida;
 int      iMarca;
 ClsFacts regFact;
 {
-	char	sLinea[1000];	
+	char	sLinea[1000];
     
 	memset(sLinea, '\0', sizeof(sLinea));
 
    /* llave */
    if(iMarca==1){
-      sprintf(sLinea, "T1%ld-%ld\tF_QUAN\t", regFact.numero_cliente, regFact.corr_facturacion);
+      sprintf(sLinea, "T1%ld-%ldQC\tF_QUAN\t", regFact.numero_cliente, regFact.corr_facturacion);
    }else if(iMarca==2){
-      sprintf(sLinea, "T1%ld-%ld\tF_FACT\t", regFact.numero_cliente, regFact.corr_facturacion);
+      sprintf(sLinea, "T1%ld-%ldFP\tF_FACT\t", regFact.numero_cliente, regFact.corr_facturacion);
    }
 
    /* OPERAND */
@@ -1160,9 +1168,9 @@ ClsFacts regFact;
 
    /* llave */
    if(iMarca==1){
-      sprintf(sLinea, "T1%ld-%ld\tV_QUAN\t", regFact.numero_cliente, regFact.corr_facturacion);
+      sprintf(sLinea, "T1%ld-%ldQC\tV_QUAN\t", regFact.numero_cliente, regFact.corr_facturacion);
    }else if(iMarca==2){
-      sprintf(sLinea, "T1%ld-%ld\tV_FACT\t", regFact.numero_cliente, regFact.corr_facturacion);
+      sprintf(sLinea, "T1%ld-%ldFP\tV_FACT\t", regFact.numero_cliente, regFact.corr_facturacion);
    }
 
    /* AB */
@@ -1187,15 +1195,25 @@ ClsFacts regFact;
 }
 
 
-void GeneraENDE(fpSalida, regFact)
+void GeneraENDE(fpSalida, iMarca, regFact)
 FILE     *fpSalida;
+int      iMarca;
 ClsFacts regFact;
 {
-	char	sLinea[1000];	
+	char	sLinea[1000];
+   char  sMarca[3];
+   	
 
 	memset(sLinea, '\0', sizeof(sLinea));
+   memset(sMarca, '\0', sizeof(sMarca));
+   
+   if(iMarca==1){
+      strcpy(sMarca, "QC");
+   }else{
+      strcpy(sMarca, "FP");
+   }
 	
-   sprintf(sLinea, "T1%ld-%ld\t&ENDE", regFact.numero_cliente, regFact.corr_facturacion);
+   sprintf(sLinea, "T1%ld-%ld%s\t&ENDE", regFact.numero_cliente, regFact.corr_facturacion, sMarca);
    
 	strcat(sLinea, "\n");
 	

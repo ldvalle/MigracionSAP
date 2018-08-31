@@ -15,7 +15,7 @@
 EXEC SQL include "ageing.h";
 
 int  giTipoCliente;
-char   giTipoCorrida[2];
+int  giTipoCorrida;
 
 void main(int iVargs, char **vVargs)
 {
@@ -29,6 +29,7 @@ void main(int iVargs, char **vVargs)
     double dSaldoPlano;
     double  gTotalFacturado;
     time_t      hora;
+    long lCantClie;
 
     if (!ValidarParametros(iVargs, vVargs))
         exit(1);
@@ -39,15 +40,16 @@ void main(int iVargs, char **vVargs)
     if (!IniciaAmbiente())
         exit(1);
 
+   lCantClie=0;
     /*EXEC SQL BEGIN WORK;*/
     $OPEN curClientes;
     
     while (FetchClientes(&RegCliente))
     {
          dSaldoPlano = RegCliente.saldoActual+RegCliente.saldoIntAcum+RegCliente.saldoImpNoSujI+RegCliente.saldoImpSujInt-RegCliente.valorAnticipo;
-         
+/*         
          if(dSaldoPlano > 0){
-                      
+*/                      
             $BEGIN WORK;
 /* OJO */                  
 /* 
@@ -105,6 +107,7 @@ for (i=0; i<rSsal.cantSaldosImpuestos; i++)
            
            while (FetchFacturas(&RegFactura))
            {
+           
 /* OJO */
 /*
 printf("   Factura %d   total %.2lf  sal cli %.2lf Saldo Plano %.2lf\n", RegFactura.corrFacturacion, RegFactura.totalFacturado, rSsal.saldoActual + rSsal.saldoIntAcum + rSsal.saldoImpNoSujI + rSsal.saldoImpSujInt - rSsal.valorAnticipo, dSaldoPlano);
@@ -114,6 +117,7 @@ printf("   Factura %d   total %.2lf  sal cli %.2lf Saldo Plano %.2lf\n", RegFact
                    
                if(dProporcion == 1)
                   break;
+                  
 /* OJO */
 /*
 fprintf(fArchivo, "Corr %d\n", RegFactura.corrFacturacion);
@@ -161,7 +165,10 @@ for (i=0; i<rSsal.cantSaldosImpuestos; i++)
            }
            EXEC SQL CLOSE curFacturas;
            $COMMIT WORK;
+/*           
         }
+*/        
+        lCantClie++;
     }
 
     EXEC SQL CLOSE curClientes;
@@ -174,6 +181,7 @@ for (i=0; i<rSsal.cantSaldosImpuestos; i++)
 
     hora = time(&hora);
     printf("Hora de finalizacion del proceso: %s\n", ctime(&hora));
+    printf("Clientes procesados: %ld\n", lCantClie);
 
     TerminaAmbiente(0);
 }
@@ -186,14 +194,13 @@ int ValidarParametros(int iVargs, char **vVargs)
         fprintf(stderr,"Lista de Parámetros:\n");
         fprintf(stderr,"                    Base = synergia \n");
         fprintf(stderr,"                    Tipo Cliente: 0=Activos; 1=Inactivos \n");
-        fprintf(stderr,"                    Tipo Corrida: G=Generacion; R=Regeneracion  \n");
+        fprintf(stderr,"                    Tipo Corrida: 0=Normal; 1=Reducida \n");
         return (ERROR);
     }
 
     strcpy(sBaseSynergia, vVargs[1]);
     giTipoCliente = atoi(vVargs[2]);
-    strcpy(giTipoCorrida, vVargs[3]); 
-
+    giTipoCorrida = atoi(vVargs[3]);
 
     return (OK);
 }
@@ -263,15 +270,17 @@ void PreparaQuerys (void)
    strcat(sql, "c.saldo_imp_suj_int, ");
    strcat(sql, "c.valor_anticipo ");
    strcat(sql, "FROM cliente c ");
-/*   
-strcat(sql, ", migra_activos ma ");
-*/   
+   
+if(giTipoCorrida==1){   
+   strcat(sql, ", migra_activos ma ");
+}
+   
    if(giTipoCliente==0){
       strcat(sql, "WHERE c.estado_cliente = '0' ");
    }else{
       strcat(sql, "WHERE c.estado_cliente != '0' ");
    }
-
+   
    strcat(sql, "AND c.tipo_sum != 5 ");
 	/*strcat(sql, "AND c.tipo_sum NOT IN (5, 6) ");*/
 	/*strcat(sql, "AND c.sector != 88 ");*/
@@ -281,17 +290,17 @@ strcat(sql, ", migra_activos ma ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
 	strcat(sql, "AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");	
-/*      
-strcat(sql, "and ma.numero_cliente = c.numero_cliente "); 
-*/   
+if(giTipoCorrida==1){      
+   strcat(sql, "and ma.numero_cliente = c.numero_cliente "); 
+}  
    $PREPARE selClientes FROM $sql;
    $DECLARE curClientes CURSOR WITH HOLD FOR selClientes;				
 
    
 
     EXEC SQL PREPARE selFacturas FROM
-        "SELECT h.corr_facturacion, h.fecha_vencimiento1, h.total_facturado + h.suma_convenio - t.tasa_facturada
-           FROM hisfac h, hisfac_tasa t
+        "SELECT h.corr_facturacion, h.fecha_vencimiento1, h.total_facturado + h.suma_convenio - NVL(t.tasa_facturada, 0)
+           FROM hisfac h, OUTER hisfac_tasa t
           WHERE h.numero_cliente   = ?
             AND h.numero_cliente   = t.numero_cliente
             AND h.corr_facturacion = t.corr_facturacion
@@ -367,6 +376,8 @@ $char *sTipo;
 {
     int i;
     $char sCodigo[4];
+
+return 1;
     
     memset(sCodigo, '\0', sizeof(sCodigo));
     
@@ -506,6 +517,8 @@ $char *sTipo;
    int i, j;
    $char sCodigo[4];
     
+return 1;
+       
     memset(sCodigo, '\0', sizeof(sCodigo));
    
    for(i=0; i < cantidad; i++)

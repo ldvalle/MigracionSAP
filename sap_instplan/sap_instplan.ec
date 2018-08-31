@@ -52,6 +52,7 @@ long 	cantPreexistente;
 char	sMensMail[1024];	
 
 /* Variables Globales Host */
+$char sFechaFica[11];
 /*
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
@@ -67,6 +68,7 @@ $ClsConve	regConve;
 int			iNx;
 $long			lFechaAlta;
 char			sFechaAlta[9];
+int         iFica;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -87,6 +89,13 @@ char			sFechaAlta[9];
 
 	CreaPrepare();
 
+   memset(sFechaFica, '\0', sizeof(sFechaFica));
+   $EXECUTE selFica INTO :sFechaFica;
+   
+   if(SQLCODE != 0){
+      printf("No se pudo encontrar la fecha de corrida de fica\n");
+      exit(1);
+   }
 /*
 	$EXECUTE selFechaLimInf into :lFechaLimiteInferior;
 	$EXECUTE selCorrelativos into :iCorrelativos;
@@ -114,8 +123,9 @@ char			sFechaAlta[9];
 	
 	while(LeoConve(&regConve)){
 		if(! ClienteYaMigrado(regConve.numero_cliente, &iFlagMigra)){
-
-         GenerarPlano(pFileUnx, regConve);
+         iFica = getFica(regConve.numero_cliente);
+         
+         GenerarPlano(pFileUnx, iFica, regConve);
 			
          cantProcesada++;
 		}else{
@@ -299,6 +309,11 @@ $char sAux[1000];
 	
 	$PREPARE selFechaActual FROM $sql;	
 	
+   /******** Fecha FICA  ****************/
+   $PREPARE selFica FROM "SELECT TO_CHAR(fecha_corrida, '%Y%m%d')
+      FROM sap_regiextra
+      WHERE estructura = 'FICA'";
+
 	/******** CONVE  *********/
 	strcpy(sql, "SELECT v.numero_cliente, "); 
 	strcat(sql, "v.corr_convenio, "); 
@@ -452,6 +467,18 @@ $char sAux[1000];
 
 	$PREPARE selFechaInstal FROM $sql;
    	
+   /********** Saldos Convenio ************/
+   $PREPARE selSaldoConve FROM "SELECT saldo_actual, saldo_int_acum
+      FROM saldos_convenio
+      WHERE numero_cliente = ?";
+   
+   /********** Saldos Imp.Convenio ************/
+   $PREPARE selImpuConve FROM "SELECT COUNT(*)
+      FROM detalle_imp_conve
+      WHERE numero_cliente = ?
+      and saldo != 0";
+   
+   
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -620,15 +647,16 @@ $long   lCorrFactuInicio;
 }
 */
 
-short GenerarPlano(fp, reg)
+short GenerarPlano(fp, iFica, reg)
 FILE 				*fp;
+int            iFica;
 $ClsConve		reg;
 {
    int   iCuotas;
    int   iCuota;
    int   i;
    double   dValorCuota;
-   
+
    iCuotas = reg.numero_tot_cuotas - reg.numero_ult_cuota;
    iCuota = reg.numero_ult_cuota + 1;
 
@@ -648,7 +676,9 @@ $ClsConve		reg;
    }
 
 	/* IPOPKY */	
-	GeneraIPOPKY(fp, reg);
+   for(i=1; i<= iFica; i++){
+	  GeneraIPOPKY(fp, i, reg);
+   }
 
 	/* ENDE */
 	GeneraENDE(fp, reg);
@@ -749,10 +779,10 @@ ClsConve	reg;
 
    /* WAERS */
    strcat(sLinea, "ARS\t");
-   /* BUDAT (?) */
-   strcat(sLinea, "\t");
-   /* BLDAT (?) */
-   strcat(sLinea, "\t");
+   /* BUDAT (Fecha Corrida Fica) */
+   sprintf(sLinea, "%s%s\t", sLinea, sFechaFica);
+   /* BLDAT (Fecha Corrida Fica) */
+   sprintf(sLinea, "%s%s\t", sLinea, sFechaFica);
    /* GPART */
    sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
    /* VKONT */
@@ -771,8 +801,9 @@ ClsConve	reg;
 	fprintf(fp, sLinea);	
 }
 
-void GeneraIPOPKY(fp, reg)
+void GeneraIPOPKY(fp, i, reg)
 FILE 		*fp;
+int      i;
 ClsConve	reg;
 {
 	char	sLinea[1000];	
@@ -782,12 +813,13 @@ ClsConve	reg;
    /* LLAVE */
    sprintf(sLinea, "T1%ld\t&IPOPKY", reg.numero_cliente);
 
-   /* OPBEL (?)*/
+   /* OPBEL (Llave FICA)*/
    sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
    /* OPUPW */
    strcat(sLinea, "000\t");
    /* OPUPK */
-   strcat(sLinea, "0001\t");
+   sprintf(sLinea, "%s%04d\t", sLinea, i);
+
    /* OPUPZ */
    strcat(sLinea, "0000\t");
 
@@ -796,6 +828,38 @@ ClsConve	reg;
 	fprintf(fp, sLinea);	
 }
 
+int getFica(lNroCliente)
+$long lNroCliente;
+{
+   $int iCant=0;
+   $double dSaldoActual=0.00;
+   $double dSaldoIntAcum=0.00;
+   int   iFica=0;
+
+   $EXECUTE selSaldoConve INTO :dSaldoActual, :dSaldoIntAcum
+      USING :lNroCliente;
+      
+   if(SQLCODE != 0){
+      printf("No se encontró SaldosConvenio para cliente %ld\n", lNroCliente);
+   }
+   
+   if(dSaldoActual != 0.00)
+      iFica++;
+      
+   if(dSaldoIntAcum != 0.00)
+      iFica++;
+      
+   
+   $EXECUTE selImpuConve INTO :iCant USING :lNroCliente;
+   
+   if(SQLCODE != 0){
+      printf("No se encontró detalleImpConve para cliente %ld\n", lNroCliente);
+   }
+
+   iFica = iFica + iCant;
+   
+   return iFica;
+}
 
 
 

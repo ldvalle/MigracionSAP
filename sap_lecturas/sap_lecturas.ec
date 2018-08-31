@@ -115,6 +115,7 @@ long  lFechaAux;
    
    
 	for(i=0; i<12; i++){
+   
 		CreaPrepare();
 		
 		strcpy(sSucursal, vSucursal[i]);
@@ -194,7 +195,9 @@ long  lFechaAux;
     									}
     								}
     							}
+                        GeneraENDE(pFileLecturasUnx, regLecturas);
                      }
+                     
                      iVuelta++;
 						}/* Cursor Lecturas Activas */
 						
@@ -215,8 +218,10 @@ long  lFechaAux;
 									exit(1);	
 								}						
 							}
+                     GeneraENDE(pFileLecturasUnx, regLecturas);
 						}else{
 							/* Invento tramo con ultimo consumo */
+/*                    
 							memset(sFechaFacturacion, '\0', sizeof(sFechaFacturacion));
 							
 							$EXECUTE selCorrFactuActu into :lCorrFactuActu using :lNroCliente;
@@ -250,6 +255,7 @@ long  lFechaAux;
 									}							
 								}
 							}
+*/                     
 						}
 		
 						/*
@@ -423,7 +429,7 @@ char 	sPathCp[100];
 	
 	if(giEstadoCliente==0){
 		/*sprintf(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
-      sprintf(sPathCp, "%sActivos/", sPathCopia);
+      sprintf(sPathCp, "%sActivos/Lecturas/", sPathCopia);
 	}else{
 		/*sprintf(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
       sprintf(sPathCp, "%sInactivos/", sPathCopia);
@@ -603,7 +609,8 @@ $char sAux[1000];
 	$PREPARE selCorrFactu FROM $sql;
 	
 	/******** Sel CorrFacturacion  Cliente****************/
-	strcpy(sql, "SELECT corr_facturacion -1 FROM cliente ");
+   /*strcpy(sql, "SELECT corr_facturacion -1 FROM cliente ");*/
+	strcpy(sql, "SELECT corr_facturacion FROM cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selCorrFactuActu FROM $sql;
@@ -1120,7 +1127,7 @@ $ClsLecturas	regLectu;
 
 	memset(sLinea, '\0', sizeof(sLinea));
 
-	sprintf(sLinea, "T1%ld-%ld\t&ENDE", regLectu.numero_cliente, lIndiceArchivo);
+	sprintf(sLinea, "T1%ld-%ld\t&ENDE", regLectu.numero_cliente, regLectu.corr_facturacion);
 
 	strcat(sLinea, "\n");
 	
@@ -1185,77 +1192,11 @@ long        lFechaMv;
       lFechaAux=lFechaLectura+1;
       rfmtdate(lFechaAux, "yyyymmdd", regLectu.fecha_lectura); /* long to char */   
    }
-   
-	/****** Ficticia Tramo 1 o 2 *****/
-   
-	sprintf(sLinea, "T1%ld-%ld\tIEABLU\t", regLectu.numero_cliente, lIndiceArchivo);
-   /* EQUNR */
-	sprintf(sLinea, "%sT1%ld%s%s\t", sLinea, regLectu.numero_medidor, regLectu.marca_medidor, regLectu.modelo_medidor);
-	
-	/* ZWNUMMER */
-	if(regLectu.tipo_medidor[0]=='A'){
-		iNumerador=2; /* Activa Ficticia*/
-	}else{
-		if(sTabla[0]=='A'){
-         /* Activa Ficticia*/
-			/*iNumerador=3;*/ 
-         iNumerador=2;
-		}else{
-			iNumerador=4; /* Reactiva Ficticia */
-		}			
-	}
-	sprintf(sLinea, "%s%d\t", sLinea, iNumerador);
-	
-   /* ABLESGR */
-   /* Condicional a la fecha de MOVE_IN */
-   if(lFechaLectura == lFechaMv){
-      strcat(sLinea, "06\t"); /* Motivo */
-   }else{
-      strcat(sLinea, "01\t"); /* Motivo */
-   }
-	
-	/* ZWSTAND */
-	sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.consumo);
-   
-   /* ISTABLART */
-/*   
-	sprintf(sLinea, "%s%s\t", sLinea, regLectu.tipo_lectu_sap);
-*/
-   strcat(sLinea, "E4\t");
-   	
-   /* ADAT */
-	sprintf(sLinea, "%s%s\t", sLinea, regLectu.fecha_lectura);
-   /* ATIM */
-	strcat(sLinea, "0000\t");
-   /* ADATTATS */
-   sprintf(sLinea, "%s%s\t", sLinea, regLectu.fecha_lectura);
-   /* AKTIV */
-	strcat(sLinea, "1\t");
-   /* ADATSOLL */
-   if(lFechaLectura != lFechaMv){
-	  sprintf(sLinea, "%s%s", sLinea, regLectu.fecha_lectura);
-   }
-
-	strcat(sLinea, "\n");
-
-	fprintf(fp, sLinea);
-/*
-	GeneraEnde(fp, regLectu);	
-*/
-	memset(sLinea, '\0', sizeof(sLinea));
-
-	sprintf(sLinea, "T1%ld-%ld\t&ENDE", regLectu.numero_cliente, lIndiceArchivo);
-
-	strcat(sLinea, "\n");
-	
-	fprintf(fp, sLinea);
-
-	lIndiceArchivo++;
 
 	/**** Real Bimestral ****/	
 	if(regLectu.tipo_lectura!=8 && regLectu.tipo_lectura!=0){
 
-		sprintf(sLinea, "T1%ld-%ld\tIEABLU\t", regLectu.numero_cliente, lIndiceArchivo);
+		sprintf(sLinea, "T1%ld-%ld\tIEABLU\t", regLectu.numero_cliente, regLectu.corr_facturacion);
       /* EQUNR */
 		sprintf(sLinea, "%sT1%ld%s%s\t", sLinea, regLectu.numero_medidor, regLectu.marca_medidor, regLectu.modelo_medidor);
 		
@@ -1303,11 +1244,7 @@ long        lFechaMv;
 		strcat(sLinea, "\n");
 
 		fprintf(fp, sLinea);
-
 /*
-		GeneraEnde(fp, regLectu);
-*/		
-
 		memset(sLinea, '\0', sizeof(sLinea));
 	
 		sprintf(sLinea, "T1%ld-%ld\t&ENDE", regLectu.numero_cliente, lIndiceArchivo);
@@ -1315,10 +1252,78 @@ long        lFechaMv;
 		strcat(sLinea, "\n");
 		
 		fprintf(fp, sLinea);
-	
+*/	
 		lIndiceArchivo++;
 		
 	}
+
+   
+	/****** Ficticia Tramo 1 o 2 *****/
+   memset(sLinea, '\0', sizeof(sLinea));
+   
+	sprintf(sLinea, "T1%ld-%ld\tIEABLU\t", regLectu.numero_cliente, regLectu.corr_facturacion);
+   /* EQUNR */
+	sprintf(sLinea, "%sT1%ld%s%s\t", sLinea, regLectu.numero_medidor, regLectu.marca_medidor, regLectu.modelo_medidor);
+	
+	/* ZWNUMMER */
+	if(regLectu.tipo_medidor[0]=='A'){
+		iNumerador=2; /* Activa Ficticia*/
+	}else{
+		if(sTabla[0]=='A'){
+         /* Activa Ficticia*/
+			/*iNumerador=3;*/ 
+         iNumerador=2;
+		}else{
+			iNumerador=4; /* Reactiva Ficticia */
+		}			
+	}
+	sprintf(sLinea, "%s%d\t", sLinea, iNumerador);
+	
+   /* ABLESGR */
+   /* Condicional a la fecha de MOVE_IN */
+   if(lFechaLectura == lFechaMv){
+      strcat(sLinea, "06\t"); /* Motivo */
+   }else{
+      strcat(sLinea, "01\t"); /* Motivo */
+   }
+	
+	/* ZWSTAND */
+	sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.consumo);
+   
+   /* ISTABLART */
+/*   
+	sprintf(sLinea, "%s%s\t", sLinea, regLectu.tipo_lectu_sap);
+*/
+   strcat(sLinea, "E4\t");
+   	
+   /* ADAT */
+	sprintf(sLinea, "%s%s\t", sLinea, regLectu.fecha_lectura);
+   /* ATIM */
+	strcat(sLinea, "0000\t");
+   /* ADATTATS */
+   sprintf(sLinea, "%s%s\t", sLinea, regLectu.fecha_lectura);
+   /* AKTIV */
+	strcat(sLinea, "1\t");
+   /* ADATSOLL */
+   if(lFechaLectura != lFechaMv){
+	  /*sprintf(sLinea, "%s%s", sLinea, regLectu.fecha_lectura);*/
+     sprintf(sLinea, "%s%s", sLinea, regLectu.fecha_generacion);
+   }
+
+	strcat(sLinea, "\n");
+
+	fprintf(fp, sLinea);
+/*
+  	memset(sLinea, '\0', sizeof(sLinea));
+
+	sprintf(sLinea, "T1%ld-%ld\t&ENDE", regLectu.numero_cliente, regLectu.corr_facturacion);
+
+	strcat(sLinea, "\n");
+	
+	fprintf(fp, sLinea);
+*/
+	lIndiceArchivo++;
+
 }
 
 short getFPLectu(lNroCliente, regFPLectu)
