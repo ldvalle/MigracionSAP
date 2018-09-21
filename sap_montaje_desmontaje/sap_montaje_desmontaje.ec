@@ -60,8 +60,12 @@ int     iNroIndex;
 $ClsLecturas	regLectu;
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
-
+$long lFechaPivoteGral;
 char	sMensMail[1024];	
+
+$long       glFechaParametro;
+$dtime_t    gtInicioCorrida;
+$char       sLstParametros[100];
 
 $WHENEVER ERROR CALL SqlException;
 
@@ -87,6 +91,8 @@ $long    lFechaAlta;
 $long    lNroMedidorActual;
 $char    sMarcaMedidorActual[4];
 $char    sModeloMedidorActual[3];
+$char    sTarifaInstal[11];
+$long    lNroBeneficiario;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -109,6 +115,8 @@ $char    sModeloMedidorActual[3];
 	$EXECUTE selFechaLimInf into :lFechaLimiteInferior;
 
 	$EXECUTE selCorrelativos into :iCorrelativos;
+   
+   $EXECUTE selParGeneral INTO :lFechaPivoteGral;
 		
 	/* ********************************************
 				INICIO AREA DE PROCESO
@@ -134,12 +142,26 @@ $char    sModeloMedidorActual[3];
 		$OPEN curClientes;
 	}
 
-	while(LeoClientes(&lNroCliente, &lCorrFactuActual)){
+	while(LeoClientes(&lNroCliente, &lCorrFactuActual, &lNroBeneficiario)){
 		iSuperaMedid=0;
 		
 		iSuperaMedid=EncontroMedid(lNroCliente);
-
-		if(!ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaMoveIn, &lFechaPivote, &lFechaAlta) && iSuperaMedid==1 ){
+      
+      lFechaMoveIn=-1;
+      lFechaPivote=-1;
+      lFechaAlta=-1;
+      memset(sTarifaInstal, '\0', sizeof(sTarifaInstal));
+      
+		if(!ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaMoveIn, &lFechaPivote, &lFechaAlta, sTarifaInstal) && iSuperaMedid==1 ){
+         alltrim(sTarifaInstal, ' ');
+         
+         if(strcmp(sTarifaInstal, "")==0){
+            if(!getTarifaInstalacion(lNroCliente, lNroBeneficiario, lFechaMoveIn, lFechaPivoteGral, sTarifaInstal)){
+               printf("No se encontró Tarifa de Instalación para cliente %ld\n", lNroCliente);
+            }                     
+         }
+         
+         
 			iNx=0;
 			iNroIndex=1;
          
@@ -165,8 +187,13 @@ $char    sModeloMedidorActual[3];
 				}
 				
 				/*if(LeoPrimeraLectura(lNroCliente, lFechaValTarifa, &regLectu)){*/
+            if(glFechaParametro > 0){
+               lFechaPivote = glFechaParametro;   
+            }
+            
             if(lFechaAlta < lFechaPivote ){
                if(LeoPrimeraLectura(lNroCliente, lFechaPivote, lFechaMoveIn, &regLectu)){
+                  strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
                   if (!GenerarPlanos(regLectu)){
                   	/*$ROLLBACK WORK;*/
                   	exit(2);
@@ -180,6 +207,7 @@ $char    sModeloMedidorActual[3];
 				/*$OPEN curLecturas using :lNroCliente, :lFechaValTarifa;*/
                $OPEN curLecturas using :lNroCliente, :lFechaPivote;
    				while(LeoLecturas(&regLectu) ){
+                  strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
                   /*if(!EsMedidorVigente(lNroMedidorActual, sMarcaMedidorActual, sModeloMedidorActual, regLectu)){*/
       					if (!GenerarPlanos(regLectu)){
       						/*$ROLLBACK WORK;*/
@@ -201,6 +229,7 @@ $char    sModeloMedidorActual[3];
                $OPEN curSinFactura using :lNroCliente,:lFechaPivote;
    				
    				if(LeoSinFactura(lFechaMoveIn, &regLectu)){
+                  strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
    					if (!GenerarPlanos(regLectu)){
    						/*$ROLLBACK WORK;*/
    						exit(2);
@@ -214,7 +243,8 @@ $char    sModeloMedidorActual[3];
    					if(!LeoUltInstalacion(lNroCliente, lFechaMoveIn, &regLectu)){
    						/*$ROLLBACK WORK;*/
    						exit(2);
-   					}				
+   					}
+                  strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);				
    					if (!GenerarPlanos(regLectu)){
    						/*$ROLLBACK WORK;*/
    						exit(2);
@@ -223,6 +253,7 @@ $char    sModeloMedidorActual[3];
    								
    				if(giEstadoCliente==1){
    					if(LeoUltRetiro(lNroCliente, &regLectu)){
+                     strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
    						if (!GenerarPlanos(regLectu)){
    							/*$ROLLBACK WORK;*/
    							exit(2);
@@ -300,6 +331,10 @@ short AnalizarParametros(argc, argv)
 int		argc;
 char	* argv[];
 {
+char  sFechaPar[11];
+   
+   memset(sFechaPar, '\0', sizeof(sFechaPar));
+   memset(sLstParametros, '\0', sizeof(sLstParametros));
 
 	if(argc < 6 || argc > 7){
 		MensajeParametros();
@@ -312,12 +347,19 @@ char	* argv[];
 	strcpy(gsTipoGenera, argv[3]);
 	giMovimientos=atoi(argv[4]);
    giTipoCorrida=atoi(argv[5]);
+
+   if(argc == 7){
+      strcpy(sFechaPar, argv[6]);
+      rdefmtdate(&glFechaParametro, "dd/mm/yyyy", sFechaPar); /*char to long*/
+      sprintf(sLstParametros, "%s %s %s", argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+   }else{
+      glFechaParametro=-1;
+      sprintf(sLstParametros, "%s %s", argv[1], argv[2], argv[3], argv[4]);
+   }
    
-	if(argc==7){
-		glNroCliente=atoi(argv[6]);
-	}else{
-		glNroCliente=-1;
-	}
+   alltrim(sLstParametros, ' ');
+
+   glNroCliente=-1;
 	
 	return 1;
 }
@@ -329,7 +371,7 @@ void MensajeParametros(void){
 		printf("\t<Tipo Generación> G = Generación, R = Regeneración.\n");
       printf("\t<Tipo Frecuencia> 0=Sin Movimientos; 1=Con Movimientos\n");
       printf("\t<Tipo Corrida> 0=Normal; 1=Reducida\n");
-		printf("\t<Nro.Cliente>(Opcional)\n");
+		printf("	<Fecha Inicio> = dd/mm/aaaa (opcional).\n");
 }
 
 short AbreArchivos()
@@ -472,7 +514,7 @@ $char sAux[1000];
 	$PREPARE selFechaActual FROM $sql;	
 
 	/******** Cursor Clientes  ****************/
-	strcpy(sql, "SELECT c.numero_cliente, NVL(c.corr_facturacion, 0) FROM cliente c ");
+	strcpy(sql, "SELECT c.numero_cliente, NVL(c.corr_facturacion, 0), NVL(c.nro_beneficiario, 0) FROM cliente c ");
 
    if(giTipoCorrida==1){
       strcat(sql, ", migra_activos mg ");
@@ -584,6 +626,20 @@ $char sAux[1000];
 	strcat(sql, "AND m.numero_medidor = la.numero_medidor ");
 	strcat(sql, "AND m.marca_medidor = la.marca_medidor ");
 	
+	strcat(sql, "AND (m.fecha_prim_insta = (SELECT MAX(m2.fecha_prim_insta) ");
+	strcat(sql, "	FROM medid m2 ");
+	strcat(sql, " 	WHERE m2.numero_cliente = m.numero_cliente ");
+	strcat(sql, "   AND m2.numero_medidor = m.numero_medidor ");
+	strcat(sql, "   AND m2.marca_medidor = m.marca_medidor) ");
+	strcat(sql, "  OR m.fecha_prim_insta IS NULL) ");
+	
+	strcat(sql, "AND (m.fecha_ult_insta = (SELECT MAX(m3.fecha_ult_insta) ");
+	strcat(sql, "	FROM medid m3 ");
+	strcat(sql, " 	WHERE m3.numero_cliente = m.numero_cliente ");
+	strcat(sql, "   AND m3.numero_medidor = m.numero_medidor ");
+	strcat(sql, "   AND m3.marca_medidor = m.marca_medidor) ");
+	strcat(sql, "  OR m.fecha_ult_insta IS NULL) ");	
+   	
 	strcat(sql, "AND me.mar_codigo = la.marca_medidor ");
 	strcat(sql, "AND me.mod_codigo = m.modelo_medidor ");
 	strcat(sql, "AND me.med_numero = la.numero_medidor ");
@@ -777,8 +833,12 @@ $char sAux[1000];
 	
 	/*$PREPARE insGenInstal FROM $sql;*/
 
+   /****** Parametros Generales *****/
+   $PREPARE selParGeneral FROM "SELECT fecha_pivote FROM sap_regi_cliente 
+      WHERE numero_cliente = 0 ";   
+   
 	/********* Select Montaje Cliente ya migrado **********/
-	strcpy(sql, "SELECT montaje, fecha_move_in, fecha_pivote, fecha_alta_real FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT montaje, fecha_move_in, fecha_pivote, fecha_alta_real, tarifa FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigradoM FROM $sql;
@@ -1109,6 +1169,104 @@ $char sAux[1000];
 	strcat(sql, "WHERE numero_cliente = ? ");
 
 	$PREPARE selFechaInstal FROM $sql;
+
+   /******** FEcha Vig.Tarifa 2 *********/
+	strcpy(sql, "SELECT fecha_terr_puser ");
+	strcat(sql, "FROM estoc ");
+	strcat(sql, "WHERE numero_cliente = ? ");
+   
+   $PREPARE selValTar2 FROM $sql;
+            
+   /******** FEcha Retiro *********/
+	strcpy(sql, "SELECT DATE(MAX(m2.fecha_modif)) ");
+	strcat(sql, "FROM modif m2 ");
+	strcat(sql, "WHERE m2.numero_cliente = ? ");
+	strcat(sql, "AND m2.codigo_modif = 58 ");   
+
+   $PREPARE selRetiro FROM $sql;
+      
+   /******** FEcha Instalacion *********/
+	strcpy(sql, "SELECT MIN(m.fecha_ult_insta) ");
+	strcat(sql, "FROM medid m ");
+	strcat(sql, "WHERE m.numero_cliente = ? ");
+   
+   $PREPARE selInstalacion FROM $sql;
+
+   /******** FEcha Primera factura *********/
+	strcpy(sql, "SELECT h1.fecha_facturacion ");
+	strcat(sql, "FROM hisfac h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.corr_facturacion = (SELECT MIN(h2.corr_facturacion) ");
+	strcat(sql, "	FROM hisfac h2 WHERE h2.numero_cliente = h1.numero_cliente) ");
+   
+   $PREPARE selPrimFactu FROM $sql;
+
+   /******** FEcha Move In 1 *********/
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND tipo_lectura = 8 ");
+	strcat(sql, "AND h1.fecha_lectura > (SELECT MIN(h2.fecha_lectura) ");
+	strcat(sql, "	FROM hislec h2 "); 
+	strcat(sql, " 	WHERE h2.numero_cliente = h1.numero_cliente ");
+	strcat(sql, "  AND h2.tipo_lectura IN (1,2,3,4) ");
+	strcat(sql, "  AND h2.fecha_lectura > ?) ");
+
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura + 1) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.fecha_lectura >= ? ");
+	strcat(sql, "AND tipo_lectura in (1, 2, 3, 4) ");
+      
+   $PREPARE selMoveIn FROM $sql;
+               
+   /******** FEcha Move In 2 *********/
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura + 1) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.fecha_lectura >= ? ");
+	strcat(sql, "AND tipo_lectura in (6, 7) ");
+      
+   $PREPARE selMoveIn2 FROM $sql;
+
+   /******** Estados *********/
+	strcpy(sql, "SELECT first 1 ");
+	strcat(sql, "CASE ");
+	strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
+	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+	strcat(sql, "	ELSE t1.cod_sap ");
+	strcat(sql, "END, "); 
+	strcat(sql, "h.corr_facturacion ");
+	strcat(sql, "FROM cliente c, hisfac h, sap_transforma t1, sucur_centro_op s "); 
+	strcat(sql, "WHERE c.numero_cliente = ? ");
+	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND h.fecha_lectura >= ? ");
+	strcat(sql, "AND t1.clave = 'TARIFTYP' " );
+	strcat(sql, "AND t1.cod_mac = h.tarifa "); 
+	strcat(sql, "AND s.cod_centro_op = h.sucursal "); 
+	strcat(sql, "AND s.fecha_activacion <= TODAY "); 
+	strcat(sql, "AND (s.fecha_desactivac IS NULL OR s.fecha_desactivac > TODAY) "); 
+	strcat(sql, "ORDER BY h.corr_facturacion ASC ");
+         
+   $PREPARE selEstados FROM $sql;
+               
+   /********** Estados 2 ************/
+	strcpy(sql, "SELECT ");
+	strcat(sql, "CASE ");
+	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
+	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+	strcat(sql, "	ELSE t1.cod_sap ");
+	strcat(sql, "END "); 
+	strcat(sql, "FROM cliente c, sap_transforma t1, sucur_centro_op s "); 
+	strcat(sql, "WHERE c.numero_cliente = ? ");
+	strcat(sql, "AND t1.clave = 'TARIFTYP' " );
+	strcat(sql, "AND t1.cod_mac = c.tarifa "); 
+	strcat(sql, "AND s.cod_centro_op = c.sucursal "); 
+	strcat(sql, "AND s.fecha_activacion <= TODAY "); 
+	strcat(sql, "AND (s.fecha_desactivac IS NULL OR s.fecha_desactivac > TODAY) "); 
+   
+   $PREPARE selEstados2 FROM $sql;
+
 	
 }
 
@@ -1176,15 +1334,19 @@ $long	*lFechaFactura;
 	return sFechaFactura;
 }
 
-short LeoClientes(lNroCliente, lCorrFactuActual)
+short LeoClientes(lNroCliente, lCorrFactuActual, lBeneficiario)
 $long *lNroCliente;
 $long *lCorrFactuActual;
+$long *lBeneficiario;
 {
 
 	$long localNroCliente;
 	$long localCorrelativo;
+   $char sNroBeneficiario[17];
 	
-	$FETCH curClientes into :localNroCliente, :localCorrelativo;
+   memset(sNroBeneficiario, '\0', sizeof(sNroBeneficiario));
+   
+	$FETCH curClientes INTO :localNroCliente, :localCorrelativo, :sNroBeneficiario;
 	
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -1197,6 +1359,7 @@ $long *lCorrFactuActual;
 	
 	*lNroCliente = localNroCliente;
 	*lCorrFactuActual = localCorrelativo;
+	*lBeneficiario = atol(sNroBeneficiario);
 	
 	return 1;	
 }
@@ -1354,21 +1517,24 @@ $ClsLecturas	*regLectu;
 	
 }
 
-short ClienteYaMigrado(nroCliente, iFlagMigra, lMoveIn, lFechaPivote, lAlta)
+short ClienteYaMigrado(nroCliente, iFlagMigra, lMoveIn, lFechaPivote, lAlta, sTarifa)
 $long	nroCliente;
 int		*iFlagMigra;
 $long    *lMoveIn;
 $long    *lFechaPivote;
 $long    *lAlta;
+$char    *sTarifa;
 {
 	$char	sMarca[2];
    $long lFechaMoveIn;
    $long lPivote;
    $long lFechaAlta;
+   $char sTarAux[11];
 	
 	memset(sMarca, '\0', sizeof(sMarca));
+   memset(sTarAux, '\0', sizeof(sTarAux));
 	
-	$EXECUTE selClienteMigradoM INTO :sMarca, :lFechaMoveIn, :lPivote, :lFechaAlta USING :nroCliente;
+	$EXECUTE selClienteMigradoM INTO :sMarca, :lFechaMoveIn, :lPivote, :lFechaAlta, :sTarAux USING :nroCliente;
 		
 	if(SQLCODE != 0){
 		if(SQLCODE==SQLNOTFOUND){
@@ -1383,6 +1549,7 @@ $long    *lAlta;
    *lMoveIn = lFechaMoveIn;
    *lFechaPivote = lPivote;
    *lAlta = lFechaAlta;
+   strcpy(sTarifa, sTarAux);
     
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */
@@ -1659,6 +1826,7 @@ ClsLecturas	regLectu;
 	char	sLinea[1000];	
 	
 	memset(sLinea, '\0', sizeof(sLinea));
+   alltrim(regLectu.sTarifaInstalacion, ' ');
 
 	sprintf(sLinea, "T1%ld-%d\tDI_ZW\t", regLectu.numero_cliente, iNroIndex);
 
@@ -1694,11 +1862,19 @@ ClsLecturas	regLectu;
       }
       
       /* TARIFART */
+      if(regLectu.tipo_medidor[0]=='R'){
+         if(iNum==1 || iNum==3){
+            strcat(sLinea, "T1-RESID\t");
+         }else{
+            strcat(sLinea, "T1-REACT\t");
+         }
+      }else{
+         strcat(sLinea, "T1-RESID\t");
+      }
       strcat(sLinea, "\t");
       
       /* PERVERBR */
       sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.consumo);
-
       
       /* EQUNRE */
       strcat(sLinea, "\t");
@@ -1715,12 +1891,20 @@ ClsLecturas	regLectu;
       sprintf(sLinea, "%s00%d\t", sLinea, iNum);
       
       /* KONDIGRE */
+/*      
       if(strcmp(regLectu.tarifa, "T1-GENME")==0){
          strcat(sLinea, "T1-GENMED\t");
       }else{
          strcat(sLinea, "ENERGIA\t");
       }
-
+*/
+      if(strcmp(regLectu.sTarifaInstalacion, "T1-GENME")==0){
+         strcat(sLinea, "T1-GENMED\t");
+      }else if(strcmp(regLectu.sTarifaInstalacion, "T1-AP")==0){
+         strcat(sLinea, "T1-AP\t");
+      }else{
+         strcat(sLinea, "ENERGIA\t");
+      }
       
       /* ZWSTANDCA */
       strcat(sLinea, "\t");
@@ -2136,6 +2320,113 @@ ClsLecturas regLectu;
    return 0;
 }
 
+short getTarifaInstalacion(lNroCliente, lNroBeneficiario, lFechaMoveIn, lFechaPivoteGral, sTarifaInstal)
+$long lNroCliente;
+$long lNroBeneficiario;
+$long lFechaMoveIn;
+$long lFechaPivoteGral;
+$char  sTarifaInstal[11];
+{
+   $long lFechaAlta;
+   
+   if(lFechaMoveIn <= 0){
+      lFechaAlta = getAltaReal(lNroCliente, lNroBeneficiario);
+      lFechaMoveIn = getMoveIn(lNroCliente, lFechaAlta);
+   }
+   strcpy(sTarifaInstal, getTarifa(lNroCliente, lFechaMoveIn));
+
+   return 1;
+}
+
+char  *getTarifa(lNroCliente, lFechaMoveIn)
+$long lNroCliente;
+$long lFechaMoveIn;
+{
+   $char sTarifa[11];
+   
+   $EXECUTE selEstados INTO :sTarifa 
+                       USING :lNroCliente,
+                             :lFechaMoveIn; 
+                             
+   if(SQLCODE != 0){
+      if(SQLCODE != SQLNOTFOUND){
+         printf("No se encontro Tarifa cliente %ld en fecha MoveIn\n", lNroCliente);
+      }
+      $EXECUTE selEstados2 INTO :sTarifa 
+                          USING :lNroCliente;
+   
+      if(SQLCODE != 0){
+         printf("ERROR. No se encontro Tarifa para cliente %ld en CLIENTE\n", lNroCliente);
+      }
+   }                             
+
+   alltrim(sTarifa, ' ');
+   return sTarifa;
+}
+
+long getMoveIn(lNroCliente, lFechaAlta)
+$long lNroCliente;
+$long lFechaAlta;
+{
+   $long lFecha=0;
+   
+   if(lFechaAlta < lFechaPivoteGral ){
+      $EXECUTE selMoveIn INTO :lFecha USING :lNroCliente, :lFechaPivoteGral;
+   }else{
+      $EXECUTE selMoveIn2 INTO :lFecha USING :lNroCliente, :lFechaPivoteGral;
+   }
+   
+   if(SQLCODE != 0){
+      lFecha = lFechaPivoteGral;
+   }
+
+   if(lFecha<=0 || risnull(CLONGTYPE, (char *) &lFecha)){
+      lFecha = lFechaPivoteGral; 
+   }
+
+   return lFecha;
+}
+
+long  getAltaReal(lNroCliente, lNroBeneficiario)
+$long lNroCliente;
+$long lNroBeneficiario;
+{
+   $long lFecha=0;
+   char  sFechaMac[11];
+   $long lFechaMac;
+   
+   strcpy(sFechaMac, "24-09-1995");
+   rdefmtdate(&lFechaMac, "dd-mm-yyyy", sFechaMac);   
+   
+   $EXECUTE selValTar2 INTO :lFecha USING :lNroCliente;
+   
+   if(SQLCODE != 0){
+      if(lNroBeneficiario > 0){
+         $EXECUTE selRetiro INTO :lFecha USING :lNroBeneficiario;
+         
+         if(SQLCODE != 0){
+            lFecha = lFechaMac;
+         }
+      }else{
+         $EXECUTE selInstalacion INTO :lFecha USING :lNroCliente;
+         
+         if(SQLCODE !=0){
+            lFecha = lFechaMac;
+         }
+      }
+   }
+
+   if(lFecha<=0 || risnull(CLONGTYPE, (char *) &lFecha)){
+      $EXECUTE selPrimFactu INTO :lFecha USING :lNroCliente;
+   }
+
+   if(lFecha<=0 || risnull(CLONGTYPE, (char *) &lFecha)){
+      lFecha = lFechaMac;
+   }
+      
+   return lFecha;
+
+}
 
 /****************************
 		GENERALES

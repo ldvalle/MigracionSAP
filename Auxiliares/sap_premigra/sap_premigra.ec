@@ -162,13 +162,14 @@ long        lFechaValTarifa;
          cantBloque=0;
       }
 	}
+   if(giTipoCorrida != 2){   
+      $BEGIN WORK;
+         
+      $EXECUTE insParam USING :lFechaPivote, :lFechaLimiteInferior;
    
-   $BEGIN WORK;
-      
-   $EXECUTE insParam USING :lFechaPivote, :lFechaLimiteInferior;
-
-   $COMMIT WORK;
-
+      $COMMIT WORK;
+   }
+   
 	$CLOSE curClientes;
 
 	$CLOSE DATABASE;
@@ -226,7 +227,7 @@ char	* argv[];
 void MensajeParametros(void){
 		printf("Error en Parametros.\n");
 		printf("	<Base> = synergia.\n");
-      printf("	<Modo> 0=Total, 1=Reducida \n");
+      printf("	<Modo> 0=Total, 1=Reducida, 2=Actualiza \n");
 }
 
 
@@ -282,12 +283,16 @@ $char sAux[1000];
 if(giTipoCorrida == 1){
    strcat(sql, ", migra_activos ma ");
 }
-   
+if(giTipoCorrida == 2){
+   strcat(sql, ", sap_actuclie ma ");
+}
+
 	strcat(sql, "WHERE c.estado_cliente = 0 ");
 	strcat(sql, "AND c.tipo_sum != 5 ");
    
-strcat(sql, "AND not exists ( select 1 from sap_regi_cliente s where s.numero_cliente = c.numero_cliente ) ");
-   
+if(giTipoCorrida != 2){   
+   strcat(sql, "AND not exists ( select 1 from sap_regi_cliente s where s.numero_cliente = c.numero_cliente ) ");
+}   
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
@@ -296,7 +301,9 @@ strcat(sql, "AND not exists ( select 1 from sap_regi_cliente s where s.numero_cl
 if(giTipoCorrida == 1){
    strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 }   
-
+if(giTipoCorrida == 2){
+   strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
+}   
 	$PREPARE selClientes FROM $sql;
 	
 	$DECLARE curClientes CURSOR WITH HOLD FOR selClientes;
@@ -442,6 +449,20 @@ if(giTipoCorrida == 1){
    
    $PREPARE insParam FROM $sql;   
    
+   /********* Actualiza Estados ********/
+   strcpy( sql, "UPDATE sap_regi_cliente SET ");
+	strcat(sql, "fecha_val_tarifa = ?, "); 
+	strcat(sql, "fecha_alta_real = ?, ");
+	strcat(sql, "fecha_move_in = ?, "); 
+	strcat(sql, "fecha_pivote = ?, ");
+   strcat(sql, "fecha_limi_inf = ?,");
+	strcat(sql, "tarifa = ?, ");
+	strcat(sql, "ul = ?, ");
+	strcat(sql, "motivo_alta = ?");
+   strcat(sql, "WHERE numero_cliente = ? ");
+   
+   $PREPARE updParam FROM $sql;
+   
 }
 
 
@@ -556,8 +577,8 @@ $ClsCliente reg;
 long getAlta(reg)
 $ClsCliente reg;
 {
-   $long lFecha;
-   $long lBenef;
+   $long lFecha=0;
+   $long lBenef=0;
    
    $EXECUTE selValTar2 INTO :lFecha USING :reg.numero_cliente;
    
@@ -578,11 +599,11 @@ $ClsCliente reg;
       }
    }
 
-   if(lFecha<=0){
+   if(lFecha<=0 || risnull(CLONGTYPE, (char *) &lFecha)){
       $EXECUTE selPrimFactu INTO :lFecha USING :reg.numero_cliente;
    }
 
-   if(lFecha <= 0){
+   if(lFecha<=0 || risnull(CLONGTYPE, (char *) &lFecha)){
       lFecha = lFechaMac;
    }
       
@@ -593,7 +614,7 @@ long getMoveIn(reg, lFechaAlta)
 $ClsCliente reg;
 $long       lFechaAlta;
 {
-   $long lFecha;
+   $long lFecha=0;
 
    /*$EXECUTE selMoveIn INTO :lFecha USING :reg.numero_cliente, :lFechaRti;*/
    
@@ -604,7 +625,11 @@ $long       lFechaAlta;
    }
    
    if(SQLCODE != 0){
-      lFecha = lFechaAlta;
+      lFecha = lFechaPivote;
+   }
+
+   if(lFecha<=0 || risnull(CLONGTYPE, (char *) &lFecha)){
+      lFecha = lFechaPivote; 
    }
 
    return lFecha;
@@ -622,7 +647,7 @@ $ClsEstado  *regEstado;
                              
    if(SQLCODE != 0){
       if(SQLCODE != SQLNOTFOUND){
-         printf("No se encontro Tarifa y UL para cliente %ld en fecha pivote\n", regCliente.numero_cliente);
+         printf("No se encontro Tarifa y UL para cliente %ld en fecha MoveIn\n", regCliente.numero_cliente);
       }
          $EXECUTE selEstados2 INTO :regEstado->sTarifa, 
                                   :regEstado->sUL
@@ -635,6 +660,10 @@ $ClsEstado  *regEstado;
 
    alltrim(regEstado->sTarifa, ' ');
    alltrim(regEstado->sUL, ' ');
+
+   if(strcmp(regEstado->sTarifa, "")==0 || strcmp(regEstado->sUL, "")==0){
+      printf("ERROR. No se encontro Tarifa y UL para cliente %ld en CLIENTE\n", regCliente.numero_cliente);
+   }
 
    $EXECUTE selMotAlta INTO :regEstado->sMotivoAlta USING :regCliente.numero_cliente;
 
@@ -649,24 +678,40 @@ $ClsEstado  *regEstado;
       }
    }                             
 
-   alltrim(regEstado->sMotivoAlta, ' ');   
+   alltrim(regEstado->sMotivoAlta, ' ');
+   
+   if(strcmp(regEstado->sMotivoAlta, "")==0){
+      printf("ERROR. No se encontro Motivo Alta para cliente %ld en CLIENTE\n", regCliente.numero_cliente);
+   }   
 }
 
 short GrabaEstados(reg)
 $ClsEstado  reg;
 {
 
-   $EXECUTE insRegiMigra USING
-      :reg.numero_cliente,
-      :reg.lFechaValTar,
-      :reg.lFechaAlta,
-      :reg.lFechaMoveIn,
-      :reg.lFechaPivote,
-      :lFechaLimiteInferior,
-      :reg.sTarifa,
-      :reg.sUL,
-      :reg.sMotivoAlta;
-      
+   if(giTipoCorrida != 2){
+      $EXECUTE insRegiMigra USING
+         :reg.numero_cliente,
+         :reg.lFechaValTar,
+         :reg.lFechaAlta,
+         :reg.lFechaMoveIn,
+         :reg.lFechaPivote,
+         :lFechaLimiteInferior,
+         :reg.sTarifa,
+         :reg.sUL,
+         :reg.sMotivoAlta;
+   }else{
+      $EXECUTE updParam USING
+         :reg.lFechaValTar,
+         :reg.lFechaAlta,
+         :reg.lFechaMoveIn,
+         :reg.lFechaPivote,
+         :lFechaLimiteInferior,
+         :reg.sTarifa,
+         :reg.sUL,
+         :reg.sMotivoAlta,
+         :reg.numero_cliente;
+   }      
    if(SQLCODE != 0){
       return 0;
    }

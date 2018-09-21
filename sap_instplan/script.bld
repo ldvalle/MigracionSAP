@@ -2,7 +2,7 @@ PROGRAM = sap_instplan.exe
 
 OBJECTS = sap_instplan.o 
 
-OBJS_LIB = sqlerror.o ustring.o macmath.o
+OBJS_LIB = sqlerror.o ustring.o macmath.o mfecha.o
 
 OTROS =
 
@@ -34,5 +34,10 @@ ustring.o : ustring.c                      \
             ustring.h
 
 macmath.o : macmath.c 
+
+mfecha.o : mfecha.ec             \
+           mfecha.h              \
+           errores.h             \
+           tabla_errores.h
 
 #ENDUPDATE#

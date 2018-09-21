@@ -847,6 +847,13 @@ $char sAux[1000];
 	
 	$PREPARE delCorpoT1migrado FROM $sql;
    
+   /************* Valida Forma Pago ************/
+   $PREPARE selFPago FROM "SELECT COUNT(*) FROM forma_pago
+      WHERE numero_cliente = ?
+      AND fecha_activacion <= TODAY
+      AND (fecha_desactivac IS NULL OR fecha_desactivac > TODAY)";
+
+   
    /************* Buscar ID Sales Forces ************/
 /*   
 	strcpy(sql, "SELECT account FROM sap_sfc_inter ");
@@ -900,6 +907,8 @@ short LeoClientes(regCli, regFP)
 $ClsCliente *regCli;
 $ClsFormaPago *regFP;
 {
+   $int  iValor;
+   
 	InicializaCliente(regCli, regFP);
 	
 	$FETCH curClientes into
@@ -982,6 +991,21 @@ $ClsFormaPago *regFP;
 	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "'", " "));
 	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "Ñ"));
 			
+      
+   if(regCli->tipo_fpago[0]=='D'){   
+      $EXECUTE selFPago INTO :iValor USING :regCli->numero_cliente;
+      
+      if(SQLCODE != 0){
+         printf("No se pudo validar Forma Pago para cliente %ld\n\tSe lo pasa a Normal.\n", regCli->numero_cliente);
+         strcpy(regCli->tipo_fpago, "N");   
+      }else{
+         if(iValor <= 0){
+            printf("No se encontro Forma Pago para cliente %ld\n\tSe lo pasa a Normal.\n", regCli->numero_cliente);
+            strcpy(regCli->tipo_fpago, "N");   
+         }
+      }
+   }
+      
 	return 1;	
 }
 

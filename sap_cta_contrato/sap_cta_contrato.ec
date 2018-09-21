@@ -609,7 +609,7 @@ if(giTipoCorrida == 1)
 	strcat(sql, "e.codigo_cargo, "); 
 	strcat(sql, "TO_CHAR(e.fecha_desde, '%Y%d%m'), ");
 	strcat(sql, "NVL(TO_CHAR(e.fecha_hasta, '%Y%d%m'),'99991231'), ");
-   strcat(sql, "e.porcentaje_nuevo ");
+   strcat(sql, "100 - e.porcentaje_nuevo ");
 	strcat(sql, "FROM exencion_imp e ");
 	strcat(sql, "WHERE e.numero_cliente = ? ");
 	strcat(sql, "AND e.fecha_desde <= TODAY ");
@@ -631,7 +631,14 @@ if(giTipoCorrida == 1)
 	strcat(sql, "AND t.fecha_activacion <= TODAY "); 
 	strcat(sql, "AND ( t.fecha_desactivac >= TODAY OR t.fecha_desactivac IS NULL ) ");    
 
-   $PREPARE selElectro FROM $sql;         
+   $PREPARE selElectro FROM $sql;
+   
+   /************* Valida Forma Pago ************/
+   $PREPARE selFPago FROM "SELECT COUNT(*) FROM forma_pago
+      WHERE numero_cliente = ?
+      AND fecha_activacion <= TODAY
+      AND (fecha_desactivac IS NULL OR fecha_desactivac > TODAY)";
+            
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -679,6 +686,7 @@ short LeoClientes(regCli)
 $ClsCliente *regCli;
 {
    $int iRcv;
+   $int  iValor;
    
 	InicializaCliente(regCli);
 	
@@ -739,7 +747,22 @@ $ClsCliente *regCli;
    }else{
       strcpy(regCli->sElectrodependiente, "N");
    }
-   		
+
+
+   if(regCli->tipo_fpago[0]=='D'){   
+      $EXECUTE selFPago INTO :iValor USING :regCli->numero_cliente;
+      
+      if(SQLCODE != 0){
+         printf("No se pudo validar Forma Pago para cliente %ld\n\tSe lo pasa a Normal.\n", regCli->numero_cliente);
+         strcpy(regCli->tipo_fpago, "N");   
+      }else{
+         if(iValor <= 0){
+            printf("No se encontro Forma Pago para cliente %ld\n\tSe lo pasa a Normal.\n", regCli->numero_cliente);
+            strcpy(regCli->tipo_fpago, "N");   
+         }
+      }
+   }
+    		
 	return 1;	
 }
 
@@ -899,17 +922,16 @@ $ClsExencion   regExen;
    	GeneraVKLOCK(fp, regCliente, "T1", iTipo, "E");
    }
 
-/* Dejo en suspenso las exenciones impositivas
+ /* exenciones impositivas */
 
    $OPEN curExenciones USING :regCliente.numero_cliente;
    
    while(LeoExencion(&regExen)){
-   	// VKTXEX 
    	GeneraVKTXEX(fp, regCliente, regExen, iTipo);
    }
    
    $CLOSE curExenciones;
-*/   
+   
 	/* ENDE */
 	GeneraENDE(fp, regCliente, iTipo);
 
@@ -959,6 +981,7 @@ int   iTipo;
 	strcat(sLinea, "01\t");
   
    /* VKONT luego será un valor de SF */
+   /* por ahora informamos todos 1a1
    if(iTipo == 2){
       if(regCliente.minist_repart > 0){
          sprintf(sLinea, "%s%ldCORP\t", sLinea, regCliente.minist_repart);
@@ -968,8 +991,12 @@ int   iTipo;
    }else{
       sprintf(sLinea, "%s%ld\t", sLinea, regCliente.numero_cliente);   
    }
+   */
+   sprintf(sLinea, "%s%ld\t", sLinea, regCliente.numero_cliente);
+   
    
    /* GPART */
+   /* por ahora informamos todos 1a1
 	if (strcmp(sTarifa, "T1")==0){
 		if(regCliente.minist_repart > 0){
 			sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.minist_repart);
@@ -983,7 +1010,9 @@ int   iTipo;
 			strcat(sLinea, "\t");	
 		}
 	}
-
+   */
+   sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
+   
    /* VKTYP */
 	sprintf(sLinea,"%s%s\t", sLinea, sTipoCuenta);
    /* VKONA */
@@ -1029,17 +1058,21 @@ char  sTipo[2];
 
 	memset(sLinea, '\0', sizeof(sLinea));
 
+   /*
    if(iTipo == 1){
       sprintf(sLinea, "T1%ldCORP\tVKLOCK\t", regCliente.numero_cliente);
    }else{
 	  sprintf(sLinea, "T1%ld\tVKLOCK\t", regCliente.numero_cliente);
    }
+   */
+   sprintf(sLinea, "T1%ld\tVKLOCK\t", regCliente.numero_cliente);
    
    /* LOCKAKTYP */
    /*
 	strcat(sLinea, "I\t");
 	*/
    /* LOCKPARTNER */
+   /*
 	if(strcmp(sTarifa, "T1")==0){
 		if(regCliente.minist_repart > 0){
 			sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.minist_repart);
@@ -1053,6 +1086,8 @@ char  sTipo[2];
 			strcat(sLinea, "\t");	
 		}
 	}
+   */
+   sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
    
    /* LOTYP_KEY */
    strcat(sLinea, "06\t"); /* Cuenta */
@@ -1134,13 +1169,17 @@ int iTipo;
 	}
 	
    /* llave */
+   /*
    if(iTipo == 1){
       sprintf(sLinea, "T1%ldCORP\tVKP\t",regCliente.numero_cliente);
    }else{
 	  sprintf(sLinea, "T1%ld\tVKP\t",regCliente.numero_cliente);
    }
-
+   */
+   sprintf(sLinea, "T1%ld\tVKP\t",regCliente.numero_cliente);
+   
    /* PARTNER */
+   /*
 	if(strcmp(sTarifa, "T1")==0){	
 		if(regCliente.minist_repart > 0){
 			sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.minist_repart);	
@@ -1154,6 +1193,8 @@ int iTipo;
 			strcat(sLinea, "\t");	
 		}
 	}
+   */
+   sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
    
    /* OPBUK */
 	strcat(sLinea, "EDES\t");
@@ -1177,11 +1218,19 @@ int iTipo;
 		strcat(sLinea, "\t");	
 	}
    
+   
 	/* MGGRUP + VKONV + ABWRH */
+   /* MGGRUP */ 
+   strcat(sLinea, "\t");
+   /* VKONV */ 
+   strcat(sLinea, "\t");
+   /* ABWRH */
+   sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
+   /*
 	if(strcmp(sTarifa, "T1")==0){
-      /* MGGRUP */
+      // MGGRUP
       strcat(sLinea, "\t");
-      /* VKONV */
+      // VKONV 
       if(iTipo ==1 ){
          sprintf(sLinea, "%sT1%ldCORP\t", sLinea, regCliente.numero_cliente); 
       }else{
@@ -1191,7 +1240,7 @@ int iTipo;
             strcat(sLinea, "\t");
          }
       }
-      /* ABWRH */
+      // ABWRH
 		if(regCliente.minist_repart > 0){
 			sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.minist_repart);	
 		}else{
@@ -1215,7 +1264,9 @@ int iTipo;
 			strcat(sLinea, "\t");	
 		}
 	}
-	
+	*/
+   
+   
 	/* ADRRH */
 	if(strcmp(regCliente.tipo_reparto, "POSTAL")==0){
 		sprintf(sAux, "POS_%ld", regCliente.numero_cliente);
@@ -1284,11 +1335,12 @@ int iTipo;
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.comuna);
    
    /* GPARV */
+   /*
 	if(strcmp(sTarifa, "T1")==0){	
 		if(regCliente.minist_repart > 0){
 			sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.minist_repart);	
 		}else{
-			/*sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);*/
+			//sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
          strcat(sLinea, "\t");
 		}
 	}else{
@@ -1298,7 +1350,8 @@ int iTipo;
 			strcat(sLinea, "\t");	
 		}
 	}
-   
+   */
+   strcat(sLinea, "\t");
    
    /* LANDL */
 	strcat(sLinea, "AR\t");
@@ -1343,30 +1396,36 @@ int   iTipo;
 	char	sLinea[1000];	
 
 	memset(sLinea, '\0', sizeof(sLinea));
-	
+/*	
    if(iTipo == 1){
 	  sprintf(sLinea, "T1%ldCORP\tVKTXEX\t", regCliente.numero_cliente);   
    }else{
 	  sprintf(sLinea, "T1%ld\tVKTXEX\t", regCliente.numero_cliente);
    }
+*/
+   sprintf(sLinea, "T1%ld\tVKTXEX\t", regCliente.numero_cliente);
+      
    /* TAXEXAKTYP */
 	strcat(sLinea, "I\t");
-   /* MWSKZ */
+   /* MWSKZ (valor trafo) */
 	/*sprintf(sLinea, "%s%s\t", sLinea, regCliente.tipo_iva);*/
    strcat(sLinea, "ZE\t");
-   /* KSCHL */
+   
+   /* KSCHL (valor trafo) */
    strcat(sLinea, "ED01\t");
-   /* EXDFR */
+   
+   /* EXDFR (fecha desde)*/
+   sprintf(sLinea, "%s%s\t", sLinea, regExe.sFechaDesde);
+   /* EXDTO (fecha hasta)*/
+   strcat(sLinea, "99991231\t");
+   /* EXNUM (vacio) */
    strcat(sLinea, "\t");
-   /* EXDTO */
+   /* EXRAT (%)*/
+   sprintf(sLinea, "%s%.02f\t", sLinea, regExe.EXRAT);
+
+   /* LAUFD (vacio)*/
    strcat(sLinea, "\t");
-   /* EXNUM */
-   strcat(sLinea, "\t");
-   /* EXRAT */
-   strcat(sLinea, "100.00\t");
-   /* LAUFD */
-   strcat(sLinea, "\t");
-   /* LAUFI */
+   /* LAUFI (vacio) */
    
 	strcat(sLinea, "\n");
 	
@@ -1447,6 +1506,9 @@ $ClsCliente *regCliente;
 {
 	$int	iCant=0;
 
+   return 0;
+   /* Salida Forzada por NO */
+   
 	$EXECUTE selCorpoT23 into :regCliente->sCodCorpoT23, 
 							  :regCliente->sCodCorpoPadreT23 
 						using :regCliente->numero_cliente;

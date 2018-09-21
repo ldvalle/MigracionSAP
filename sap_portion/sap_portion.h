@@ -27,8 +27,14 @@ $typedef struct{
    char  sucursal[5];
    int   sector;
    int   zona;
+   int   anio_periodo;
+   int   periodo;
+   
    char  termerst[11];
    char  abrdats[11];
+   
+   char  fecha_inicio_ventana[11];
+   char  fecha_cierre_ventana[11];
 }ClsPortion;
 
 $typedef struct{
@@ -46,6 +52,12 @@ $typedef struct{
    int   eper_abl;   
 }ClsUnLectu;
 
+$typedef struct{
+	char	cod_porcion[9];
+   int   diffDias;   
+}ClsPortionVentana;
+
+
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
 void	MensajeParametros(void);
@@ -59,7 +71,10 @@ void    InicializaPortion(ClsPortion *);
 short	LeoUnLectu(ClsUnLectu *);
 void    InicializaUnLectu(ClsUnLectu *);
 short getFactuAnterior(ClsPortion *);
-short getDifFechas(ClsUnLectu *);
+short getDifFechas(ClsUnLectu *, long);
+short getVentanaPortion(ClsPortion *, long);
+void  InicializaVector(ClsPortionVentana **);
+void  CargaPortion(char *, int, long, ClsPortionVentana **);
 
 short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);

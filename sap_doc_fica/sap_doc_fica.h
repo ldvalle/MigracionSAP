@@ -164,7 +164,7 @@ short LeoImpuDispu(ClsImpuesto *);
 short LeoImpuConve(ClsImpuesto *);
 
 void  inicializaOPL(ClsOPL **);
-void  CargaOPL(ClsCliente, long, ClsOPL **, char *);
+void  CargaOPL(ClsCliente, long, ClsOPL **, char *, long);
 
 void  InicializaOP( ClsOP *);
 void  InicializaOPK(ClsOPK *);

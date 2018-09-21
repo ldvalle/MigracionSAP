@@ -57,6 +57,10 @@ $char sFechaFica[11];
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
 */
+$long       glFechaParametro;
+$dtime_t    gtInicioCorrida;
+$char       sLstParametros[100];
+
 $WHENEVER ERROR CALL SqlException;
 
 void main( int argc, char **argv ) 
@@ -104,6 +108,8 @@ int         iFica;
 	/* ********************************************
 				INICIO AREA DE PROCESO
 	********************************************* */
+   dtcurrent(&gtInicioCorrida);
+   
 	if(!AbreArchivos()){
 		exit(1);	
 	}
@@ -113,9 +119,8 @@ int         iFica;
 	cantInactivos=0;
 	cantPreexistente=0;
 
-
-	if(glNroCliente > 0){
-		$OPEN curConve using :glNroCliente;
+	if(glFechaParametro > 0){
+		$OPEN curConve using :glFechaParametro;
 	}else{
 		$OPEN curConve;
 	}
@@ -134,7 +139,7 @@ int         iFica;
 						
 	}
 
-	$CLOSE curDepgar;
+	$CLOSE curConve;
 			
 	CerrarArchivos();
 
@@ -190,6 +195,10 @@ short AnalizarParametros(argc, argv)
 int		argc;
 char	* argv[];
 {
+char  sFechaPar[11];
+   
+   memset(sFechaPar, '\0', sizeof(sFechaPar));
+   memset(sLstParametros, '\0', sizeof(sLstParametros));
 
 	if(argc < 5 || argc > 6){
 		MensajeParametros();
@@ -208,12 +217,17 @@ char	* argv[];
 	strcpy(gsTipoGenera, argv[3]);
 	
    giTipoCorrida=atoi(argv[4]);
+
+   if(argc == 6){
+      strcpy(sFechaPar, argv[5]);
+      rdefmtdate(&glFechaParametro, "dd/mm/yyyy", sFechaPar); /*char to long*/
+      sprintf(sLstParametros, "%s %s %s", argv[1], argv[2], argv[3], argv[4], argv[5]);
+   }else{
+      glFechaParametro=-1;
+      sprintf(sLstParametros, "%s %s", argv[1], argv[2], argv[3], argv[4]);
+   }
    
-	if(argc==6){
-		glNroCliente=atoi(argv[5]);
-	}else{
-		glNroCliente=-1;
-	}
+   alltrim(sLstParametros, ' ');
 	
 	return 1;
 }
@@ -224,7 +238,7 @@ void MensajeParametros(void){
 		printf("	<Estado Cliente> 0=Activos, 1=No Activos, 2=Ambos\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
       printf("	<Tipo Corrida> 0=Normal, 1=Reducida\n");
-		printf("	<Nro.Cliente>(Opcional)\n");
+		printf("	<Fecha Inicio> = dd/mm/aaaa (opcional).\n");
 }
 
 short AbreArchivos()
@@ -310,7 +324,7 @@ $char sAux[1000];
 	$PREPARE selFechaActual FROM $sql;	
 	
    /******** Fecha FICA  ****************/
-   $PREPARE selFica FROM "SELECT TO_CHAR(fecha_corrida, '%Y%m%d')
+   $PREPARE selFica FROM "SELECT TO_CHAR(MAX(fecha_corrida), '%Y%m%d')
       FROM sap_regiextra
       WHERE estructura = 'FICA'";
 
@@ -325,8 +339,9 @@ $char sAux[1000];
 	strcat(sql, "v.valor_cuota, ");
 	strcat(sql, "v.valor_cuota_ini, ");
 	strcat(sql, "v.fecha_vigencia, ");
-	strcat(sql, "TO_CHAR(v.fecha_vigencia, '%Y%m%d') ");   
-	strcat(sql, "FROM cliente c, conve v ");   
+	strcat(sql, "TO_CHAR(v.fecha_vigencia, '%Y%m%d'), ");
+   strcat(sql, "NVL(h.fecha_vencimiento1, 0) ");   
+	strcat(sql, "FROM cliente c, conve v, OUTER hisfac h ");   
 	
    if(giTipoCorrida==1)
       strcat(sql, ",migra_activos m ");	
@@ -351,14 +366,19 @@ $char sAux[1000];
 	if(giEstadoCliente!=0){
 		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	}
-	
+   	
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "	WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "	AND cm.fecha_activacion < TODAY ");
 	strcat(sql, "	AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
 	strcat(sql, "AND v.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND v.estado = 'V' ");
+   if(glFechaParametro > 0){
+      strcat(sql, "AND v.fecha_creacion >= ? ");   
+   }
 	strcat(sql, "AND v.numero_tot_cuotas != v.numero_ult_cuota ");
+	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND h.corr_facturacion = c.corr_facturacion ");
 	
    if(giTipoCorrida == 1)
       strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
@@ -397,14 +417,12 @@ $char sAux[1000];
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
 	strcat(sql, "estructura, ");
 	strcat(sql, "fecha_corrida, ");
-	strcat(sql, "modo_corrida, ");
-	strcat(sql, "cant_registros, ");
-	strcat(sql, "numero_cliente, ");
-	strcat(sql, "nombre_archivo ");
+	strcat(sql, "fecha_fin, ");
+	strcat(sql, "parametros ");
 	strcat(sql, ")VALUES( ");
 	strcat(sql, "'DEPGAR', ");
-	strcat(sql, "CURRENT, ");
-	strcat(sql, "?, ?, ?, ?) ");
+	strcat(sql, "?, CURRENT, ?) ");
+
 	
 	$PREPARE insGenInstal FROM $sql;
 
@@ -538,7 +556,8 @@ $ClsConve *reg;
       :reg->valor_cuota,
       :reg->valor_cuota_ini,
       :reg->lFechaVigencia,
-      :reg->sFechaVigencia;
+      :reg->sFechaVigencia,
+      :reg->lFechaVtoUltimaFactura;
 
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -567,6 +586,7 @@ $ClsConve	*reg;
    rsetnull(CDOUBLETYPE, (char *) &(reg->valor_cuota_ini));
    rsetnull(CLONGTYPE, (char *) &(reg->lFechaVigencia));
    memset(reg->sFechaVigencia, '\0', sizeof(reg->sFechaVigencia));
+   rsetnull(CLONGTYPE, (char *) &(reg->lFechaVtoUltimaFactura));
 }
 
 short ClienteYaMigrado(nroCliente, iFlagMigra)
@@ -656,21 +676,39 @@ $ClsConve		reg;
    int   iCuota;
    int   i;
    double   dValorCuota;
+   double   dDiffSaldo;
+   long  lVencimiento;
 
    iCuotas = reg.numero_tot_cuotas - reg.numero_ult_cuota;
    iCuota = reg.numero_ult_cuota + 1;
+   /*
+   if(reg.numero_ult_cuota == 0){
+      dDiffSaldo = reg.deuda_convenida - (reg.valor_cuota_ini + ((iCuotas-1) * reg.valor_cuota));
+   }else{
+      dDiffSaldo = reg.deuda_convenida - (iCuotas * reg.valor_cuota);
+   }
+   */
+   dDiffSaldo = reg.deuda_convenida - (iCuotas * reg.valor_cuota);
 
 	/* IPKEY */	
 	GeneraIPKEY(fp, reg);
 
+   lVencimiento=reg.lFechaVtoUltimaFactura;
    for(i=1; i<= iCuotas; i++){
       if (iCuota == 1){
-         dValorCuota = reg.valor_cuota_ini;
-      }else{
+         /*dValorCuota = reg.valor_cuota_ini;*/
          dValorCuota = reg.valor_cuota;
+      }else{
+         if(i == iCuotas){
+            /* Si es la ultima le agrego la diferencia */
+            dValorCuota = reg.valor_cuota + dDiffSaldo;
+         }else{
+            dValorCuota = reg.valor_cuota;
+         }
       }
       /* IPDATA */
-      GeneraIPDATA(fp, i, iCuota, dValorCuota, reg);
+      lVencimiento += 30;
+      GeneraIPDATA(fp, i, iCuota, dValorCuota, reg, lVencimiento);
       
       iCuota++;
    }
@@ -686,23 +724,30 @@ $ClsConve		reg;
 	return 1;
 }
 
-void GeneraIPDATA(fp, i, iCuota, dValorCuota, reg)
+void GeneraIPDATA(fp, i, iCuota, dValorCuota, reg, lVto)
 FILE  *fp;
 int   i;
 int   iCuota;
 double   dValorCuota;
 ClsConve reg;
+long  lVto;
 {
 	char	sLinea[1000];	
-
+   char  sVto[11];
+   
 	memset(sLinea, '\0', sizeof(sLinea));
+   memset(sVto, '\0', sizeof(sVto));
+   
+   rfmtdate(lVto, "yyyymmdd", sVto); /* long to char */
 	
-	sprintf(sLinea, "T1%ld\t&IPDATA", reg.numero_cliente);
+	sprintf(sLinea, "T1%ld\tIPDATA\t", reg.numero_cliente);
 
-   /* FAEDN (?)*/
-   strcat(sLinea, "\t");
+   /* FAEDN (Vencimiento Cuota)*/
+   sprintf(sLinea, "%s%s\t", sLinea, sVto);
+
    /* BETRW */
-   sprintf(sLinea, "%s+%.02lf\t", sLinea, dValorCuota);
+   sprintf(sLinea, "%s%.02lf\t", sLinea, dValorCuota);
+   
    /* OPTXT */
    sprintf(sLinea, "%sCuota %d", sLinea, iCuota);
 
@@ -739,13 +784,11 @@ short RegistraArchivo(void)
 		strcpy(sNombreArchivo, sSoloArchivo);
 		lCantidad=cantProcesada;
 				
-		$EXECUTE updGenArchivos using :sTipoArchivo;
+		/*$EXECUTE updGenArchivos using :sTipoArchivo;*/
 			
 		$EXECUTE insGenInstal using
-				:gsTipoGenera,
-				:lCantidad,
-				:glNroCliente,
-				:sNombreArchivo;
+				:gtInicioCorrida,
+				:sLstParametros;
 	}
 	
 	return 1;
@@ -811,17 +854,17 @@ ClsConve	reg;
 	memset(sLinea, '\0', sizeof(sLinea));
 
    /* LLAVE */
-   sprintf(sLinea, "T1%ld\t&IPOPKY", reg.numero_cliente);
+   sprintf(sLinea, "T1%ld\tIPOPKY\t", reg.numero_cliente);
 
    /* OPBEL (Llave FICA)*/
-   sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
+   sprintf(sLinea, "%sT1%ld-1\t", sLinea, reg.numero_cliente);
    /* OPUPW */
-   strcat(sLinea, "000\t");
+   /*strcat(sLinea, "000\t");*/
    /* OPUPK */
-   sprintf(sLinea, "%s%04d\t", sLinea, i);
+   sprintf(sLinea, "%s%04d", sLinea, i);
 
    /* OPUPZ */
-   strcat(sLinea, "0000\t");
+   /*strcat(sLinea, "0000\t");*/
 
 	strcat(sLinea, "\n");
 	

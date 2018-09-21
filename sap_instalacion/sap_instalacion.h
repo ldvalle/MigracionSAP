@@ -121,7 +121,8 @@ char	*getFechaFactura(long, long);
 short CargaAltaReal(ClsInstalacion *);
 short CargaIdSF(ClsInstalacion *);
 void  CargaLimiteInferior(void);
-short CargaTarifaInstal(ClsInstalacion *);
+short CargaTarifaInstal(ClsInstalacion *, long);
+long  getFechaMoveIn(ClsInstalacion);
 
 /*
 short	EnviarMail( char *, char *);

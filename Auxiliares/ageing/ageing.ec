@@ -17,6 +17,9 @@ EXEC SQL include "ageing.h";
 int  giTipoCliente;
 int  giTipoCorrida;
 
+$dtime_t gtInicioCorrida;
+$char  sLstParametros[100];
+
 void main(int iVargs, char **vVargs)
 {
     $Tcliente   RegCliente;
@@ -40,6 +43,8 @@ void main(int iVargs, char **vVargs)
     if (!IniciaAmbiente())
         exit(1);
 
+   dtcurrent(&gtInicioCorrida);
+   
    lCantClie=0;
     /*EXEC SQL BEGIN WORK;*/
     $OPEN curClientes;
@@ -173,6 +178,13 @@ for (i=0; i<rSsal.cantSaldosImpuestos; i++)
 
     EXEC SQL CLOSE curClientes;
 
+    $BEGIN WORK;
+    
+    $EXECUTE insRegiExtra USING :gtInicioCorrida, 
+                                 :sLstParametros;
+
+    $COMMIT WORK;
+
     /*fclose(fArchivo);*/
     
     /*EXEC SQL COMMIT WORK;*/
@@ -202,6 +214,9 @@ int ValidarParametros(int iVargs, char **vVargs)
     giTipoCliente = atoi(vVargs[2]);
     giTipoCorrida = atoi(vVargs[3]);
 
+    memset(sLstParametros, '\0', sizeof(sLstParametros));
+    sprintf(sLstParametros, "%s %s %s", vVargs[1], vVargs[2], vVargs[3]);
+    
     return (OK);
 }
 
@@ -319,7 +334,10 @@ if(giTipoCorrida==1){
       valor_cargo
       )VALUES(?, ?, ?, ?, ?, ?)";
 
-    
+   $PREPARE insRegiExtra FROM "INSERT INTO sap_regiextra (
+      estructura, fecha_corrida, fecha_fin, parametros
+      )VALUES( 'AGEING', ?, CURRENT, ?)";
+          
 }
 
 

@@ -348,7 +348,7 @@ $char sAux[1000];
 		strcat(sql, "AND si.fecha_baja >= TODAY - 365 ");	
 */		
 	}
-	
+   
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
@@ -1046,6 +1046,9 @@ $ClsAltas   *regAlta;
       lFecha = lFechaAltaReal;
    }
    
+   if(lFecha <= 0 || risnull(CDOUBLETYPE, (char *) &lFecha)){
+      lFecha = lFechaAltaReal;
+   }
    rfmtdate(lFecha, "yyyymmdd", regAlta->fecha_alta);
    
 	/* Ahora es la fecha de la primera factura que se migra */

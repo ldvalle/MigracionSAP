@@ -34,6 +34,7 @@ $typedef struct{
 	double	factor_potencia;
 	int		enteros;
 	int		decimales;
+   char     sTarifaInstalacion[11];
 }ClsLecturas;
 
 /* Prototipos de Funciones */
@@ -45,7 +46,7 @@ void 	FechaGeneracionFormateada( char *);
 void 	RutaArchivos( char*, char * );
 long    getCorrelativo(char*);
 
-short   LeoClientes(long *, long *);
+short   LeoClientes(long *, long *, long *);
 
 long  getMedidorActual(long , char *, char *);
 
@@ -78,13 +79,18 @@ short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
-short	ClienteYaMigrado(long, int*, long*, long*, long*);
+short	ClienteYaMigrado(long, int*, long*, long*, long*, char*);
 short	RegistraCliente(long, int);
 char	*getFechaFactura(long, long, long*);
 short	LeoPrimerMontajeReal(long, long, ClsLecturas*);
 short	EncontroMedid(long);
 void	CopiaEstructura(ClsLecturas, ClsLecturas*);
 short	LeoSinFactura(long, ClsLecturas*);
+
+short getTarifaInstalacion(long, long, long, long, char*);
+long  getAltaReal(long, long);
+long  getMoveIn(long, long);
+char  *getTarifa(long, long);
 
 /*
 short	EnviarMail( char *, char *);

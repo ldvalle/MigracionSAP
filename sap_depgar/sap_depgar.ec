@@ -54,6 +54,10 @@ char	sMensMail[1024];
 /* Variables Globales Host */
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
+$dtime_t    gtInicioCorrida;
+$char       sLstParametros[100];
+$long       glFechaParametro;
+
 
 $WHENEVER ERROR CALL SqlException;
 
@@ -98,6 +102,8 @@ char			sFechaAlta[9];
 	/* ********************************************
 				INICIO AREA DE PROCESO
 	********************************************* */
+   dtcurrent(&gtInicioCorrida);
+   
 	if(!AbreArchivos()){
 		exit(1);	
 	}
@@ -108,12 +114,19 @@ char			sFechaAlta[9];
 	cantPreexistente=0;
 
 
-	if(glNroCliente > 0){
+   if(glFechaParametro <= 0){
+      $OPEN curDepgar;
+   }else{
+      $OPEN curDepgar USING :glFechaParametro;
+   }
+
+/*	
+   if(glNroCliente > 0){
 		$OPEN curDepgar using :glNroCliente;
 	}else{
 		$OPEN curDepgar;
 	}
-
+*/
 	
 	while(LeoDepgar(&regDepgar)){
 		if(! ClienteYaMigrado(regDepgar.numero_cliente, &iFlagMigra)){
@@ -141,6 +154,14 @@ char			sFechaAlta[9];
 	$CLOSE curDepgar;
 			
 	CerrarArchivos();
+
+   /* Registro la corrida */
+   $BEGIN WORK;
+   
+   $EXECUTE insRegiCorrida USING :gtInicioCorrida,
+                                 :sLstParametros;
+   
+   $COMMIT WORK;
 
 	/* Registrar Control Plano */
 /*   
@@ -194,6 +215,10 @@ short AnalizarParametros(argc, argv)
 int		argc;
 char	* argv[];
 {
+char  sFechaPar[11];
+   
+   memset(sFechaPar, '\0', sizeof(sFechaPar));
+   memset(sLstParametros, '\0', sizeof(sLstParametros));
 
 	if(argc < 5 || argc > 6){
 		MensajeParametros();
@@ -212,12 +237,18 @@ char	* argv[];
 	strcpy(gsTipoGenera, argv[3]);
 	
    giTipoCorrida=atoi(argv[4]);
+
+   sprintf(sLstParametros, "%s %s %s %s", argv[1], argv[2], argv[3], argv[4]);
    
-	if(argc==6){
-		glNroCliente=atoi(argv[5]);
+	if(argc ==6){
+      strcpy(sFechaPar, argv[5]);
+      rdefmtdate(&glFechaParametro, "dd/mm/yyyy", sFechaPar); /*char to long*/
+      sprintf(sLstParametros, " %s %s",sLstParametros , argv[5]);
 	}else{
-		glNroCliente=-1;
+		glFechaParametro=-1;
 	}
+   
+   glNroCliente=-1;
 	
 	return 1;
 }
@@ -228,7 +259,7 @@ void MensajeParametros(void){
 		printf("	<Estado Cliente> 0=Activos, 1=No Activos, 2=Ambos\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
       printf("	<Tipo Corrida> 0=Normal, 1=Reducida\n");
-		printf("	<Nro.Cliente>(Opcional)\n");
+      printf("	<Fecha Inicio> = dd/mm/aaaa (opcional).\n");
 }
 
 short AbreArchivos()
@@ -247,7 +278,7 @@ short AbreArchivos()
 	RutaArchivos( sPathSalida, "SAPISU" );
 	alltrim(sPathSalida,' ');
    
-	RutaArchivos( sPathCopia, "SAPISU" );
+	RutaArchivos( sPathCopia, "SAPCPY" );
 	alltrim(sPathCopia,' ');
    
 	/*lCorrelativo = getCorrelativo("DEPGAR");*/
@@ -337,19 +368,18 @@ $char sAux[1000];
 	if(giEstadoCliente!=0){
 		strcat(sql, ", sap_inactivos si ");
 	}		
-	
-	if(glNroCliente > 0 ){
-		strcat(sql, "WHERE c.numero_cliente = ? ");
-		strcat(sql, "AND c.tipo_sum != 5 ");	
+
+	if(giEstadoCliente==0){
+		strcat(sql, "WHERE c.estado_cliente = 0 ");
+		strcat(sql, "AND c.tipo_sum != 5 ");
 	}else{
-		if(giEstadoCliente==0){
-			strcat(sql, "WHERE c.estado_cliente = 0 ");
-			strcat(sql, "AND c.tipo_sum != 5 ");
-		}else{
-			strcat(sql, "WHERE c.estado_cliente != 0 ");
-			strcat(sql, "AND c.tipo_sum != 5 ");
-		}		
-	}
+		strcat(sql, "WHERE c.estado_cliente != 0 ");
+      strcat(sql, "AND si.numero_cliente = c.numero_cliente ");      
+	}		
+	
+   if(glFechaParametro > 0){
+      strcat(sql, "AND d.fecha_emision > ? ");   
+   }
 
 	if(giEstadoCliente!=0){
 		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
@@ -470,6 +500,12 @@ $char sAux[1000];
 
 	$PREPARE selFechaInstal FROM $sql;
    	
+   /********* Registra Corrida **********/
+   $PREPARE insRegiCorrida FROM "INSERT INTO sap_regiextra (
+      estructura, fecha_corrida, fecha_fin, parametros
+      )VALUES( 'DEPGAR', ?, CURRENT, ?)";
+   
+         
 }
 
 void FechaGeneracionFormateada( Fecha )

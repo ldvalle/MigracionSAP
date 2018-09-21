@@ -29,6 +29,10 @@ $typedef struct{
 	char	modelo_medidor[3];
 	char 	tipo_medidor[2];
    char  fecha_generacion[9];
+   char  UL[9];
+   char  porcion[9];
+   long  lFechaLectura;
+   char  fechaIniVentana[9];
 }ClsLecturas;
 
 $typedef struct{

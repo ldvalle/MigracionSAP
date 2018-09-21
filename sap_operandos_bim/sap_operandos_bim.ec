@@ -14,8 +14,7 @@
 		<Base de Datos> : Base de Datos <synergia>
 		<Estado Cliente> : 0=Activos; 1= No Activos; 2= Todos;		
 		<Tipo Generacion>: G = Generacion; R = Regeneracion
-		
-		<Nro.Cliente>: Opcional
+		<Fecha Inicio Busqueda> <Opcional>: dd/mm/aaaa
 
 ********************************************************************************/
 #include <locale.h>
@@ -32,6 +31,7 @@ $long	glNroCliente;
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
 int   giTipoCorrida;
+$long glFechaDesde;
 
 char	sArchQConsBimesUnx[100];
 char	sSoloArchivoQConsBimes[100];
@@ -59,6 +59,10 @@ char	sMensMail[1024];
 /* Variables Globales Host */
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
+
+$dtime_t    gtInicioCorrida;
+$char       sLstParametros[100];
+$long       glFechaParametro;
 
 
 $WHENEVER ERROR CALL SqlException;
@@ -129,7 +133,8 @@ $long       lFechaHasta;
 	/* ********************************************
 				INICIO AREA DE PROCESO
 	********************************************* */
-
+   dtcurrent(&gtInicioCorrida);
+   
 	cantProcesada=0;
 	cantPreexistente=0;
 
@@ -138,10 +143,12 @@ $long       lFechaHasta;
 	**********************************************/
    memset(sSucursal, '\0', sizeof(sSucursal));
    
-   
+/*   
 	for(i=0; i<12; i++){
 		strcpy(sSucursal, vSucursal[i]);
-
+*/
+      strcpy(sSucursal, "");
+      
       lContador=0;
       iIndice=1;
       
@@ -149,14 +156,10 @@ $long       lFechaHasta;
 			exit(1);	
 		}
 		
-		if(glNroCliente > 0){
-			$OPEN curClientes using :glNroCliente, :sSucursal;
-		}else{
-			$OPEN curClientes using :sSucursal;
-		}
-		
+		$OPEN curClientes;
+/*		
 		printf("Procesando Sucursal %s......\n", sSucursal);
-         
+*/         
       while(LeoCliente(&regCliente)){
          
          if(!ClienteYaMigrado(regCliente.numero_cliente, &lFechaInicio, &iFlagMigra)){
@@ -170,6 +173,9 @@ $long       lFechaHasta;
                /*
                $OPEN curFactura USING  :regCliente.numero_cliente, :lFechaInicio, :lFechaHasta;
                */
+               if(glFechaParametro > 0)
+                  lFechaInicio = glFechaParametro;
+                  
                $OPEN curFactura USING  :regCliente.numero_cliente, :lFechaInicio;
                
                while(LeoFactura(&regFactu)){
@@ -255,11 +261,18 @@ $long       lFechaHasta;
       $CLOSE curClientes;
 
       CerrarArchivos();
-      
-   }  /* Sucursales */ 
+/*      
+   }  // Sucursales 
+*/
 
 
-
+   /* Registro la corrida */
+   $BEGIN WORK;
+   
+   $EXECUTE insRegiCorrida USING :gtInicioCorrida,
+                                 :sLstParametros;
+   
+   $COMMIT WORK;
 
 	/* Registrar Control Plano */
 /*
@@ -277,12 +290,14 @@ $long       lFechaHasta;
 	/* ********************************************
 				FIN AREA DE PROCESO
 	********************************************* */
+   FormateaArchivos(sSucursal, iIndice);
+   /*
 	for(i=0; i<12; i++){
 		strcpy(sSucursal, vSucursal[i]);
 
       FormateaArchivos(sSucursal, iIndice);
    }
-
+   */
 /*	
 	if(! EnviarMail(sArchResumenDos, sArchControlDos)){
 		printf("Error al enviar mail con lista de respaldo.\n");
@@ -316,14 +331,18 @@ short AnalizarParametros(argc, argv)
 int		argc;
 char	* argv[];
 {
-
+char  sFechaPar[11];
+   
+   memset(sFechaPar, '\0', sizeof(sFechaPar));
+   memset(sLstParametros, '\0', sizeof(sLstParametros));
+   
 	if(argc < 5 || argc > 6){
 		MensajeParametros();
 		return 0;
 	}
 	
 	memset(gsTipoGenera, '\0', sizeof(gsTipoGenera));
-
+   
 	if(strcmp(argv[2], "0")!=0 && strcmp(argv[2], "1")!=0 && strcmp(argv[2], "2")!=0){
 		MensajeParametros();
 		return 0;	
@@ -334,11 +353,15 @@ char	* argv[];
 	strcpy(gsTipoGenera, argv[3]);
 	
    giTipoCorrida=atoi(argv[4]);
+
+   sprintf(sLstParametros, "%s %s %s %s", argv[1], argv[2], argv[3], argv[4]);
    
-	if(argc==6){
-		glNroCliente=atoi(argv[5]);
+	if(argc ==6){
+      strcpy(sFechaPar, argv[5]);
+      rdefmtdate(&glFechaParametro, "dd/mm/yyyy", sFechaPar); /*char to long*/
+      sprintf(sLstParametros, " %s %s",sLstParametros , argv[5]);
 	}else{
-		glNroCliente=-1;
+		glFechaParametro=-1;
 	}
 	
 	return 1;
@@ -350,7 +373,7 @@ void MensajeParametros(void){
 		printf("	<Estado Cliente> 0=Activos, 1=No Activos, 2=Ambos\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
       printf("	<Tipo Corrida> 0=Normal, 1=Reducida\n");
-		printf("	<Nro.Cliente>(Opcional)\n");
+		printf("	<Fecha Inicio> = dd/mm/aaaa (opcional).\n");
 }
 
 short AbreArchivos(sSucur, indice)
@@ -513,7 +536,7 @@ $char sAux[1000];
 	if(glNroCliente > 0 ){
 		strcat(sql, "AND c.numero_cliente = ? ");
 	}
-	strcat(sql, "AND c.sucursal = ? ");
+	/*strcat(sql, "AND c.sucursal = ? ");*/
 	strcat(sql, "AND c.tipo_sum NOT IN (5, 6) ");
 	strcat(sql, "AND c.sector != 88 ");
    strcat(sql, "AND sc.cod_centro_op = c.sucursal ");
@@ -552,6 +575,7 @@ $char sAux[1000];
    strcat(sql, "h.numero_factura ");
    strcat(sql, "FROM hisfac h, hislec l1, hislec l2 ");
    strcat(sql, "WHERE h.numero_cliente = ? ");
+   
    /*
    strcat(sql, "AND h.fecha_lectura BETWEEN ? AND ? ");
    */
@@ -695,6 +719,11 @@ $char sAux[1000];
    
    $PREPARE selVigTarifa FROM $sql;
 	
+   /********* Registra Corrida **********/
+   $PREPARE insRegiCorrida FROM "INSERT INTO sap_regiextra (
+      estructura, fecha_corrida, fecha_fin, parametros
+      )VALUES( 'OPEBIM', ?, CURRENT, ?)";
+   
 }
 
 void FechaGeneracionFormateada( Fecha )

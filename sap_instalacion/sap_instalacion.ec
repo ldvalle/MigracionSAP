@@ -78,6 +78,7 @@ $ClsEstados regSts;
 
 int      iCalculo=0;
 int      iRecupero=0;
+$long    lFechaMoveIn;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -154,16 +155,19 @@ int      iRecupero=0;
             }
             */
             strcpy(regInstal.fecha_vig_tarifa, "20141201");
-            
-            if(!CargaTarifaInstal(&regInstal)){
-            	printf("No se pudo cargar Tarifa y UL Instal a cliente nro %ld\n", regInstal.numero_cliente);
-            	exit(1);				
-            }
-            
+
             if(!CargaAltaReal(&regInstal)){
             	printf("No se pudo cargar Fecha Alta Real cliente nro %ld\n", regInstal.numero_cliente);
             	exit(1);				
             }
+
+            lFechaMoveIn=getFechaMoveIn(regInstal);
+            
+            if(!CargaTarifaInstal(&regInstal, lFechaMoveIn)){
+            	printf("No se pudo cargar Tarifa y UL Instal a cliente nro %ld\n", regInstal.numero_cliente);
+            	exit(1);				
+            }
+            
             iCalculo++;
         }
 
@@ -1793,8 +1797,9 @@ char  sFecha[11];
 
 }
 
-short CargaTarifaInstal(reg)
+short CargaTarifaInstal(reg, lFechaMoveIn)
 $ClsInstalacion *reg;
+$long             lFechaMoveIn;
 {
    $long lFechaAlta;
    $long lCorr;
@@ -1802,7 +1807,7 @@ $ClsInstalacion *reg;
    rdefmtdate(&lFechaAlta, "yyyymmdd", reg->fecha_vig_tarifa); // char a long
 */
    $EXECUTE selTarifInstal INTO :reg->tarifa, :reg->cod_ul, :lCorr 
-                           USING :reg->numero_cliente, :lFechaPivote;
+                           USING :reg->numero_cliente, :lFechaMoveIn;  /*:lFechaPivote;*/
 
    if(SQLCODE != 0){
       if(SQLCODE == 100){
@@ -2016,6 +2021,35 @@ ClsInstalacion	 regIns;
 	strcat(sLinea, "\n");
 	
 	fprintf(fp, sLinea);
+
+}
+
+long getFechaMoveIn(reg)
+$ClsInstalacion   reg;
+{
+   long  lFechaAlta;
+   $long lFecha=0;
+
+   rdefmtdate(&lFechaAlta, "yyyymmdd", reg.sFechaAltaReal);
+
+   /*$EXECUTE selMoveIn INTO :lFecha USING :reg.numero_cliente, :lFechaRti;*/
+   
+   if(lFechaAlta < lFechaPivote ){
+      $EXECUTE selMoveIn INTO :lFecha USING :reg.numero_cliente, :lFechaPivote;
+   }else{
+      $EXECUTE selMoveIn2 INTO :lFecha USING :reg.numero_cliente, :lFechaPivote;
+   }
+   
+   if(SQLCODE != 0){
+      lFecha = lFechaPivote;
+   }
+
+   if(lFecha<=0 || risnull(CLONGTYPE, (char *) &lFecha)){
+      lFecha = lFechaPivote; 
+   }
+
+   return lFecha;
+   
 
 }
 

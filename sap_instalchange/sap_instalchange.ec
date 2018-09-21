@@ -57,6 +57,10 @@ $int	iCorrelativos;
 $char sFechaRti[9];
 $long lFechaRti;
 
+$long       glFechaParametro;
+$dtime_t    gtInicioCorrida;
+$char       sLstParametros[100];
+
 $WHENEVER ERROR CALL SqlException;
 
 void main( int argc, char **argv ) 
@@ -122,6 +126,8 @@ $ClsFacturas   regAux;
 	/* ********************************************
 				INICIO AREA DE PROCESO
 	********************************************* */
+   dtcurrent(&gtInicioCorrida);
+   
 	if(!AbreArchivos()){
 		exit(1);	
 	}
@@ -136,18 +142,11 @@ $ClsFacturas   regAux;
 	**********************************************/
 
 	if(giEstadoCliente == 0){
-		if(glNroCliente > 0){
-			$OPEN curClienteActivo using :glNroCliente;	
-		}else{
-			$OPEN curClienteActivo;
-		}	
+		$OPEN curClienteActivo;
 	}else{
-		if(glNroCliente > 0){
-			$OPEN curClienteInactivo using :glNroCliente;	
-		}else{
-			$OPEN curClienteInactivo;
-		}		
+	    $OPEN curClienteInactivo;
 	}
+
 
 	fpIntalacion=pFileInstalacionUnx;
 
@@ -155,6 +154,11 @@ $ClsFacturas   regAux;
 		if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra, &lFechaValTarifa, &lFechaMoveIn, &lFechaAltaReal)){
          /*$OPEN curFacturas using :regCliente.numero_cliente, :lFechaRti;*/
 			/*$OPEN curFacturas using :regCliente.numero_cliente, :lFechaValTarifa;*/
+         
+         if(glFechaParametro > 0 ){
+            lFechaMoveIn=glFechaParametro;
+         }
+         
          $OPEN curFacturas using :regCliente.numero_cliente, :lFechaMoveIn;
 
          memset(sFechaFactuAnterior, '\0', sizeof(sFechaFactuAnterior));
@@ -268,6 +272,15 @@ $ClsFacturas   regAux;
 			
 	CerrarArchivos();
 
+   /* Registro la corrida */
+   $BEGIN WORK;
+   
+   $EXECUTE insRegiCorrida USING :gtInicioCorrida,
+                                 :sLstParametros;
+   
+   $COMMIT WORK;
+
+
 	/* Registrar Control Plano */
 /*   
    $BEGIN WORK;
@@ -323,6 +336,10 @@ short AnalizarParametros(argc, argv)
 int		argc;
 char	* argv[];
 {
+char  sFechaPar[11];
+   
+   memset(sFechaPar, '\0', sizeof(sFechaPar));
+   memset(sLstParametros, '\0', sizeof(sLstParametros));
 
 	if(argc < 5 || argc > 6){
 		MensajeParametros();
@@ -341,13 +358,28 @@ char	* argv[];
 	strcpy(gsTipoGenera, argv[3]);
 	
    giTipoCorrida=atoi(argv[4]);
+
+
+   if(argc == 6){
+      strcpy(sFechaPar, argv[5]);
+      rdefmtdate(&glFechaParametro, "dd/mm/yyyy", sFechaPar); /*char to long*/
+      sprintf(sLstParametros, "%s %s %s %s %s", argv[1], argv[2], argv[3], argv[4], argv[5]);
+   }else{
+      glFechaParametro=-1;
+      sprintf(sLstParametros, "%s %s %s %s", argv[1], argv[2], argv[3], argv[4]);
+   }
    
+   alltrim(sLstParametros, ' ');
+
+/*   
 	if(argc==6){
 		glNroCliente=atoi(argv[5]);
 	}else{
 		glNroCliente=-1;
 	}
+*/
 	
+   glNroCliente=-1;
 	return 1;
 }
 
@@ -357,7 +389,7 @@ void MensajeParametros(void){
 		printf("	<Estado Cliente> 0=Activos, 1=No Activos, 2=Ambos\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
       printf("	<Tipo Corrida> 0=Normal, 1=Reducida\n");
-		printf("	<Nro.Cliente>(Opcional)\n");
+		printf("	<Fecha Inicio> dd/mm/aaaa(Opcional)\n");
 }
 
 short AbreArchivos()
@@ -726,6 +758,11 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND s.cod_mac = t.motivo ");
    
    $PREPARE selElectroActual FROM $sql;
+
+   /******* Registro Corrida *********/
+   $PREPARE insRegiCorrida FROM "INSERT INTO sap_regiextra (
+      estructura, fecha_corrida, fecha_fin, parametros
+      )VALUES( 'CHANGE', ?, CURRENT, ?)";
    	
 }
 

@@ -52,7 +52,7 @@ char	sPathSalida[100];
 char	sPathCopia[100];
 char	FechaGeneracion[9];	
 char	MsgControl[100];
-$char	fecha[9];
+
 long	lCorrelativoPortion;
 long	lCorrelativoUL;
 
@@ -65,12 +65,14 @@ long	cantProcesadaULNoActivo;
 long 	cantPreexistenteUL;
 long 	cantPreexistenteUL;
 
+ClsPortionVentana *regVentanas;
+
 /* Variables Globales Host */
 $ClsPortion	regPortion;
 $ClsUnLectu regUnLectu;
 $long       lFechaPivote;
+$char	fecha[9];
 char        sFechaPivote[11];
-
 $long       lFechaPivote2;
 char        sFechaPivote2[11];
 
@@ -84,7 +86,7 @@ $char 	nombreBase[20];
 time_t 	hora;
 FILE	*fpPortion;
 FILE	*fpUL;
-
+long   index=1;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -117,7 +119,8 @@ FILE	*fpUL;
 	cantProcesadaULActivo=0;
 	cantProcesadaULNoActivo=0;
 
-
+   InicializaVector(&(regVentanas));
+   
 	/*********************************************
 				AREA CURSOR PPAL
 	**********************************************/
@@ -140,27 +143,32 @@ FILE	*fpUL;
 	if(giArchivosGen==0 || giArchivosGen==1){
 
 		/* Hago el PORTION */
-		$OPEN curPorcion USING :lFechaPivote;
+		/*$OPEN curPorcion USING :lFechaPivote;*/
+      $OPEN curPorcion USING :lFechaPivote2;
 		
 		fpPortion=pFilePortionActivoUnx;
 
 		while(LeoPortion(&regPortion)){
-         
+      
+/*         
          if(!getFactuAnterior(&regPortion)){
 				$ROLLBACK WORK;
 				exit(1);	
          }
-      
+*/
+         if(!getVentanaPortion(&regPortion, index)){
+				exit(1);	
+         }      
 			if (!GenerarPlanoPortion(fpPortion, regPortion)){
-				$ROLLBACK WORK;
 				exit(1);	
 			}
 
 			cantProcesadaPortionActivo++;
+         index++;
 		}
 		$CLOSE curPorcion;
 	}
-	
+
 	if(giArchivosGen==0 || giArchivosGen==2){
 
 		/* Hago la Unidad de Lectura */
@@ -169,7 +177,7 @@ FILE	*fpUL;
 		fpUL=pFileULActivoUnx;
 	
 		while(LeoUnLectu(&regUnLectu)){
-         if(!getDifFechas(&regUnLectu)){
+         if(!getDifFechas(&regUnLectu, index)){
 				/*$ROLLBACK WORK;*/
 				exit(1);	
          }
@@ -431,11 +439,13 @@ $char sAux[1000];
    $PREPARE selPivote FROM $sql;
 
    /******** Fecha Pivote 2  ****************/
-   strcpy(sql, "SELECT TODAY - 70 FROM dual ");
+   /*strcpy(sql, "SELECT TODAY - 70 FROM dual ");*/
+   strcpy(sql, "SELECT fecha_pivote - 60 FROM sap_regi_cliente ");
+	strcat(sql, "WHERE numero_cliente = 0 ");
    
    $PREPARE selPivote2 FROM $sql;
 	
-	/******** Cursor Porcion  ****************/	
+	/******** Cursor Porcion  ****************/
 	strcpy(sql, "SELECT TO_CHAR(MAX(a1.fecha_generacion), '%d.%m.%Y'), ");
 	strcat(sql, "MAX(TO_CHAR(a1.fecha_emision_real, '%d.%m.%Y')), ");
 
@@ -446,21 +456,30 @@ $char sAux[1000];
 	strcat(sql, "TO_CHAR(MAX(a1.fecha_generacion + s.valor_entero), '%d.%m.%Y'), ");
 	strcat(sql, "a1.sucursal, ");
 	strcat(sql, "a1.sector, ");
-	strcat(sql, "a1.zona ");   
+	strcat(sql, "a1.zona, ");
+   strcat(sql, "a1.anio_periodo, ");
+   strcat(sql, "a1.periodo ");   
 	strcat(sql, "FROM agenda a1, sap_transforma s, sucur_centro_op sc ");
 	/*strcat(sql, "WHERE a1.sector BETWEEN 41 AND 82 ");*/
    strcat(sql, "WHERE a1.sector <= 82 ");
+   strcat(sql, "and a1.fecha_emision_real is not null ");
+   strcat(sql, "and a1.fecha_generacion = (select min(a2.fecha_generacion) ");
+   strcat(sql, "	from agenda a2 ");
+   strcat(sql, " 	where a2.sucursal = a1.sucursal ");
+   strcat(sql, "  and a2.sector = a1.sector ");
+   strcat(sql, "  and a2.fecha_generacion >= ? ) ");
 
+/*
    strcat(sql, "AND a1.identif_agenda IN ( SELECT d2.identif_agenda ");
    strcat(sql, "	FROM det_agenda d2 ");
    strcat(sql, "	WHERE d2.sucursal = a1.sucursal ");
    strcat(sql, "	AND d2.sector = a1.sector ");
-   strcat(sql, "	AND d2.fecha_generacion = (SELECT MAX(d3.fecha_generacion) FROM det_agenda d3 ");
+   strcat(sql, "	AND d2.fecha_generacion = (SELECT MIN(d3.fecha_generacion) FROM det_agenda d3 ");
    strcat(sql, "		WHERE d3.sucursal = d2.sucursal ");
    strcat(sql, "	 	AND d3.sector = d2.sector ");
    strcat(sql, "	  AND d3.zona = d2.zona ");
    strcat(sql, "	  AND d3.fecha_generacion >= ?)) ");
-   
+*/   
 /*   
 	strcat(sql, "AND a1.fecha_emision_real = ( select max(a2.fecha_emision_real)  ");
 	strcat(sql, "	FROM agenda a2  ");
@@ -470,7 +489,7 @@ $char sAux[1000];
 */   
 	strcat(sql, "AND s.clave = 'PORTION_NDIAS' ");
 	strcat(sql, "AND sc.cod_centro_op = a1.sucursal ");   
-	strcat(sql, "GROUP BY 3,4,6,7,8 ");
+	strcat(sql, "GROUP BY 3,4,6,7,8,9,10 ");
 	strcat(sql, "ORDER BY 3,4 ");
 	
 	$PREPARE selPorcion FROM $sql;
@@ -636,7 +655,26 @@ $char sAux[1000];
    
    $PREPARE selMinGen FROM $sql;
   
-     		
+   /********* Fecha Inicio Ventana ********/
+   $PREPARE selInicio FROM "SELECT MIN(h.fecha_lectura) 
+      FROM hisfac h 
+      WHERE h.sucursal = ?
+      AND h.sector = ? 
+      AND h.fecha_facturacion = ? ";
+   
+   /********* Fecha Cierre Ventana ********/
+   $PREPARE selCierre FROM "SELECT MAX(h.fecha_lectura) 
+      FROM hisfac h 
+      WHERE h.sucursal = ?
+      AND h.sector = ? 
+      AND h.fecha_facturacion = ? ";
+
+   /********* Fecha Inicio Cierre Ventana  ********/
+   $PREPARE selVentana FROM "SELECT MIN(inicio_ventana), MAX(fin_ventana) FROM sap_agenda
+      WHERE porcion = ?
+      AND anio_periodo = ?
+      AND periodo = ? ";
+   
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -693,7 +731,9 @@ $ClsPortion *regPor;
 		:regPor->fecha_genera_ampliada,
       :regPor->sucursal,
       :regPor->sector,
-      :regPor->zona;
+      :regPor->zona,
+      :regPor->anio_periodo,
+      :regPor->periodo;
 			
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -723,6 +763,13 @@ $ClsPortion	*regPor;
    
    memset(regPor->termerst, '\0', sizeof(regPor->termerst));
    memset(regPor->abrdats, '\0', sizeof(regPor->abrdats));
+
+   memset(regPor->fecha_inicio_ventana, '\0', sizeof(regPor->fecha_inicio_ventana));
+   memset(regPor->fecha_cierre_ventana, '\0', sizeof(regPor->fecha_cierre_ventana));
+
+   rsetnull(CINTTYPE, (char *) &(regPor->anio_periodo));
+   rsetnull(CINTTYPE, (char *) &(regPor->periodo));
+   
 }
 
 short LeoUnLectu(regUl)
@@ -928,19 +975,23 @@ ClsPortion	regPor;
    
    /* TERMERST */
    /*sprintf(sLinea, "%s%s\t", sLinea, regPor.fecha_generacion);*/
-   sprintf(sLinea, "%s%s\t", sLinea, regPor.termerst);
+   /*sprintf(sLinea, "%s%s\t", sLinea, regPor.termerst);*/
+   sprintf(sLinea, "%s%s\t", sLinea, regPor.fecha_cierre_ventana);
    
    /* DATUMDF */
    /*sprintf(sLinea, "%s%s\t", sLinea, regPor.fecha_emision);*/
-   sprintf(sLinea, "%s%s\t", sLinea, regPor.termerst);
+   /*sprintf(sLinea, "%s%s\t", sLinea, regPor.termerst);*/
+   sprintf(sLinea, "%s%s\t", sLinea, regPor.fecha_cierre_ventana);
    
    /* ZUORDAT */
    /*sprintf(sLinea, "%s%s\t", sLinea, regPor.fecha_generacion);*/
-   sprintf(sLinea, "%s%s\t", sLinea, regPor.termerst);
+   /*sprintf(sLinea, "%s%s\t", sLinea, regPor.termerst);*/
+   sprintf(sLinea, "%s%s\t", sLinea, regPor.fecha_cierre_ventana);
    
    /* ABRDATS */
    /*sprintf(sLinea, "%s%s\t", sLinea, regPor.fecha_generacion);*/
-   sprintf(sLinea, "%s%s\t", sLinea, regPor.abrdats);
+   /*sprintf(sLinea, "%s%s\t", sLinea, regPor.abrdats);*/
+   sprintf(sLinea, "%s%s\t", sLinea, regPor.fecha_inicio_ventana);
    
    /* PERIODEW */
    strcat(sLinea, "1\t");
@@ -1117,9 +1168,119 @@ $ClsPortion *reg;
    return 1;
 }
 
-short getDifFechas(reg)
-$ClsUnLectu *reg;  
+short getVentanaPortion(reg, index)
+$ClsPortion *reg;
+long         index;
 {
+   $long lFechaGeneracion;
+   $long lFechaEmision;
+   $long lFechaInicio;
+   $long lFechaCierre;
+   int   diffDias;
+   
+   /* paso las fechas de char a long */
+/*   
+   rdefmtdate(&lFechaGeneracion, "dd.mm.yyyy", reg->fecha_generacion); 
+   rdefmtdate(&lFechaEmision, "dd.mm.yyyy", reg->fecha_emision);
+*/
+  
+  /* traigo ventana */
+  $EXECUTE selVentana INTO :lFechaInicio, :lFechaCierre
+      USING :reg->cod_porcion,
+            :reg->anio_periodo,
+            :reg->periodo;
+            
+   if(SQLCODE != 0){
+      printf("Error al buscar ventana para porcion %s fecha de generacion %s\n", reg->cod_porcion, reg->fecha_generacion);
+   }            
+   
+   /* Fecha Inicio Ventana */
+/*   
+   $EXECUTE selInicio INTO :lFechaInicio USING
+      :reg->sucursal,
+      :reg->sector,
+      :lFechaEmision;
+
+   if(SQLCODE != 0 ){
+      printf("Error al buscar inicio ventana para porcion %s\n", reg->cod_porcion);
+   }
+   
+   if(lFechaInicio <= 0 || risnull(CLONGTYPE, (char *) &lFechaInicio)){
+      printf("No se encontro inicio ventana para porcion %s fecha %ld\n", reg->cod_porcion, lFechaEmision);
+   }
+*/      
+   /* Fecha Cierre Ventana */
+/*   
+   $EXECUTE selCierre INTO :lFechaCierre USING
+      :reg->sucursal,
+      :reg->sector,
+      :lFechaEmision;
+
+   if(SQLCODE != 0 ){
+      printf("Error al buscar cierre ventana para porcion %s\n", reg->cod_porcion);
+   }
+   
+   if(lFechaInicio <= 0 || risnull(CLONGTYPE, (char *) &lFechaInicio)){
+      printf("No se encontro cierre ventana para porcion %s fecha %ld\n", reg->cod_porcion, lFechaEmision);
+   }
+*/   
+   /* paso las fechas de long a char*/
+   rfmtdate(lFechaInicio, "dd.mm.yyyy", reg->fecha_inicio_ventana);
+   rfmtdate(lFechaCierre, "dd.mm.yyyy", reg->fecha_cierre_ventana);
+   
+   /* Registro diff dias */
+   diffDias=lFechaCierre - lFechaInicio;
+   
+   CargaPortion(reg->cod_porcion, diffDias, index, &(regVentanas));
+
+   return 1;
+}
+
+void  CargaPortion(porcion, diffDias, index, regWin)
+char  porcion[9];
+int   diffDias;
+long   index;
+ClsPortionVentana **regWin;
+{
+ClsPortionVentana	*regAux=NULL;
+ClsPortionVentana	reg;
+
+      alltrim(porcion, ' ');
+      
+		regAux = (ClsPortionVentana*) realloc(*regWin, sizeof(ClsPortionVentana) * (++index) );
+		if(regAux == NULL){
+			printf("Fallo Realloc CargaPortion().\n");
+		}		
+		
+		(*regWin) = regAux;
+		
+      strcpy((*regWin)[index-1].cod_porcion, porcion);
+      (*regWin)[index-1].diffDias = diffDias;
+
+}
+
+
+short getDifFechas(reg, iMaxPortion)
+$ClsUnLectu *reg;
+long         iMaxPortion;  
+{
+
+   int i=0;
+   int s=0;
+
+   while(i <= iMaxPortion && s==0){
+      if(strcmp(reg->cod_porcion, regVentanas[i].cod_porcion)==0){
+         reg->eper_abl = regVentanas[i].diffDias;
+         s=1;   
+      }
+      i++;
+   }
+
+   if(s==0){
+      printf("No se encontró dif Dias para la porcion %s\n", reg->cod_porcion);
+   }
+   
+/*
    $long lFecha;
    $long lFechaAux;
    $long  lFechaAux1;
@@ -1137,12 +1298,12 @@ $ClsUnLectu *reg;
       return 0;
    }                                                            
 
-   /*
+   //
    lFechaAux1 = lFecha - 1;
    lFechaAux2 = lFecha - 3;
-   */
+   \\
    
-   /*
+   //
    if(!risnull(CLONGTYPE, (char *)&lFecha) && lFecha > 0){
       lFecha=lFecha-420; // Le resto 14 meses 
       lFDesde = lFecha-100;
@@ -1165,14 +1326,26 @@ $ClsUnLectu *reg;
       lFechaAux2 = RestarDiasHabiles(lFechaAux1, 3, lFDesde); 
    }
    */
-   
+/*   
    iDiffer = lFechaAux1 - lFechaAux2;
    
    reg->eper_abl = iDiffer;
-
+*/
    return 1;
 }
 
+void InicializaVector(regWin)
+ClsPortionVentana **regWin;
+{
+	
+	if(*regWin != NULL)
+		free(*regWin);
+		
+	*regWin = (ClsPortionVentana *) malloc (sizeof(ClsPortionVentana));
+	if(*regWin == NULL){
+		printf("Fallo Malloc InicializaVector().\n");
+	}
+}
 
 /****************************
 		GENERALES

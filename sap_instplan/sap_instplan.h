@@ -3,6 +3,7 @@ $define SAPINSTPLAN_H;
 
 #include "ustring.h"
 #include "macmath.h"
+$include mfecha.h;
 
 $include sqltypes.h;
 $include sqlerror.h;
@@ -27,6 +28,7 @@ $typedef struct{
    double   valor_cuota_ini;
    long     lFechaVigencia;
    char     sFechaVigencia[9];
+   long     lFechaVtoUltimaFactura;
 }ClsConve;
 
 /* Prototipos de Funciones */
@@ -47,7 +49,7 @@ short CargaAltaCliente(ClsDepgar *);
 */
 short	GenerarPlano(FILE *, int, ClsConve);
 void	GeneraIPKEY(FILE *, ClsConve);
-void  GeneraIPDATA(FILE *, int, int, double, ClsConve);
+void  GeneraIPDATA(FILE *, int, int, double, ClsConve, long);
 void	GeneraIPOPKY(FILE *, int, ClsConve);
 void	GeneraENDE(FILE *, ClsConve);
 /*

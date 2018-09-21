@@ -13,8 +13,8 @@
 		<Base de Datos> : Base de Datos <synergia>
 		<Estado Cliente> : 0=Activos; 1= No Activos; 2= Todos;		
 		<Tipo Generacion>: G = Generacion; R = Regeneracion
-		
-		<Nro.Cliente>: Opcional
+		<Tipo Corrida>:    0=Normal, 1=Reducida
+		<Fecha Inicio Busqueda> <Opcional>: dd/mm/aaaa
 
 *******************************************************************************/
 #include <stdio.h>
@@ -30,6 +30,7 @@ $long	glNroCliente;
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
 int   giTipoCorrida;
+$long glFechaDesde;
 
 FILE	*pFileOperandosUnx;
 
@@ -58,6 +59,10 @@ char	sMensMail[1024];
 /* Variables Globales Host */
 $long	lFechaLimiteInferior;
 $int	iCorrelativos;
+
+$dtime_t    gtInicioCorrida;
+$char       sLstParametros[100];
+$long       glFechaParametro;
 
 $WHENEVER ERROR CALL SqlException;
 
@@ -105,6 +110,8 @@ $long       lFechaValTarifa;
 	/* ********************************************
 				INICIO AREA DE PROCESO
 	********************************************* */
+   dtcurrent(&gtInicioCorrida);
+   
 	if(!AbreArchivos()){
 		exit(1);	
 	}
@@ -122,14 +129,13 @@ $long       lFechaValTarifa;
 	/*********************************************
 				ELECTRO DEPENDENCIA
 	**********************************************/
-	if(glNroCliente > 0){
-		$OPEN curElectro using :glNroCliente;
-	}else{
-		$OPEN curElectro;
-	}
+   if(glFechaParametro > 0){
+      $OPEN curElectro USING :glFechaParametro;
+   }else{
+      $OPEN curElectro;
+   }
 
 	lClienteAnterior=0;
-	
 		
 	while(LeoElectroDependencia(&regOperandos)){
   
@@ -193,12 +199,12 @@ $long       lFechaValTarifa;
 	/*********************************************
 				   TARIFA SOCIAL
 	**********************************************/
-	if(glNroCliente > 0){
-		$OPEN curTis using :glNroCliente;
-	}else{
-		$OPEN curTis;
-	}
-
+   if(glFechaParametro > 0){
+      $OPEN curTis USING :glFechaParametro;
+   }else{
+      $OPEN curTis;
+   }
+	
 	lClienteAnterior=0;
 	
    while(LeoTis(&regOperandos)){
@@ -261,6 +267,15 @@ $long       lFechaValTarifa;
 			
 	CerrarArchivos();
 
+   /* Registro la corrida */
+   $BEGIN WORK;
+   
+   $EXECUTE insRegiCorrida USING :gtInicioCorrida,
+                                 :sLstParametros;
+   
+   $COMMIT WORK;
+
+
 	/* Registrar Control Plano */
 /*   
 	if(!RegistraArchivo()){
@@ -315,13 +330,19 @@ short AnalizarParametros(argc, argv)
 int		argc;
 char	* argv[];
 {
+char  sFechaPar[11];
+   
+   memset(sFechaPar, '\0', sizeof(sFechaPar));
+   memset(sLstParametros, '\0', sizeof(sLstParametros));
 
+   
 	if(argc < 5 || argc > 6){
 		MensajeParametros();
 		return 0;
 	}
 	
 	memset(gsTipoGenera, '\0', sizeof(gsTipoGenera));
+
 
 	if(strcmp(argv[2], "0")!=0 && strcmp(argv[2], "1")!=0 && strcmp(argv[2], "2")!=0){
 		MensajeParametros();
@@ -334,12 +355,18 @@ char	* argv[];
    
    giTipoCorrida=atoi(argv[4]);
 	
-	if(argc==6){
-		glNroCliente=atoi(argv[5]);
+   glNroCliente=-1;
+
+   sprintf(sLstParametros, "%s %s %s %s", argv[1], argv[2], argv[3], argv[4]);
+   
+	if(argc ==6){
+      strcpy(sFechaPar, argv[5]);
+      rdefmtdate(&glFechaParametro, "dd/mm/yyyy", sFechaPar); /*char to long*/
+      sprintf(sLstParametros, " %s %s",sLstParametros , argv[5]);
 	}else{
-		glNroCliente=-1;
+		glFechaParametro=-1;
 	}
-	
+   
 	return 1;
 }
 
@@ -349,7 +376,7 @@ void MensajeParametros(void){
 		printf("	<Estado Cliente> 0=Activos, 1=No Activos, 2=Ambos\n");
 		printf("	<Tipo Generación> G = Generación, R = Regeneración.\n");
       printf("	<Tipo Corrida> 0=Normal, 1=Reducida\n");
-		printf("	<Nro.Cliente>(Opcional)\n");
+		printf("	<Fecha Desde> <Opcional> dd/mm/aaaa\n");
 }
 
 short AbreArchivos()
@@ -458,25 +485,15 @@ $char sAux[1000];
 		strcat(sql, ", sap_inactivos si ");
 	}		
 	
-	if(glNroCliente > 0 ){
-		strcat(sql, "WHERE c.numero_cliente = ? ");
-		strcat(sql, "AND c.tipo_sum != 5 ");	
-	}else{
-		if(giEstadoCliente==0){
-			strcat(sql, "WHERE c.estado_cliente = 0 ");
-			strcat(sql, "AND c.tipo_sum != 5 ");
-		}else{
-			strcat(sql, "WHERE c.estado_cliente != 0 ");
-			strcat(sql, "AND c.tipo_sum != 5 ");
-		}		
-	}
 
-	if(giEstadoCliente!=0){
-		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
-/*		
-		strcat(sql, "AND si.fecha_baja >= TODAY - 365 ");
-*/		
-	}
+	if(giEstadoCliente==0){
+		strcat(sql, "WHERE c.estado_cliente = 0 ");
+		strcat(sql, "AND c.tipo_sum != 5 ");
+	}else{
+		strcat(sql, "WHERE c.estado_cliente != 0 ");
+		strcat(sql, "AND c.tipo_sum != 5 ");
+      strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+	}		
 	
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "	WHERE cm.numero_cliente = c.numero_cliente ");
@@ -484,6 +501,10 @@ $char sAux[1000];
 	strcat(sql, "	AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
    
 	strcat(sql, "AND v.numero_cliente = c.numero_cliente ");
+   
+   if(glFechaParametro > 0){
+      strcat(sql, "AND v.fecha_activacion > ? ");
+   }
    
 	strcat(sql, "AND tb1.nomtabla = 'SDCLIV' ");
 	strcat(sql, "AND tb1.codigo = v.motivo ");
@@ -531,22 +552,15 @@ $char sAux[1000];
 		strcat(sql, ", sap_inactivos si ");
 	}		
 	
-	if(glNroCliente > 0 ){
-		strcat(sql, "WHERE c.numero_cliente = ? ");
-		strcat(sql, "AND c.tipo_sum != 5 ");	
+	if(giEstadoCliente==0){
+		strcat(sql, "WHERE c.estado_cliente = 0 ");
+		strcat(sql, "AND c.tipo_sum != 5 ");
 	}else{
-		if(giEstadoCliente==0){
-			strcat(sql, "WHERE c.estado_cliente = 0 ");
-			strcat(sql, "AND c.tipo_sum != 5 ");
-		}else{
-			strcat(sql, "WHERE c.estado_cliente != 0 ");
-			strcat(sql, "AND c.tipo_sum != 5 ");
-		}		
-	}
+		strcat(sql, "WHERE c.estado_cliente != 0 ");
+		strcat(sql, "AND c.tipo_sum != 5 ");
+      strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+	}		
 
-	if(giEstadoCliente!=0){
-		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
-	}
 	
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "	WHERE cm.numero_cliente = c.numero_cliente ");
@@ -554,9 +568,9 @@ $char sAux[1000];
 	strcat(sql, "	AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
 	strcat(sql, "AND v.numero_cliente = c.numero_cliente ");
 
-/*   
-	strcat(sql, "AND v.fecha_inicio >= ? ");
-*/
+   if(glFechaParametro > 0){
+      strcat(sql, "AND v.fecha_inicio > ? ");
+   }
    
    if(giTipoCorrida == 1)
       strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
@@ -763,7 +777,13 @@ $char sAux[1000];
 	strcat(sql, "AND fecha_facturacion >= ? ");  
   	strcat(sql, "AND fecha_facturacion <= ? ");
 
-   $PREPARE selFechaFin FROM $sql;   	
+   $PREPARE selFechaFin FROM $sql;
+   
+   /********* Registra Corrida **********/
+   $PREPARE insRegiCorrida FROM "INSERT INTO sap_regiextra (
+      estructura, fecha_corrida, fecha_fin, parametros
+      )VALUES( 'DEPGAR', ?, CURRENT, ?)";
+      	
 }
 
 void FechaGeneracionFormateada( Fecha )
