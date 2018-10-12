@@ -390,6 +390,7 @@ short AbreArchivos()
 	memset(sTipoArchivo, '\0', sizeof(sTipoArchivo));
 	
 	RutaArchivos( sPathSalida, "SAPISU" );
+strcpy(sPathSalida, "/fs/migracion/generacion/SAP/");   
 	alltrim(sPathSalida,' ');
 
 	RutaArchivos( sPathCopia, "SAPCPY" );
@@ -461,6 +462,10 @@ int		iRcv, i;
 		sprintf(sCommand, "cp %s %s", sArchGralUnx, sDestino);
 		iRcv=system(sCommand);
 
+      if(iRcv == 0){
+		    sprintf(sCommand, "rm -f %s", sArchGralUnx);
+		    iRcv=system(sCommand);
+      }
 	}
 
 	if(cantMontajesReal > 0){
@@ -468,7 +473,13 @@ int		iRcv, i;
 		iRcv=system(sCommand);
 				
 		sprintf(sCommand, "cp %s %s", sArchMontajeRealUnx, sDestino);
-		iRcv=system(sCommand);		
+		iRcv=system(sCommand);
+
+      if(iRcv == 0){
+		    sprintf(sCommand, "rm -f %s", sArchMontajeRealUnx);
+		    iRcv=system(sCommand);
+      }
+      		
 	}
 
 /*
@@ -1687,6 +1698,8 @@ $ClsLecturas		regLectu;
 				exit(2);	
 			}						
 		}
+      strcpy(regLectu.sTarifaInstalacion, regLectuAux.sTarifaInstalacion);
+      
 		GeneraDI_ZW(fpLocal, sTipo, 3, regLectu);    /* La de Reactiva Real */
 		GeneraDI_ZW(fpLocal, sTipo, 2, regLectuAux); /* La de Activa Ficticia */
 		CopiaEstructura(regLectu, &regLectuAux);     /* Resguardo la de Reactiva */
@@ -1714,7 +1727,8 @@ FILE 			*fp;
 char			sTipo[2];
 ClsLecturas		regLectu;
 {
-	char	sLinea[1000];	
+	char	sLinea[1000];
+   int   iRcv;	
 	
 	memset(sLinea, '\0', sizeof(sLinea));
 	
@@ -1760,14 +1774,20 @@ ClsLecturas		regLectu;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir DI_GER\n");
+      exit(1);
+   }	
+   
 }
 
 void GeneraENDE(fp, regLectu)
 FILE *fp;
 $ClsLecturas	regLectu;
 {
-	char	sLinea[1000];	
+	char	sLinea[1000];
+   int   iRcv;	
 
 	memset(sLinea, '\0', sizeof(sLinea));
 	
@@ -1775,7 +1795,12 @@ $ClsLecturas	regLectu;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 /*
 short RegistraArchivo(void)
@@ -1824,7 +1849,8 @@ int			iNum;
 ClsLecturas	regLectu;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
    alltrim(regLectu.sTarifaInstalacion, ' ');
 
@@ -1862,6 +1888,7 @@ ClsLecturas	regLectu;
       }
       
       /* TARIFART */
+/*      
       if(regLectu.tipo_medidor[0]=='R'){
          if(iNum==1 || iNum==3){
             strcat(sLinea, "T1-RESID\t");
@@ -1871,6 +1898,7 @@ ClsLecturas	regLectu;
       }else{
          strcat(sLinea, "T1-RESID\t");
       }
+*/      
       strcat(sLinea, "\t");
       
       /* PERVERBR */
@@ -1961,7 +1989,11 @@ ClsLecturas	regLectu;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir DI_ZW\n");
+      exit(1);
+   }	
 	
 }
 
@@ -1971,7 +2003,8 @@ FILE     *fp;
 ClsLecturas regLectu;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
    memset(sLinea, '\0', sizeof(sLinea));
 
    sprintf(sLinea, "T1%ld-%d\tDI_CNT\t", regLectu.numero_cliente, iNroIndex);
@@ -1981,7 +2014,12 @@ ClsLecturas regLectu;
    
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir DI_CNT\n");
+      exit(1);
+   }	
+   	
 
 }
 
@@ -1992,7 +2030,8 @@ char			sTipo[2];
 ClsLecturas		regLectu;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
    sprintf(sLinea, "T1%ld-%d\tDI_INT\t", regLectu.numero_cliente, iNroIndex);
@@ -2012,7 +2051,12 @@ ClsLecturas		regLectu;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir DI_INT\n");
+      exit(1);
+   }	
+   
 }
 
 short LeoUltRetiro(lNroCliente, regLectu)
@@ -2266,6 +2310,8 @@ ClsLecturas *regLectuAux;
 	regLectuAux->factor_potencia=regLectu.factor_potencia;
 	regLectuAux->enteros=regLectu.enteros;
 	regLectuAux->decimales=regLectu.decimales;
+   
+   strcpy(regLectuAux->sTarifaInstalacion, regLectu.sTarifaInstalacion);
 	
 }
 

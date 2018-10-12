@@ -125,7 +125,7 @@ long     lCantInFiles;
 	/*********************************************
 				AREA CORPO T1
 	**********************************************/
-/*   
+   
    $OPEN curCorpoT1;
    
 	while(LeoCorpoT1(&regCliente)){
@@ -140,12 +140,12 @@ long     lCantInFiles;
 					$ROLLBACK WORK;
 					exit(1);	
 				}
-
+/*
 				if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
 					$ROLLBACK WORK;
 					exit(1);	
 				}
-
+*/
 				cantCorpoT1++;
 
 				$COMMIT WORK;
@@ -154,7 +154,8 @@ long     lCantInFiles;
    }
    
    $CLOSE curCorpoT1;
-*/
+   fclose(pFileCtaCorpoT1Unx);
+   
 	/*********************************************
 				AREA CURSOR PPAL
 	**********************************************/
@@ -604,21 +605,6 @@ if(giTipoCorrida == 1)
 	
 	$PREPARE updClientesMigra FROM $sql;
 
-	/********* Exenciones Impositivas **********/
-	strcpy(sql, "SELECT e.numero_cliente, "); 
-	strcat(sql, "e.codigo_cargo, "); 
-	strcat(sql, "TO_CHAR(e.fecha_desde, '%Y%d%m'), ");
-	strcat(sql, "NVL(TO_CHAR(e.fecha_hasta, '%Y%d%m'),'99991231'), ");
-   strcat(sql, "100 - e.porcentaje_nuevo ");
-	strcat(sql, "FROM exencion_imp e ");
-	strcat(sql, "WHERE e.numero_cliente = ? ");
-	strcat(sql, "AND e.fecha_desde <= TODAY ");
-	strcat(sql, "AND (e.fecha_hasta IS NULL OR e.fecha_hasta > TODAY) ");
-
-   $PREPARE selExenciones FROM $sql;
-   
-   $DECLARE curExenciones CURSOR FOR selExenciones;
-
 	/********* Electrodependientes *********/
 	strcpy(sql, "SELECT COUNT(*) FROM clientes_vip v, tabla t ");
 	strcat(sql, "WHERE v.numero_cliente = ? ");
@@ -638,7 +624,33 @@ if(giTipoCorrida == 1)
       WHERE numero_cliente = ?
       AND fecha_activacion <= TODAY
       AND (fecha_desactivac IS NULL OR fecha_desactivac > TODAY)";
-            
+
+	/********* Exenciones Impositivas **********/
+	strcpy(sql, "SELECT e.numero_cliente, "); 
+	strcat(sql, "e.codigo_cargo, "); 
+	strcat(sql, "TO_CHAR(e.fecha_desde, '%Y%d%m'), ");
+	strcat(sql, "NVL(TO_CHAR(e.fecha_hasta, '%Y%d%m'),'99991231'), ");
+   strcat(sql, "e.porcentaje_nuevo ");
+	strcat(sql, "FROM exencion_imp e ");
+	strcat(sql, "WHERE e.numero_cliente = ? ");
+	strcat(sql, "AND e.fecha_desde <= TODAY ");
+	strcat(sql, "AND (e.fecha_hasta IS NULL OR e.fecha_hasta > TODAY) ");
+   strcat(sql, "AND e.codigo_cargo NOT IN('721', '796') ");
+
+   $PREPARE selExenciones FROM $sql;
+   
+   $DECLARE curExenciones CURSOR FOR selExenciones;
+
+   /******** Exenciones %SAP *********/
+   $PREPARE selExeSap1 FROM "SELECT kschl, porc FROM sap_eximp
+      WHERE cod_mac = ? ";
+      
+   /******** Tipo Imp SAP *********/
+   $PREPARE selIndIva FROM "SELECT indicador FROM sap_eximp_z
+      WHERE kschl = ?";
+      
+   $DECLARE curIndIva CURSOR FOR selIndIva;      
+                     
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -769,6 +781,9 @@ $ClsCliente *regCli;
 short LeoCorpoT1(regCli)
 $ClsCliente *regCli;
 {
+   $int iRcv;
+   $int  iValor;
+   
 	InicializaCliente(regCli);
 	
 	$FETCH curCorpoT1 into
@@ -812,6 +827,35 @@ $ClsCliente *regCli;
    if(strcmp(regCli->tipo_fpago, "D")==0){
       strcpy(regCli->sTipoDebito, getTipoDebito(regCli->numero_cliente));
       strcpy(regCli->sTipoEntidadDebito, getTipoEntidad(regCli->numero_cliente));
+   }
+	
+   iRcv=0;
+   $EXECUTE selElectro INTO :iRcv USING :regCli->numero_cliente;
+   
+   if(SQLCODE != 0){
+		printf("Error al verificar si cliente %ld es Electro !!!\nProceso Abortado.\n", regCli->numero_cliente);
+		exit(1);	
+   }
+   
+   if(iRcv > 0){
+      strcpy(regCli->sElectrodependiente, "S");
+   }else{
+      strcpy(regCli->sElectrodependiente, "N");
+   }
+
+
+   if(regCli->tipo_fpago[0]=='D'){   
+      $EXECUTE selFPago INTO :iValor USING :regCli->numero_cliente;
+      
+      if(SQLCODE != 0){
+         printf("No se pudo validar Forma Pago para cliente %ld\n\tSe lo pasa a Normal.\n", regCli->numero_cliente);
+         strcpy(regCli->tipo_fpago, "N");   
+      }else{
+         if(iValor <= 0){
+            printf("No se encontro Forma Pago para cliente %ld\n\tSe lo pasa a Normal.\n", regCli->numero_cliente);
+            strcpy(regCli->tipo_fpago, "N");   
+         }
+      }
    }
 			
 	return 1;	
@@ -927,7 +971,8 @@ $ClsExencion   regExen;
    $OPEN curExenciones USING :regCliente.numero_cliente;
    
    while(LeoExencion(&regExen)){
-   	GeneraVKTXEX(fp, regCliente, regExen, iTipo);
+   	ProcesaVKTXEX(fp, regCliente, regExen, iTipo);
+      
    }
    
    $CLOSE curExenciones;
@@ -946,7 +991,8 @@ int   iTipo;
 {
 	char	sLinea[1000];	
 	char	sTipoCuenta[3];
-	
+	int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	
@@ -1022,7 +1068,11 @@ int   iTipo;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir INIT\n");
+      exit(1);
+   }	
 	
 }
 
@@ -1032,7 +1082,8 @@ $ClsCliente	regCliente;
 {
 	char	sLinea[1000];	
 	int		iTipoPersona;
-
+   int      iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
    if(iTipo == 1){
@@ -1044,7 +1095,12 @@ $ClsCliente	regCliente;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir VK\n");
+      exit(1);
+   }	
+
 }
 
 void GeneraVKLOCK(fp, regCliente, sTarifa, iTipo, sTipo)
@@ -1055,7 +1111,8 @@ int   iTipo;
 char  sTipo[2];
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
    /*
@@ -1127,7 +1184,12 @@ char  sTipo[2];
 */	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir VKLOCK\n");
+      exit(1);
+   }	
+
 }
 
 
@@ -1142,6 +1204,7 @@ int iTipo;
 	char	sTipoReclamo[2];
 	char	sEstrategiaReclamo[3];
 	char	sAux[11];
+   int   iRcv;
 	
 	memset(sTipoPago, '\0', sizeof(sTipoPago));
 	memset(sTipoReclamo, '\0', sizeof(sTipoReclamo));
@@ -1384,7 +1447,61 @@ int iTipo;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir VKP\n");
+      exit(1);
+   }	
+	
+}
+
+void ProcesaVKTXEX(fp, regCliente, regExe, iTipo)
+FILE *fp;
+$ClsCliente	regCliente;
+$ClsExencion regExe;
+int   iTipo;
+{
+	char	sLinea[1000];	
+   int   iRcv;
+   double   nvoPorc=0.00;
+   
+	memset(sLinea, '\0', sizeof(sLinea));
+   
+   if(regExe.porc == 0.0){
+      if(!getPorcentajeExe(&regExe, 1)){
+         printf("No se encontró porcentajes para cliente %ld\n", regCliente.numero_cliente);
+         return;
+      }
+   
+      regExe.EXRAT = 100.00;
+   }else{
+      if(!getPorcentajeExe(&regExe, 0)){
+         printf("No se encontró porcentajes para cliente %ld\n", regCliente.numero_cliente);
+         return;
+      }
+   }
+
+   $OPEN curIndIva USING :regExe.KSCHL;
+   
+   while(LeoIndiIva(&regExe)){
+      GeneraVKTXEX(fp, regCliente, regExe, iTipo);
+   }
+   
+   $CLOSE curIndIva;
+
+}
+
+short LeoIndiIva(reg)
+$ClsExencion *reg;
+{
+
+   $FETCH curIndIva INTO :reg->MWSKZ;
+   
+   if(SQLCODE != 0){
+      return 0;
+   }
+   
+   return 1;
 }
 
 void GeneraVKTXEX(fp, regCliente, regExe, iTipo)
@@ -1394,8 +1511,10 @@ $ClsExencion regExe;
 int   iTipo;
 {
 	char	sLinea[1000];	
+   int   iRcv;
+   
+   memset(sLinea, '\0', sizeof(sLinea));
 
-	memset(sLinea, '\0', sizeof(sLinea));
 /*	
    if(iTipo == 1){
 	  sprintf(sLinea, "T1%ldCORP\tVKTXEX\t", regCliente.numero_cliente);   
@@ -1403,21 +1522,23 @@ int   iTipo;
 	  sprintf(sLinea, "T1%ld\tVKTXEX\t", regCliente.numero_cliente);
    }
 */
+
    sprintf(sLinea, "T1%ld\tVKTXEX\t", regCliente.numero_cliente);
       
    /* TAXEXAKTYP */
 	strcat(sLinea, "I\t");
    /* MWSKZ (valor trafo) */
-	/*sprintf(sLinea, "%s%s\t", sLinea, regCliente.tipo_iva);*/
-   strcat(sLinea, "ZE\t");
+	sprintf(sLinea, "%s%s\t", sLinea, regExe.MWSKZ);
+
    
    /* KSCHL (valor trafo) */
-   strcat(sLinea, "ED01\t");
+   sprintf(sLinea, "%s%s\t", sLinea, regExe.KSCHL);
    
    /* EXDFR (fecha desde)*/
    sprintf(sLinea, "%s%s\t", sLinea, regExe.sFechaDesde);
    /* EXDTO (fecha hasta)*/
-   strcat(sLinea, "99991231\t");
+   sprintf(sLinea, "%s%s\t", sLinea, regExe.sFechaHasta);
+
    /* EXNUM (vacio) */
    strcat(sLinea, "\t");
    /* EXRAT (%)*/
@@ -1428,9 +1549,15 @@ int   iTipo;
    /* LAUFI (vacio) */
    
 	strcat(sLinea, "\n");
-	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   
+   if(iRcv < 0){
+      printf("Error al escribir VKTXEX\n");
+      exit(1);
+   }	
+
 }
+   
 
 void GeneraENDE(fp, regCliente, iTipo)
 FILE *fp;
@@ -1438,7 +1565,8 @@ $ClsCliente	regCliente;
 int   iTipo;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
    if(iTipo == 1){
@@ -1449,7 +1577,38 @@ int   iTipo;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+	
+}
+
+short getPorcentajeExe(reg, iTipo)
+$ClsExencion *reg;
+int   iTipo;
+{
+   $double porSap=0.00;
+   $double porFinal=0.00;
+   
+   $EXECUTE selExeSap1 INTO :reg->KSCHL, 
+                            :porSap 
+                  USING :reg->cod_cargo;
+   
+   if(SQLCODE != 0){
+      printf("No se encontró exencion SAP para cliente %ld cargo %s\n", reg->numero_cliente, reg->cod_cargo);
+      return 0;
+   }
+
+   if(porSap > 0.00)
+      porFinal = (reg->porc / porSap) * 100;
+
+   if(iTipo==0){
+      reg->EXRAT = porFinal;
+   }      
+   
+   return 1;
 }
 
 short ClienteYaMigrado(nroCliente, iFlagMigra)
@@ -1577,6 +1736,7 @@ short AbreArchivos(){
    memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
+   
 	alltrim(sPathSalida,' ');
 
 	RutaArchivos( sPathCopia, "SAPCPY" );
@@ -1597,7 +1757,7 @@ short AbreArchivos(){
 			}
 
          /* Corpo T1 */
-/*         
+         
 		   sprintf( sArchCtaCorpoT1Unx  , "%sT1ACCOUNT_CORPOT1.unx", sPathSalida );
 			strcpy( sSoloArchivoCtaCorpoT1, "T1ACCOUNT_CORPOT1.unx" );
 
@@ -1606,7 +1766,7 @@ short AbreArchivos(){
 				printf("ERROR al abrir archivo %s.\n", sArchCtaCorpoT1Unx );
 				return 0;
 			}
-*/
+
 			break;
 			
 		case 1: /* No Activos */
@@ -1649,7 +1809,7 @@ short AbreArchivos(){
 	}
 
 	/*lCorrelativoFicticia = getCorrelativo("CTACONTRA_FICTICIA");*/
-
+/*
    sprintf( sArchCtaFicticiaUnx  , "%sT1ACCOUNT_CorpoT23.unx", sPathSalida);
 	strcpy( sSoloArchivoCtaFicticia, "T1ACCOUNT_CorpoT23.unx");
 
@@ -1658,7 +1818,7 @@ short AbreArchivos(){
 		printf("ERROR al abrir archivo %s.\n", sArchCtaFicticiaUnx );
 		return 0;
 	}
-
+*/
 	return 1;	
 }
    
@@ -1676,7 +1836,7 @@ void CierroArchivos(){
 			fclose(pFileCtaNoActivaUnx);
 			break;
 	}
-	fclose(pFileCtaFicticiaUnx);
+	/*fclose(pFileCtaFicticiaUnx);*/
 }
 /*
 void AdministraPlanos(){
@@ -1748,7 +1908,7 @@ $ClsCliente		regCliente;
 	/*GeneraVKLOCK(fp, regCliente, "T2", 0);*/
 
 	/* VKTXEX */
-	/*GeneraVKTXEX(fp, regCliente, 0);*/
+	/*ProcesaVKTXEX(fp, regCliente, 0);*/
 
 	/* ENDE */
 	GeneraENDE(fp, regCliente, 0);
@@ -1883,6 +2043,9 @@ int		iRcv, i;
 		iRcv=system(sCommand);		
 		sprintf(sCommand, "cp %s %s", sArchCtaActivaUnx, sDestino);
 		iRcv=system(sCommand);
+   	sprintf(sCommand, "rm -f %s", sArchCtaActivaUnx);
+   	iRcv=system(sCommand);	
+      
 	}
 
 	if(cantNoActivoProcesada>0){
@@ -1890,6 +2053,9 @@ int		iRcv, i;
 		iRcv=system(sCommand);		
 		sprintf(sCommand, "cp %s %s", sArchCtaNoActivaUnx, sDestino);
 		iRcv=system(sCommand);
+   	sprintf(sCommand, "rm -f %s", sArchCtaNoActivaUnx);
+   	iRcv=system(sCommand);	
+      
 	}
 
 	if(cantFicticia>0){
@@ -1897,6 +2063,9 @@ int		iRcv, i;
 		iRcv=system(sCommand);		
 		sprintf(sCommand, "cp %s %s", sArchCtaFicticiaUnx, sDestino);
 		iRcv=system(sCommand);
+   	sprintf(sCommand, "rm -f %s", sArchCtaFicticiaUnx);
+   	iRcv=system(sCommand);	
+      
 	}
 
 	if(cantCorpoT1>0){
@@ -1904,6 +2073,9 @@ int		iRcv, i;
 		iRcv=system(sCommand);		
 		sprintf(sCommand, "cp %s %s", sArchCtaCorpoT1Unx, sDestino);
 		iRcv=system(sCommand);
+   	sprintf(sCommand, "rm -f %s", sArchCtaCorpoT1Unx);
+   	iRcv=system(sCommand);	
+      
 	}
 	
 /*
@@ -1922,15 +2094,6 @@ int		iRcv, i;
 		iRcv=system(sCommand);
 	}
 
-
-	sprintf(sCommand, "rm -f %s", sArchCtaActivaUnx);
-	iRcv=system(sCommand);	
-
-	sprintf(sCommand, "rm -f %s", sArchCtaNoActivaUnx);
-	iRcv=system(sCommand);	
-
-	sprintf(sCommand, "rm -f %s", sArchCtaFicticiaUnx);
-	iRcv=system(sCommand);		
 */
 }
 
@@ -1942,11 +2105,10 @@ $ClsExencion   *reg;
 
    $FETCH curExenciones INTO
       :reg->numero_cliente,
-      :reg->MWSKZ,
-      :reg->KSCHL,
+      :reg->cod_cargo,
       :reg->sFechaDesde,
       :reg->sFechaHasta,
-      :reg->EXRAT;
+      :reg->porc;
       
    if(SQLCODE != 0){
       return 0;
@@ -1959,10 +2121,12 @@ ClsExencion *reg;
 {
 
 	rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
-	memset(reg->MWSKZ, '\0', sizeof(reg->MWSKZ));
-	memset(reg->KSCHL, '\0', sizeof(reg->KSCHL));
+   memset(reg->cod_cargo, '\0', sizeof(reg->cod_cargo));
 	memset(reg->sFechaDesde, '\0', sizeof(reg->sFechaDesde));
    memset(reg->sFechaHasta, '\0', sizeof(reg->sFechaHasta));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->porc));
+	memset(reg->MWSKZ, '\0', sizeof(reg->MWSKZ));
+	memset(reg->KSCHL, '\0', sizeof(reg->KSCHL));
    rsetnull(CDOUBLETYPE, (char *) &(reg->EXRAT));
 }
 

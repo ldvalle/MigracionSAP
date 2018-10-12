@@ -21,7 +21,7 @@
 #include <time.h>
 #include <synmail.h>
 
-$include "sap_move_in.h";
+$include "sap_move_in_fac.h";
 
 /* Variables Globales */
 $long	glNroCliente;
@@ -124,6 +124,8 @@ long     iCantCalculos=0;
             CalculoDatos(&regAltas);
             iCantCalculos++;         
          }
+         
+         /*strcpy(regAltas.fecha_alta, getUltiLectu(regAltas));*/
                   
 			if (!GenerarPlanoAltas(pFileAltas, regAltas)){
 				$ROLLBACK WORK;
@@ -179,7 +181,7 @@ long     iCantCalculos=0;
 	}
 */
 	printf("==============================================\n");
-	printf("MOVE IN.\n");
+	printf("MOVE IN Fac.\n");
 	printf("==============================================\n");
 	printf("Proceso Concluido.\n");
 	printf("==============================================\n");
@@ -254,9 +256,9 @@ short AbreArchivos()
 	RutaArchivos( sPathCopia, "SAPCPY" );
 	alltrim(sPathCopia,' ');
 
-	sprintf( sArchAltasUnx  , "%sT1MOVEIN.unx", sPathSalida );
+	sprintf( sArchAltasUnx  , "%sT1MOVEIN_FAC.unx", sPathSalida );
 	/*sprintf( sArchAltasDos  , "%sMove_In_T1_%s_%d.txt", sPathSalida, FechaGeneracion, iCorrAlta );*/
-	strcpy( sSoloArchivoAltas, "T1MOVEIN.unx" );
+	strcpy( sSoloArchivoAltas, "T1MOVEIN_FAC.unx" );
 
 	pFileAltas=fopen( sArchAltasUnx, "w" );
 	if( !pFileAltas ){
@@ -330,7 +332,8 @@ $char sAux[1000];
 	strcat(sql, "	WHEN cv.numero_cliente IS NOT NULL THEN 'SI' ");
 	strcat(sql, "	ELSE 'NO' ");
 	strcat(sql, "END, ");
-   strcat(sql, "c.sucursal ");
+   strcat(sql, "c.sucursal, ");
+   strcat(sql, "TO_CHAR(c.fecha_ultima_lect, '%Y%m%d') ");
 	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2, OUTER (clientes_vip cv, tabla tb1) ");
    strcat(sql, ", OUTER sap_transforma t3 ");
 
@@ -572,6 +575,12 @@ $char sAux[1000];
    
    $PREPARE selMotiAlta FROM $sql;
    
+   /* Ultima lectura */
+   $PREPARE selUltiLectu FROM "SELECT TO_CHAR(h.fecha_lectura + 1, '%Y%d%m') FROM hisfac h
+      WHERE numero_cliente = ?
+      AND corr_facturacion = ? ";
+      
+   
    /************* Buscar ID Sales Forces ************/
 /*   
 	strcpy(sql, "SELECT asset FROM sap_sfc_inter ");
@@ -639,7 +648,8 @@ $ClsAltas *regAlta;
 		:regAlta->nro_beneficiario,
 		:regAlta->corr_facturacion,
 		:regAlta->sElectro,
-      :regAlta->sucursal_mac;
+      :regAlta->sucursal_mac,
+      :regAlta->sUltimaLectura;
 	
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -785,6 +795,7 @@ $ClsAltas	*regAlta;
    memset(regAlta->sMotivoAlta, '\0', sizeof(regAlta->sMotivoAlta));
    memset(regAlta->sAsset, '\0', sizeof(regAlta->sAsset));
    memset(regAlta->sucursal_mac, '\0', sizeof(regAlta->sucursal_mac));
+   memset(regAlta->sUltimaLectura, '\0', sizeof(regAlta->sUltimaLectura));
 }
 
 short ClienteYaMigrado(nroCliente, iFlagMigra, iFlagExiste, regSts)
@@ -982,7 +993,8 @@ $ClsAltas		regAlta;
    */
    
    /* EINZDAT*/
-   sprintf(sLinea, "%s%s\t", sLinea, regAlta.fecha_alta);
+   /*sprintf(sLinea, "%s%s\t", sLinea, regAlta.fecha_alta);*/
+   sprintf(sLinea, "%s%s\t", sLinea, regAlta.sUltimaLectura);
 	
    /* MAHNV */
 	strcat(sLinea, "\t");
@@ -1130,6 +1142,27 @@ ClsEstados *reg;
    memset(reg->tarifa, '\0', sizeof(reg->tarifa));
    memset(reg->ul, '\0', sizeof(reg->ul));
    memset(reg->motivo_alta, '\0', sizeof(reg->motivo_alta));
+}
+
+char *getUltiLectu(reg)
+$ClsAltas   reg;
+{
+   $long lFLectu;
+   $char sFLectu[9];
+   
+   memset(sFLectu, '\0', sizeof(sFLectu));
+   
+   $EXECUTE selUltiLectu INTO :lFLectu USING :reg.numero_cliente,
+                                             :reg.corr_facturacion;
+                                             
+   if(SQLCODE != 0){
+      printf("Error al buscar ultima lectura para el cliente %ld correlativo %d\n", reg.numero_cliente, reg.corr_facturacion);
+      strcpy(sFLectu, reg.fecha_alta);
+   }else{
+      rfmtdate(lFLectu, "yyyymmdd", sFLectu);
+   }
+   
+   return sFLectu;
 }
 
 /****************************

@@ -43,10 +43,12 @@ $typedef struct{
 
 $typedef struct{
    long     numero_cliente;
-   char     MWSKZ[3];
-   char     KSCHL[5];
+   char     cod_cargo[4];
+   double   porc;
    char     sFechaDesde[9];
    char     sFechaHasta[9];
+   char     MWSKZ[3];
+   char     KSCHL[5];
    double   EXRAT;
 }ClsExencion;
 
@@ -83,6 +85,8 @@ void	AdministraPlanos(void);
 
 char  *getTipoDebito(long);
 char  *getTipoEntidad(long);
+short getPorcentajeExe(ClsExencion *, int);
+short LeoIndiIva(ClsExencion *);
 
 static char 	*strReplace(char *, char *, char *);
 
@@ -90,6 +94,7 @@ void	GeneraINIT(FILE *, ClsCliente, char*, int);
 void	GeneraVK(FILE *, ClsCliente, int);
 void	GeneraVKP(FILE *, ClsCliente, char*, int);
 void  GeneraVKLOCK(FILE *, ClsCliente, char*, int, char *);
+void 	ProcesaVKTXEX(FILE *, ClsCliente, ClsExencion, int);
 void 	GeneraVKTXEX(FILE *, ClsCliente, ClsExencion, int);
 void	GeneraENDE(FILE *, ClsCliente, int);
 

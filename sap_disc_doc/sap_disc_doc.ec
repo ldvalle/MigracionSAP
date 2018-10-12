@@ -205,6 +205,12 @@ char	sPathCp[100];
 	
 	sprintf(sCommand, "cp %s %s", sArchUnx, sPathCp);
 	iRcv=system(sCommand);
+   
+   if(iRcv == 0){
+   	sprintf(sCommand, "rm -f %s", sArchUnx);
+      iRcv=system(sCommand);
+   }
+   
 }
 
 void CreaPrepare(void){
@@ -346,14 +352,20 @@ FILE *fp;
 $ClsCorte	reg;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld\t&ENDE", reg.numero_cliente);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+	
 }
 
 void GeneraHEADER(fp, reg)
@@ -361,7 +373,7 @@ FILE 		*fp;
 ClsCorte	reg;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
 	memset(sLinea, '\0', sizeof(sLinea));
 
    /* LLAVE */
@@ -391,7 +403,12 @@ ClsCorte	reg;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir HEADER\n");
+      exit(1);
+   }	
+	
 }
 
 void GeneraFKKMAZ(fp, reg)
@@ -399,7 +416,8 @@ FILE 		*fp;
 ClsCorte	reg;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
    /* LLAVE */
@@ -421,7 +439,12 @@ ClsCorte	reg;
    
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+   iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir FKKMAZ\n");
+      exit(1);
+   }	
+	
 }
 
    

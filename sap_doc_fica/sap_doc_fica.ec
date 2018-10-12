@@ -1116,6 +1116,7 @@ ClsCliente  regClie;
 int   inx;
 {
    char  sLinea[1000];
+   int   iRcv;
    
    memset(sLinea, '\0', sizeof(sLinea));
 
@@ -1152,7 +1153,12 @@ int   inx;
 
    strcat(sLinea, "\n");
   
-   fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir KO\n");
+      exit(1);
+   }	
+
 
 }
 
@@ -1166,6 +1172,7 @@ int   inx1;
 {
    char  sLinea[1000];
    double   auxDbl;
+   int   iRcv;
    
    memset(sLinea, '\0', sizeof(sLinea));
 
@@ -1312,7 +1319,12 @@ int   inx1;
 
    strcat(sLinea, "\n");
   
-   fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir OP\n");
+      exit(1);
+   }	
+
 
 }
 
@@ -1324,6 +1336,7 @@ char        sTipo[2];
 {
    char  sLinea[1000];
    double auxDbl;
+   int   iRcv;
    
    memset(sLinea, '\0', sizeof(sLinea));
 
@@ -1404,7 +1417,12 @@ char        sTipo[2];
 
    strcat(sLinea, "\n");
   
-   fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir OPK\n");
+      exit(1);
+   }	
+
 
 }
 
@@ -1418,6 +1436,7 @@ int         inx;
 	char	sLinea[1000];
    long  iFila;	
    long  lSize;
+   int   iRcv;
    
    for(iFila=0; iFila<iCantOPL; iFila++){
    	memset(sLinea, '\0', sizeof(sLinea));
@@ -1437,7 +1456,13 @@ int         inx;
       sprintf(sLinea, "%s%s", sLinea, regOpl[iFila].TDATE);
       
       strcat(sLinea, "\n");
-      fprintf(fp, sLinea);
+      
+   	iRcv=fprintf(fp, sLinea);
+      if(iRcv < 0){
+         printf("Error al escribir OPL\n");
+         exit(1);
+      }	
+
    
       if(sTipo[0]=='D'){
          /**** El de Reclamaciones ****/
@@ -1456,7 +1481,12 @@ int         inx;
          sprintf(sLinea, "%s99991231", sLinea);
          
          strcat(sLinea, "\n");
-         fprintf(fp, sLinea);
+      	iRcv=fprintf(fp, sLinea);
+         if(iRcv < 0){
+            printf("Error al escribir OPL\n");
+            exit(1);
+         }	
+
    
          /**** El de Contabilizar ****/
          memset(sLinea, '\0', sizeof(sLinea));
@@ -1474,7 +1504,12 @@ int         inx;
          sprintf(sLinea, "%s99991231", sLinea);
          
          strcat(sLinea, "\n");
-         fprintf(fp, sLinea);
+      	iRcv=fprintf(fp, sLinea);
+         if(iRcv < 0){
+            printf("Error al escribir OPL\n");
+            exit(1);
+         }	
+
          
          /**** El de Pagos ****/
          memset(sLinea, '\0', sizeof(sLinea));
@@ -1492,7 +1527,12 @@ int         inx;
          sprintf(sLinea, "%s99991231", sLinea);
          
          strcat(sLinea, "\n");
-         fprintf(fp, sLinea);
+      	iRcv=fprintf(fp, sLinea);
+         if(iRcv < 0){
+            printf("Error al escribir OPL\n");
+            exit(1);
+         }	
+
       }      
    }
    

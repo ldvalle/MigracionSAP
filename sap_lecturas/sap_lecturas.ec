@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <synmail.h>
-
+#include <errno.h>
 $include "sap_lecturas.h";
 
 /* Variables Globales */
@@ -81,6 +81,7 @@ $long lFechaPivote;
 $long lFechaMoveInMenos1;
 int      iVuelta;
 long  lFechaAux;
+char  sFechaIniAnterior[9];
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -180,6 +181,14 @@ long  lFechaAux;
             				rdefmtdate(&lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /*char a long*/
             				lFechaAux=lFechaAux+1;
             				rfmtdate(lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /* long to char */
+                        strcpy(sFechaIniAnterior, regLecturas.fechaIniVentana);
+                     }else{
+                        if(strcmp(sFechaIniAnterior, regLecturas.fechaIniVentana)==0 || strcmp(regLecturas.fechaIniVentana,"")==0){
+                           printf("Lectura comparte ventana Cliente %ld Portion %s UL %s F.Lectura %ld\n", regLecturas.numero_cliente, regLecturas.porcion, regLecturas.UL, regLecturas.lFechaLectura);
+                           if(!getNvaVentana(&regLecturas)){
+                              printf("\tNo se pudo encontar siguiente ventana\n");
+                           }
+                        }
                      }
                      
 				         if((iVuelta ==1 && regLecturas.tipo_lectura != 8) || (iVuelta > 1)){
@@ -187,7 +196,7 @@ long  lFechaAux;
     								/*$ROLLBACK WORK;*/
     								exit(1);	
     							}
-    							
+    							strcpy(sFechaIniAnterior, regLecturas.fechaIniVentana);
     							if(regLecturas.tipo_medidor[0]=='R'){
     								/* Si el medidor es de Reactiva, busco la lectura Reactiva */
     								DuplicaRegistro(regLecturas, &regLectuAux);
@@ -474,6 +483,11 @@ char 	sPathCp[100];
 	
 	sprintf(sCommand, "cp %s %s", sArchLecturasUnx, sPathCp);
 	iRcv=system(sCommand);
+   
+   if(iRcv == 0){
+	  sprintf(sCommand, "rm -f %s", sArchLecturasUnx);
+	  iRcv=system(sCommand);
+   }
 
 /*
 	if(cantProcesada>0){
@@ -948,6 +962,16 @@ $char sAux[1000];
       AND ul = ?
       AND ? BETWEEN inicio_ventana AND fin_ventana ";
 		
+   $PREPARE selIniVentana2 FROM "SELECT TO_CHAR(MAX(inicio_ventana), '%Y%m%d') FROM sap_agenda
+      WHERE porcion = ?
+      AND ul = ?
+      AND inicio_ventana <= ? ";
+
+   $PREPARE selIniVentana3 FROM "SELECT TO_CHAR(MIN(inicio_ventana), '%Y%m%d') FROM sap_agenda
+      WHERE porcion = ?
+      AND ul = ?
+      AND inicio_ventana > ? ";
+      
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -1069,7 +1093,8 @@ $ClsLecturas *regLectu;
 {
 	$double dLectuRectif=0.0;
 	$double dConsuRectif=0.0;
-	
+	$long   lFechaAux;
+   
 	InicializaLecturas(regLectu);
 
 	$FETCH curLectuActi into
@@ -1100,14 +1125,22 @@ $ClsLecturas *regLectu;
     }
 
    /* Busca inicio Ventana */
+   lFechaAux = regLectu->lFechaLectura; 
    alltrim(regLectu->UL, ' ');
    $EXECUTE selIniVentana INTO :regLectu->fechaIniVentana USING
       :regLectu->porcion,
       :regLectu->UL,
-      :regLectu->lFechaLectura;
+      :lFechaAux;
       
-   if(SQLCODE != 0){
-      printf("No se encontró fecha ini ventana para UL %s Fecha Lectura %ld\n", regLectu->UL, regLectu->lFechaLectura);
+   if(SQLCODE != 0 || strcmp(regLectu->fechaIniVentana,"")==0){
+      $EXECUTE selIniVentana2 INTO :regLectu->fechaIniVentana USING
+         :regLectu->porcion,
+         :regLectu->UL,
+         :lFechaAux;
+
+      if(SQLCODE != 0 || strcmp(regLectu->fechaIniVentana,"")==0){
+         printf("No se encontró fecha ini ventana para cliente %ld Porcion %s UL %s Fecha Lectura %ld intento 2\n", regLectu->numero_cliente, regLectu->porcion, regLectu->UL, lFechaAux);
+      }      
    }      
 
 	alltrim(regLectu->tipo_lectu_sap, ' ');
@@ -1218,14 +1251,19 @@ FILE *fp;
 $ClsLecturas	regLectu;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
 	sprintf(sLinea, "T1%ld-%ld\t&ENDE", regLectu.numero_cliente, regLectu.corr_facturacion);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
 	
 }
 
@@ -1260,6 +1298,7 @@ long        lFechaMv;
 	int		iNumerador;
    long     lFechaLectura;
 	long     lFechaAux;
+   int      iRcv;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 
@@ -1320,7 +1359,12 @@ long        lFechaMv;
 			
 		strcat(sLinea, "\n");
 
-		fprintf(fp, sLinea);
+   	iRcv=fprintf(fp, sLinea);
+      if(iRcv < 0){
+         printf("Error al escribir IEABLU err %d\n", errno);
+         exit(1);
+      }	
+      
 /*
 		memset(sLinea, '\0', sizeof(sLinea));
 	
@@ -1389,7 +1433,12 @@ long        lFechaMv;
 
 	strcat(sLinea, "\n");
 
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir IEABLU %d\n", errno);
+      exit(1);
+   }	
+   
 /*
   	memset(sLinea, '\0', sizeof(sLinea));
 
@@ -1589,6 +1638,8 @@ $ClsLecturas	*regLectu;
       
    if(SQLCODE != 0){
       printf("No se encontró fecha ini ventana para UL %s Fecha Lectura %ld\n", regLectu->UL, regLectu->lFechaLectura);
+      printf("\tSe hace segundo intento\n");
+      
    }      
 	
    
@@ -1729,6 +1780,26 @@ $char   *sSucur;
 	
 	return 1;
 }
+
+short getNvaVentana(reg)
+$ClsLecturas *reg;
+{
+   $long lFechaAux = reg->lFechaLectura;
+
+   alltrim(reg->UL, ' ');
+   $EXECUTE selIniVentana3 INTO :reg->fechaIniVentana USING
+      :reg->porcion,
+      :reg->UL,
+      :lFechaAux;
+      
+   if(SQLCODE != 0 || strcmp(reg->fechaIniVentana, "")==0){
+      printf("No se encontró fecha ini ventana para porcion %s UL %s Fecha Lectura %ld Intento 3\n",reg->porcion, reg->UL, lFechaAux);
+      return 0;
+   }
+
+   return 1;
+}
+
 
 /****************************
 		GENERALES

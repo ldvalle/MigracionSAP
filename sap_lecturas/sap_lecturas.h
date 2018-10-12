@@ -86,4 +86,6 @@ short	getUltimoConsumoReactiva(int, long, long, ClsLecturas *);
 void	DuplicaRegistro(ClsLecturas, ClsLecturas *);
 short	ExisteFactura(long, long);
 short	LeoSucursal(char *);
+short getNvaVentana(ClsLecturas *);
+
 $endif;

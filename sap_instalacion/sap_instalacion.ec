@@ -314,6 +314,7 @@ short AbreArchivos()
    memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
+strcpy(sPathSalida, "/fs/migracion/generacion/SAP/");   
 	alltrim(sPathSalida,' ');
 
 	RutaArchivos( sPathCopia, "SAPCPY" );
@@ -374,6 +375,11 @@ char	sPathCp[100];
 	
 	sprintf(sCommand, "cp %s %s", sArchInstalacionUnx, sPathCp);
 	iRcv=system(sCommand);
+   
+   if(iRcv == 0){
+      sprintf(sCommand, "rm -f %s", sArchInstalacionUnx);
+      iRcv=system(sCommand);
+   }
 	
    /* El archivo ZZ */
 	sprintf(sCommand, "chmod 755 %s", sArchInstalZZUnx);
@@ -381,6 +387,11 @@ char	sPathCp[100];
 	
 	sprintf(sCommand, "cp %s %s", sArchInstalZZUnx, sPathCp);
 	iRcv=system(sCommand);
+
+   if(iRcv == 0){
+      sprintf(sCommand, "rm -f %s", sArchInstalZZUnx);
+      iRcv=system(sCommand);
+   }
 
 }
 
@@ -999,6 +1010,24 @@ strcat(sql, "END unidad_lectura, ");
    
    $PREPARE selTarifInstal2 FROM $sql;
 
+   /******** FEcha Move In 1 *********/
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura + 1) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.fecha_lectura >= ? ");
+	strcat(sql, "AND tipo_lectura in (1, 2, 3, 4) ");
+      
+   $PREPARE selMoveIn FROM $sql;
+               
+   /******** FEcha Move In 2 *********/
+	strcpy(sql, "SELECT MIN(h1.fecha_lectura + 1) ");
+	strcat(sql, "FROM hislec h1 ");
+	strcat(sql, "WHERE h1.numero_cliente = ? ");
+	strcat(sql, "AND h1.fecha_lectura >= ? ");
+	strcat(sql, "AND tipo_lectura in (6, 7) ");
+      
+   $PREPARE selMoveIn2 FROM $sql;
+
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -1613,7 +1642,8 @@ void GeneraENDE(fp, regIns)
 FILE *fp;
 $ClsInstalacion	regIns;
 {
-	char	sLinea[1000];	
+	char	sLinea[1000];
+   int   iRcv;	
 
 	memset(sLinea, '\0', sizeof(sLinea));
 	
@@ -1621,7 +1651,12 @@ $ClsInstalacion	regIns;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+	
 }
 /*
 short RegistraArchivo(void)
@@ -1675,7 +1710,8 @@ FILE 		*fp;
 ClsInstalacion	regIns;
 {
 	char	sLinea[1000];	
-	
+   int   iRcv;
+   	
 	memset(sLinea, '\0', sizeof(sLinea));
 
    /* LLAVE */
@@ -1691,7 +1727,12 @@ ClsInstalacion	regIns;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir KEY\n");
+      exit(1);
+   }	
+	
 	
 }
 
@@ -1702,6 +1743,7 @@ ClsInstalacion	regIns;
 	char	sLinea[1000];	
    long  lFechaAlta;
    long  lFechaRti;
+   int   iRcv;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 	
@@ -1765,7 +1807,12 @@ ClsInstalacion	regIns;
    
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir DATA\n");
+      exit(1);
+   }	
+
 }
 
 /*
@@ -1856,6 +1903,7 @@ FILE 			    *fp;
 ClsInstalacion	 regIns;
 {
 	char	sLinea[1000];	
+   int   iRcv;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 	
@@ -2020,7 +2068,12 @@ ClsInstalacion	 regIns;
    
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ZZ\n");
+      exit(1);
+   }	
+
 
 }
 

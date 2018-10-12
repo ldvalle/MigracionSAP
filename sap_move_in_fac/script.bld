@@ -1,13 +1,12 @@
-PROGRAM = sap_lecturas.exe
+PROGRAM = sap_move_in_fac.exe
 
-OBJECTS = sap_lecturas.o 
+OBJECTS = sap_move_in_fac.o 
 
 OBJS_LIB = sqlerror.o ustring.o macmath.o
 
 OTROS =
 
 LXFLAGS = -lsynmail -lmail
-CXFLAGS = -D_LARGE_FILES -qlonglong
 
 %If "$(SYSTEM)" == "AIX/RS-6000"
 .include /usr/pvcs/etc/build.def
@@ -17,8 +16,8 @@ CXFLAGS = -D_LARGE_FILES -qlonglong
 
 #UPDATE#
 
-sap_lecturas.o : sap_lecturas.ec   \
-              sap_lecturas.h           \
+sap_move_in_fac.o : sap_move_in_fac.ec   \
+              sap_move_in_fac.h           \
               codigos.h                    \
               sqlerror.h                   \
               lotes.h                      \

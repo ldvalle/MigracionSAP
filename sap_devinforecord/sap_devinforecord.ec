@@ -371,6 +371,11 @@ char	sPathCp[100];
    
    	sprintf(sCommand, "cp %s %s", sArchMedExtInstal, sPathCp);
    	iRcv=system(sCommand);
+      
+      if(iRcv == 0 ){
+   	  sprintf(sCommand, "rm -f %s", sArchMedExtInstal);
+   	  iRcv=system(sCommand);
+      }
 
    }
    
@@ -381,6 +386,11 @@ char	sPathCp[100];
 
 	sprintf(sCommand, "cp %s %s", sArchMedNoInstalUnx, sPathCp);
 	iRcv=system(sCommand);
+
+   if(iRcv == 0 ){
+	  sprintf(sCommand, "rm -f %s", sArchMedNoInstalUnx);
+	  iRcv=system(sCommand);
+   }
    
    /***********/
 	sprintf(sCommand, "chmod 755 %s", sArchMedExtNoInstal);
@@ -389,6 +399,10 @@ char	sPathCp[100];
 	sprintf(sCommand, "cp %s %s", sArchMedExtNoInstal, sPathCp);
 	iRcv=system(sCommand);
 
+   if(iRcv == 0 ){
+	  sprintf(sCommand, "rm -f %s", sArchMedExtNoInstal);
+	  iRcv=system(sCommand);
+   }
 
 /*
 	if(cantInstalados>0){

@@ -237,6 +237,9 @@ $long       lFechaHasta;
                if(lContador >= 350000){
                   fclose(fpQConsBimes);
                   fclose(fpFacDiasPC);
+                  
+                  MueveArchivos();
+                  
                   iIndice++;
                   lContador=0;
             		if(!AbreArchivos(sSucursal, iIndice)){
@@ -290,7 +293,11 @@ $long       lFechaHasta;
 	/* ********************************************
 				FIN AREA DE PROCESO
 	********************************************* */
+   MueveArchivos();
+/*   
    FormateaArchivos(sSucursal, iIndice);
+*/   
+   
    /*
 	for(i=0; i<12; i++){
 		strcpy(sSucursal, vSucursal[i]);
@@ -438,6 +445,50 @@ void CerrarArchivos(void)
    /*
    fclose(fpLeyenda);
    */
+}
+
+void  MueveArchivos()
+{
+char	sCommand[1000];
+int	iRcv;
+char	sPathCp[100];
+
+	memset(sCommand, '\0', sizeof(sCommand));
+	memset(sPathCp, '\0', sizeof(sPathCp));
+
+	if(giEstadoCliente==0){
+		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
+      sprintf(sPathCp, "%sActivos/Operandos/", sPathCopia);
+	}else{
+		/*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
+      sprintf(sPathCp, "%sInactivos/", sPathCopia);
+	}
+
+   /* El de consumos bimestrales */
+	sprintf(sCommand, "chmod 755 %s", sArchQConsBimesUnx);
+	iRcv=system(sCommand);
+	
+	sprintf(sCommand, "cp %s %s", sArchQConsBimesUnx, sPathCp);
+	iRcv=system(sCommand);		
+
+   if(iRcv == 0){
+      sprintf(sCommand, "rm %s", sArchQConsBimesUnx);
+      iRcv=system(sCommand);
+   }
+   
+   
+   /* El de Dias del período */
+	sprintf(sCommand, "chmod 755 %s", sArchFacDiasPCUnx);
+	iRcv=system(sCommand);
+	
+	sprintf(sCommand, "cp %s %s", sArchFacDiasPCUnx, sPathCp);
+	iRcv=system(sCommand);		
+
+   if(iRcv == 0){
+      sprintf(sCommand, "rm %s", sArchFacDiasPCUnx);
+      iRcv=system(sCommand);
+   }
+
 }
 
 void FormateaArchivos(sSucur, indice)
@@ -1133,6 +1184,7 @@ ClsFacts regFact;
 {
 	char	sLinea[1000];	
    char  sMarca[3];
+   int   iRcv;
        
 	memset(sLinea, '\0', sizeof(sLinea));
    memset(sMarca, '\0', sizeof(sMarca));
@@ -1154,7 +1206,12 @@ ClsFacts regFact;
    
    strcat(sLinea, "\n");
    
-   fprintf(fpSalida, sLinea);
+	iRcv=fprintf(fpSalida, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir KEY\n");
+      exit(1);
+   }	
+
 
 }
 
@@ -1164,6 +1221,7 @@ int      iMarca;
 ClsFacts regFact;
 {
 	char	sLinea[1000];
+   int   iRcv;
     
 	memset(sLinea, '\0', sizeof(sLinea));
 
@@ -1182,7 +1240,11 @@ ClsFacts regFact;
    
    strcat(sLinea, "\n");
    
-   fprintf(fpSalida, sLinea);
+	iRcv=fprintf(fpSalida, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir Cuerpo\n");
+      exit(1);
+   }	
 
 }
 
@@ -1192,6 +1254,7 @@ int      iMarca;
 ClsFacts regFact;
 {
 	char	sLinea[1000];	
+   int   iRcv;
     
 	memset(sLinea, '\0', sizeof(sLinea));
 
@@ -1219,7 +1282,11 @@ ClsFacts regFact;
    
    strcat(sLinea, "\n");
    
-   fprintf(fpSalida, sLinea);
+	iRcv=fprintf(fpSalida, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir Pie\n");
+      exit(1);
+   }	
 
 }
 
@@ -1231,7 +1298,7 @@ ClsFacts regFact;
 {
 	char	sLinea[1000];
    char  sMarca[3];
-   	
+   int   iRcv;	
 
 	memset(sLinea, '\0', sizeof(sLinea));
    memset(sMarca, '\0', sizeof(sMarca));
@@ -1246,7 +1313,12 @@ ClsFacts regFact;
    
 	strcat(sLinea, "\n");
 	
-	fprintf(fpSalida, sLinea);	
+	iRcv=fprintf(fpSalida, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 /*
 short RegistraArchivo(void)

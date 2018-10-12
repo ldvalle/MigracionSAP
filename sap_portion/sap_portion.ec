@@ -149,7 +149,6 @@ long   index=1;
 		fpPortion=pFilePortionActivoUnx;
 
 		while(LeoPortion(&regPortion)){
-      
 /*         
          if(!getFactuAnterior(&regPortion)){
 				$ROLLBACK WORK;
@@ -295,6 +294,7 @@ short AbreArchivos()
    memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
+strcpy(sPathSalida, "/fs/migracion/generacion/SAP/");   
 	alltrim(sPathSalida,' ');
 
 	RutaArchivos( sPathCopia, "SAPCPY" );
@@ -385,6 +385,11 @@ char	sPathCp[100];
 		sprintf(sCommand, "cp %s %s", sArchPortionActivoUnx, sPathCp);
 		iRcv=system(sCommand);
       
+      if(iRcv==0){
+         sprintf(sCommand, "rm -f %s", sArchPortionActivoUnx);
+         iRcv=system(sCommand);
+      }
+      
 	}
 	
 	if(cantProcesadaULActivo>0){
@@ -393,6 +398,11 @@ char	sPathCp[100];
 		
 		sprintf(sCommand, "cp %s %s", sArchULActivoUnx, sPathCp);
 		iRcv=system(sCommand);
+
+      if(iRcv==0){
+         sprintf(sCommand, "rm -f %s", sArchULActivoUnx);
+         iRcv=system(sCommand);
+      }
       		
 	}
 	
@@ -440,7 +450,8 @@ $char sAux[1000];
 
    /******** Fecha Pivote 2  ****************/
    /*strcpy(sql, "SELECT TODAY - 70 FROM dual ");*/
-   strcpy(sql, "SELECT fecha_pivote - 60 FROM sap_regi_cliente ");
+   /*strcpy(sql, "SELECT fecha_pivote - 60 FROM sap_regi_cliente ");*/
+   strcpy(sql, "SELECT fecha_pivote - 10 FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = 0 ");
    
    $PREPARE selPivote2 FROM $sql;
@@ -860,14 +871,20 @@ FILE *fp;
 $ClsPortion	regPor;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "%s\t&ENDE", regPor.cod_porcion);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 
 void GeneraENDEul(fp, regUl)
@@ -875,14 +892,20 @@ FILE *fp;
 $ClsUnLectu	regUl;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "%s\t&ENDE", regUl.cod_ul);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 /*
 short RegistraArchivo(void)
@@ -934,7 +957,8 @@ FILE 		*fp;
 ClsPortion	regPor;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	alltrim(regPor.desc_porcion, ' ');
 
@@ -1019,7 +1043,12 @@ ClsPortion	regPor;
    
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir TE420\n");
+      exit(1);
+   }	
+   
 	
 }
 
@@ -1028,7 +1057,8 @@ FILE 		*fp;
 ClsUnLectu	regUl;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	alltrim(regUl.desc_ul, ' ');
@@ -1099,7 +1129,12 @@ ClsUnLectu	regUl;
       	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir TE422\n");
+      exit(1);
+   }	
+   
 }
 
 void GeneraTE425(fp, regUl)
@@ -1107,7 +1142,8 @@ FILE 		*fp;
 ClsUnLectu	regUl;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	alltrim(regUl.desc_ul, ' ');
@@ -1118,7 +1154,12 @@ ClsUnLectu	regUl;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir TE425\n");
+      exit(1);
+   }	
+
 }
 
 short getFactuAnterior(reg)

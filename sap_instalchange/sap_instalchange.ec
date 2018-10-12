@@ -454,6 +454,10 @@ char	sPathCp[100];
 	sprintf(sCommand, "cp %s %s", sArchInstalacionUnx, sPathCp);
 	iRcv=system(sCommand);
 	
+   if(iRcv == 0){
+	  sprintf(sCommand, "rm -f %s", sArchInstalacionUnx);
+	  iRcv=system(sCommand);	
+   }
 	
 /*
 	if(cantActivos>0){
@@ -877,14 +881,20 @@ $ClsCliente       regCliente;
 int               iSec;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld-%d\t&ENDE", regCliente.numero_cliente, iSec);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(pFileInstalacionUnx, sLinea);	
+	iRcv=fprintf(pFileInstalacionUnx, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 /*
 short RegistraArchivo(void)
@@ -930,7 +940,8 @@ ClsCliente     regCliente;
 ClsFacturas    regFacturas;
 int      iSec;
 {
-	char	sLinea[1000];	
+	char	sLinea[1000];
+   int   iRcv;	
 	
 	memset(sLinea, '\0', sizeof(sLinea));
 
@@ -943,7 +954,12 @@ int      iSec;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(pFileInstalacionUnx, sLinea);	
+	iRcv=fprintf(pFileInstalacionUnx, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir KEY\n");
+      exit(1);
+   }	
+   	
 	
 }
 
@@ -956,6 +972,7 @@ int         iSec;
 	char	sLinea[1000];	
    long  lFechaRti;
    long  lFechaFactura;
+   int   iRcv;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 	
@@ -1006,7 +1023,12 @@ int         iSec;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(pFileInstalacionUnx, sLinea);
+	iRcv=fprintf(pFileInstalacionUnx, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir DATA\n");
+      exit(1);
+   }	
+   
 }
 
 

@@ -91,6 +91,7 @@ short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(char*, int);
+void  MueveArchivos();
 
 short	ClienteYaMigrado(long, long*, int*);
 short	RegistraCliente(long, int);

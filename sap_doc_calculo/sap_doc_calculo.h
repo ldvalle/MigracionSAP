@@ -50,28 +50,48 @@ $typedef struct{
    int      corr_refacturacion;
    char     clase_servicio[3];
    char     cdc[11];
+
+   long     lFechaLectura;
+   char     cod_ul[9];
+   char     cod_porcion[9];
+   long     lFechaIniVentana;
+   int      iTipoLectura;
+   
 }ClsHisfac;
 
 $typedef struct{
   char     codigo_cargo[4];
   double   valor_cargo;
-  char     unidad[5]; 
+  char     unidad[5];
+  double   precio_unitario;   
+/*  
   char     clase_pos_doc[10];
   char     contrapartida[10];
   char     cte_de_calculo[10];
   char     tipo_precio[10];
   char     tarifa[10];
   char     deriv_contable[10];
-  double   precio_unitario;
+
   char     tipo_cargo_tarifa[2];
   
   char     ctaContable[9];
-  char     tvorg[5];
-  char     belzart[10];
-  char     preistyp[30];
-  char     tarifnr[15];
   char     gegen_tvorg[5];
-  char     mngbasis[2];    
+  char     mngbasis[2];
+*/
+  char      descripcion[51];
+  long      vonzone;
+  long      biszone;
+  char      tariftyp[21];
+  char      tarifnr[11];
+  char      belzart[11];
+  short     preistyp;
+  char      massbill[6];
+  char      preis[21];
+  short     zonennr;
+  char      ein01[6];
+  char      tvorg[6];
+  char      gegen_tvorg[11];
+  char      sno[11];
 }ClsDetalle;
 
 $typedef struct{
@@ -85,7 +105,7 @@ $typedef struct{
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
 void	MensajeParametros(void);
-short	AbreArchivos(char*);
+short	AbreArchivos(char*, int);
 void  CreaPrepare(void);
 void 	FechaGeneracionFormateada( char *);
 void 	RutaArchivos( char*, char * );
@@ -106,7 +126,7 @@ void  InicializaCliente(ClsCliente *);
 short CorporativoT23(ClsCliente *);
 short CorporativoPropio(ClsCliente *);
 
-short LeoFacturasCabe(ClsHisfac *);
+short LeoFacturasCabe(ClsHisfac *, int);
 void  InicializaFacturasCabe(ClsHisfac *);
 short getFechaLectuAnterior(ClsHisfac *);
 void  Calculos(ClsHisfac *);
@@ -122,7 +142,7 @@ void  GeneraENDE(ClsHisfac, ClsDetalle, int);
 short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
-void	FormateaArchivos(void);
+void	FormateaArchivos(int);
 
 short	ClienteYaMigrado(long, int*);
 short	RegistraCliente(long, int);

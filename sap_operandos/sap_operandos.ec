@@ -446,6 +446,11 @@ char	sPathCp[100];
 	
 	sprintf(sCommand, "cp %s %s", sArchOperandosUnx, sPathCp);
 	iRcv=system(sCommand);
+   
+   if(iRcv == 0){
+      sprintf(sCommand, "rm -f %s", sArchOperandosUnx);
+      iRcv=system(sCommand);
+   }
 }
 
 void CreaPrepare(void){
@@ -1064,14 +1069,20 @@ $ClsOperando	regOpe;
 long			iNx;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld-%ld\t&ENDE", regOpe.numero_cliente, iNx);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 /*
 short RegistraArchivo(void)
@@ -1128,7 +1139,8 @@ ClsOperando	regOpe;
 long		iNx;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
 	sprintf(sLinea, "T1%ld-%ld\tKEY\t", regOpe.numero_cliente, iNx);
@@ -1139,7 +1151,12 @@ long		iNx;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir KEY\n");
+      exit(1);
+   }	
+   	
 }
 
 void GeneraFFlag(sTipo, fp, regOpe, iNx)
@@ -1150,7 +1167,8 @@ long			iNx;
 {
 
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld-%ld\tF_FLAG\t", regOpe.numero_cliente, iNx);
@@ -1163,7 +1181,11 @@ long			iNx;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir F_FLAG\n");
+      exit(1);
+   }	
 
 }
 
@@ -1175,7 +1197,8 @@ long			iNx;
 {
 
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld-%ld\tV_FLAG\t", regOpe.numero_cliente, iNx);
@@ -1191,7 +1214,11 @@ long			iNx;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir V_FLAG\n");
+      exit(1);
+   }	
 
 }
 

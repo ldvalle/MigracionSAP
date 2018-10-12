@@ -568,6 +568,10 @@ char	sPathCp[100];
 		sprintf(sCommand, "cp %s %s", sArchConexActivoUnx, sPathCp);
 		iRcv=system(sCommand);
       
+      if(iRcv == 0){
+         sprintf(sCommand, "rm -f %s", sArchConexActivoUnx);
+         iRcv=system(sCommand);
+      }
 	}
 
 	if(cantProcesadaConexNoActivo>0){
@@ -576,6 +580,11 @@ char	sPathCp[100];
 		
 		sprintf(sCommand, "cp %s %s", sArchConexNoActivoUnx, sPathCp);
 		iRcv=system(sCommand);
+
+      if(iRcv == 0){
+         sprintf(sCommand, "rm -f %s", sArchConexNoActivoUnx);
+         iRcv=system(sCommand);
+      }
       		
 	}
 
@@ -585,7 +594,11 @@ char	sPathCp[100];
 		
 		sprintf(sCommand, "cp %s %s", sArchPtoSumActivoUnx, sPathCp);
 		iRcv=system(sCommand);
-      
+
+      if(iRcv == 0){
+         sprintf(sCommand, "rm -f %s", sArchPtoSumActivoUnx);
+         iRcv=system(sCommand);
+      }
 	}
 
 	if(cantProcesadaPtoSumNoActivo>0){
@@ -594,7 +607,11 @@ char	sPathCp[100];
 		
 		sprintf(sCommand, "cp %s %s", sArchPtoSumNoActivoUnx, sPathCp);
 		iRcv=system(sCommand);
-      
+
+      if(iRcv == 0){
+         sprintf(sCommand, "rm -f %s", sArchPtoSumNoActivoUnx);
+         iRcv=system(sCommand);
+      }
 	}
 
 	if(cantProcesadaUbicApaActivo>0){
@@ -603,7 +620,11 @@ char	sPathCp[100];
 		
 		sprintf(sCommand, "cp %s %s", sArchUbicApaActivoUnx, sPathCp);
 		iRcv=system(sCommand);
-      
+
+      if(iRcv == 0){
+         sprintf(sCommand, "rm -f %s", sArchUbicApaActivoUnx);
+         iRcv=system(sCommand);
+      }
 	}
 
 	if(cantProcesadaUbicApaNoActivo>0){
@@ -612,6 +633,11 @@ char	sPathCp[100];
 		
 		sprintf(sCommand, "cp %s %s", sArchUbicApaNoActivoUnx, sPathCp);
 		iRcv=system(sCommand);
+
+      if(iRcv == 0){
+         sprintf(sCommand, "rm -f %s", sArchUbicApaNoActivoUnx);
+         iRcv=system(sCommand);
+      }
       
 	}
 
@@ -1038,14 +1064,20 @@ FILE *fp;
 $ClsCliente	regCliente;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld\t&ENDE", regCliente.numero_cliente);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 
 
@@ -1255,7 +1287,8 @@ FILE 		*fp;
 ClsCliente	regCliente;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
    /* LLAVE + SPRAS + BEGRU */
@@ -1269,7 +1302,12 @@ ClsCliente	regCliente;
 	*/
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir CO_EHA\n");
+      exit(1);
+   }	
+   	
 	
 }
 
@@ -1279,7 +1317,8 @@ ClsCliente	regCliente;
 {
 	char	sLinea[10000];
    char  sAux[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
    memset(sAux, '\0', sizeof(sAux));
 	
@@ -1333,7 +1372,12 @@ ClsCliente	regCliente;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir CO_ADR\n");
+      exit(1);
+   }	
+   
 }
 
 void GeneraEVBSD(fp, regCliente)
@@ -1341,7 +1385,8 @@ FILE 		*fp;
 ClsCliente	regCliente;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	alltrim(regCliente.piso_dir, ' ');
@@ -1362,7 +1407,13 @@ ClsCliente	regCliente;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir EVBSD\n");
+      exit(1);
+   }	
+   
+   	
 }
 
 void GeneraEGPLD(fp, regCliente)
@@ -1370,7 +1421,8 @@ FILE 		*fp;
 ClsCliente	regCliente;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	alltrim(regCliente.info_adic_lectura, ' ');
@@ -1387,7 +1439,11 @@ ClsCliente	regCliente;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir EGPLD\n");
+      exit(1);
+   }	
 		
 }
 	

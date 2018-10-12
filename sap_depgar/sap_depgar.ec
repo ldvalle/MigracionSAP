@@ -327,6 +327,12 @@ char	sPathCp[100];
 	
 	sprintf(sCommand, "cp %s %s", sArchDepgarUnx, sPathCp);
 	iRcv=system(sCommand);
+   
+   if(iRcv==0){
+      sprintf(sCommand, "rm -f %s", sArchDepgarUnx);
+      iRcv=system(sCommand);
+   }
+   
 }
 
 void CreaPrepare(void){
@@ -733,14 +739,20 @@ FILE *fp;
 $ClsDepgar	regDep;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld\t&ENDE", regDep.numero_cliente);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 /*
 short RegistraArchivo(void)
@@ -787,7 +799,8 @@ FILE 		*fp;
 ClsDepgar	regDep;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
 	sprintf(sLinea, "T1%ld\tSECD\t", regDep.numero_cliente);
@@ -849,7 +862,12 @@ ClsDepgar	regDep;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir SEC_D\n");
+      exit(1);
+   }	
+	
 }
 
 void GeneraSEC_C(fp, regDep)
@@ -857,7 +875,7 @@ FILE 		*fp;
 ClsDepgar	regDep;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
 	memset(sLinea, '\0', sizeof(sLinea));
 
 	sprintf(sLinea, "T1%ld\tSECC\t", regDep.numero_cliente);
@@ -872,7 +890,12 @@ ClsDepgar	regDep;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir SEC_C\n");
+      exit(1);
+   }	
+	
 }
 
 

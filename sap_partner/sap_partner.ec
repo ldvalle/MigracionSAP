@@ -406,6 +406,23 @@ long  lCantInFiles;
 	
 	sprintf(sCommand, "cp %s %s", sArchUnx, sPathDestino);
 	iRcv=system(sCommand);
+   
+   if(iRcv==0){
+      sprintf(sCommand, "rm -f %s", sArchUnx);
+      iRcv=system(sCommand);
+   }
+
+  	sprintf(sCommand, "chmod 755 %s", sArchCorpoUnx);
+	iRcv=system(sCommand);
+	
+	sprintf(sCommand, "cp %s %s", sArchCorpoUnx, sPathDestino);
+	iRcv=system(sCommand);
+   
+   if(iRcv==0){
+      sprintf(sCommand, "rm -f %s", sArchCorpoUnx);
+      iRcv=system(sCommand);
+   }
+
 	
 /*
 	memset(sCommand, '\0', sizeof(sCommand));
@@ -1319,7 +1336,8 @@ $ClsCliente	regCliente;
 	char	sLinea[1000];	
 	int		iTipoPersona;
 	char	sAux[5];
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	memset(sAux, '\0', sizeof(sAux));
 	
@@ -1352,7 +1370,12 @@ $ClsCliente	regCliente;
 	sprintf(sLinea, "%sMKK",sLinea);
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir INIT\n");
+      exit(1);
+   }	
+   
 	
 }
 
@@ -1362,7 +1385,8 @@ $ClsCliente	regCliente;
 {
 	char	sLinea[1000];	
 	int		iTipoPersona;
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	alltrim(regCliente.nombre, ' ');
 	alltrim(regCliente.actividad_economic, ' ');
@@ -1412,7 +1436,12 @@ $ClsCliente	regCliente;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir BUT000\n");
+      exit(1);
+   }	
+   
 }
 
 void GeneraBUT0ID(fp, regCliente)
@@ -1420,7 +1449,8 @@ FILE *fp;
 $ClsCliente	regCliente;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	alltrim(regCliente.tip_doc, ' ');
 
@@ -1431,7 +1461,11 @@ $ClsCliente	regCliente;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir BUT0ID\n");
+      exit(1);
+   }	
 }
 
 void GeneraBUTCOM(fp, regCliente, regTelefonos, regEmail, iCantTele, iCantMail)
@@ -1446,7 +1480,8 @@ int			iCantMail;
 	char	sAux[10];
 	int		i=0;
 	int		s=0;
-	
+	int     iRcv;
+   
 	alltrim(regCliente.telefono, ' ');
 
 	if(iCantTele==0 && iCantMail==0 && strcmp(regCliente.telefono, "")==0)
@@ -1472,7 +1507,12 @@ int			iCantMail;
 
 		strcat(sLinea, "\n");
 	
-		fprintf(fp, sLinea);		
+   	iRcv=fprintf(fp, sLinea);
+      if(iRcv < 0){
+         printf("Error al escribir BUTCOM\n");
+         exit(1);
+      }	
+      		
 	}
 	/* Inserto el de la tabla CLIENTE si es que no estaba en TELEFONO */	
 	if(s==0 && strcmp(regCliente.telefono, "")!=0){
@@ -1486,7 +1526,12 @@ int			iCantMail;
 
 		strcat(sLinea, "\n");
 	
-		fprintf(fp, sLinea);		
+   	iRcv=fprintf(fp, sLinea);
+      if(iRcv < 0){
+         printf("Error al escribir BUTCOM\n");
+         exit(1);
+      }	
+		
 	}
 	
 	
@@ -1500,19 +1545,34 @@ int			iCantMail;
 			memset(sLinea, '\0', sizeof(sLinea));
 		
 			sprintf(sLinea, "T1%ld\tBUTCOM\t\t\t\t\tI\t%s\n", regCliente.numero_cliente, regEmail.email1);
-			fprintf(fp, sLinea);	
+      	iRcv=fprintf(fp, sLinea);
+         if(iRcv < 0){
+            printf("Error al escribir BUTCOM\n");
+            exit(1);
+         }	
+	
 		}
 		if(strcmp(regEmail.email2,"")!=0){
 			memset(sLinea, '\0', sizeof(sLinea));
 		
 			sprintf(sLinea, "T1%ld\tBUTCOM\t\t\t\t\tI\t%s\n", regCliente.numero_cliente, regEmail.email2);
-			fprintf(fp, sLinea);	
+      	iRcv=fprintf(fp, sLinea);
+         if(iRcv < 0){
+            printf("Error al escribir BUTCOM\n");
+            exit(1);
+         }	
+	
 		}
 		if(strcmp(regEmail.email3,"")!=0){
 			memset(sLinea, '\0', sizeof(sLinea));
 		
 			sprintf(sLinea, "T1%ld\tBUTCOM\t\t\t\t\tI\t%s\n", regCliente.numero_cliente, regEmail.email3);
-			fprintf(fp, sLinea);	
+      	iRcv=fprintf(fp, sLinea);
+         if(iRcv < 0){
+            printf("Error al escribir BUTCOM\n");
+            exit(1);
+         }	
+	
 		}				
 	}
 }
@@ -1526,7 +1586,8 @@ int		iEsCorpo;
 {
 	char	sLinea[10000];	
 	char	sAux[300];
-	
+	int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	memset(sAux, '\0', sizeof(sAux));
 	
@@ -1643,7 +1704,13 @@ int		iEsCorpo;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir BUT020\n");
+      exit(1);
+   }	
+   	
 }
 
 void GeneraBUT0BK(fp, regCliente, regFpago)
@@ -1652,7 +1719,8 @@ $ClsCliente	regCliente;
 $ClsFormaPago	regFpago;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	alltrim(regFpago.fp_nrocuenta, ' ');
 	alltrim(regCliente.nombre, ' ');
@@ -1675,7 +1743,12 @@ $ClsFormaPago	regFpago;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir BUT0BK\n");
+      exit(1);
+   }	
+   	
 }
 
 void GeneraBUT0CC(fp, regCliente, regFpago)
@@ -1684,7 +1757,8 @@ $ClsCliente	regCliente;
 $ClsFormaPago	regFpago;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	alltrim(regFpago.fp_nrocuenta, ' ');
 	alltrim(regCliente.nombre, ' ');
@@ -1712,7 +1786,12 @@ $ClsFormaPago	regFpago;
 	
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir BUT0CC\n");
+      exit(1);
+   }	
+   	
 }
 
 void GeneraTAXNUM(fp, regCliente)
@@ -1721,7 +1800,8 @@ $ClsCliente	regCliente;
 {
 	char	sLinea[1000];
 	char	sAux[4];
-	
+	int  iRcv;
+   
 	memset(sAux, '\0', sizeof(sAux));	
 
 	alltrim(regCliente.rut, ' ');
@@ -1743,7 +1823,11 @@ $ClsCliente	regCliente;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir TAXNUM\n");
+      exit(1);
+   }	
 
 }
 
@@ -1752,14 +1836,20 @@ FILE *fp;
 $ClsCliente	regCliente;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld\t&ENDE", regCliente.numero_cliente);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+	
 }
 
 int getTipoPersona(sTipoCliente)

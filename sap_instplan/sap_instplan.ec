@@ -128,7 +128,7 @@ int         iFica;
 	
 	while(LeoConve(&regConve)){
 		if(! ClienteYaMigrado(regConve.numero_cliente, &iFlagMigra)){
-         iFica = getFica(regConve.numero_cliente);
+         iFica = getFica(&regConve);
          
          GenerarPlano(pFileUnx, iFica, regConve);
 			
@@ -255,6 +255,7 @@ short AbreArchivos()
    memset(sPathCopia,'\0',sizeof(sPathCopia));
 
 	RutaArchivos( sPathSalida, "SAPISU" );
+  
 	alltrim(sPathSalida,' ');
 
 	RutaArchivos( sPathCopia, "SAPCPY" );
@@ -304,6 +305,12 @@ char	sPathCp[100];
 	
 	sprintf(sCommand, "cp %s %s", sArchUnx, sPathCp);
 	iRcv=system(sCommand);
+   
+   if(iRcv == 0){
+	  sprintf(sCommand, "rm -f %s", sArchUnx);
+	  iRcv=system(sCommand);
+   }
+   
 }
 
 void CreaPrepare(void){
@@ -491,11 +498,17 @@ $char sAux[1000];
       WHERE numero_cliente = ?";
    
    /********** Saldos Imp.Convenio ************/
+   $PREPARE selImpuConve FROM "SELECT SUM(saldo), COUNT(*) FROM detalle_imp_conve
+      WHERE numero_cliente = ?
+      AND saldo != 0 ";
+
+   
+/*   
    $PREPARE selImpuConve FROM "SELECT COUNT(*)
       FROM detalle_imp_conve
       WHERE numero_cliente = ?
       and saldo != 0";
-   
+*/   
    
 }
 
@@ -678,7 +691,8 @@ $ClsConve		reg;
    double   dValorCuota;
    double   dDiffSaldo;
    long  lVencimiento;
-
+   double   dTotalCuotas;
+   
    iCuotas = reg.numero_tot_cuotas - reg.numero_ult_cuota;
    iCuota = reg.numero_ult_cuota + 1;
    /*
@@ -687,9 +701,17 @@ $ClsConve		reg;
    }else{
       dDiffSaldo = reg.deuda_convenida - (iCuotas * reg.valor_cuota);
    }
-   */
-   dDiffSaldo = reg.deuda_convenida - (iCuotas * reg.valor_cuota);
 
+   if(reg.deuda_convenida > 0){
+      dDiffSaldo = reg.deuda_convenida - (iCuotas * reg.valor_cuota);
+   }else{
+      dDiffSaldo = reg.deuda_origen - (iCuotas * reg.valor_cuota) - reg.valor_cuota_ini;
+   }
+   */
+   
+   dTotalCuotas=(iCuotas * reg.valor_cuota);
+   dDiffSaldo = reg.dSaldoEnFica- (iCuotas * reg.valor_cuota);    
+   
 	/* IPKEY */	
 	GeneraIPKEY(fp, reg);
 
@@ -734,6 +756,7 @@ long  lVto;
 {
 	char	sLinea[1000];	
    char  sVto[11];
+   int   iRcv;
    
 	memset(sLinea, '\0', sizeof(sLinea));
    memset(sVto, '\0', sizeof(sVto));
@@ -753,7 +776,11 @@ long  lVto;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir IPDATA\n");
+      exit(1);
+   }	
 
 }
 
@@ -762,14 +789,20 @@ FILE *fp;
 $ClsConve	reg;
 {
 	char	sLinea[1000];	
-
+   int   iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 	
 	sprintf(sLinea, "T1%ld\t&ENDE", reg.numero_cliente);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+   	
 }
 
 short RegistraArchivo(void)
@@ -814,7 +847,8 @@ FILE 		*fp;
 ClsConve	reg;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
    /* LLAVE */
@@ -841,7 +875,12 @@ ClsConve	reg;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir IPKEY\n");
+      exit(1);
+   }	
+   	
 }
 
 void GeneraIPOPKY(fp, i, reg)
@@ -850,7 +889,8 @@ int      i;
 ClsConve	reg;
 {
 	char	sLinea[1000];	
-	
+	int  iRcv;
+   
 	memset(sLinea, '\0', sizeof(sLinea));
 
    /* LLAVE */
@@ -868,37 +908,49 @@ ClsConve	reg;
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir IPOPKY\n");
+      exit(1);
+   }	
 }
 
-int getFica(lNroCliente)
-$long lNroCliente;
+int getFica(reg)
+$ClsConve   *reg;
 {
    $int iCant=0;
+   $double  dSaldoFica=0.00;
+   $double  dSaldoImp=0.00;
    $double dSaldoActual=0.00;
    $double dSaldoIntAcum=0.00;
    int   iFica=0;
 
    $EXECUTE selSaldoConve INTO :dSaldoActual, :dSaldoIntAcum
-      USING :lNroCliente;
+      USING :reg->numero_cliente;
       
    if(SQLCODE != 0){
-      printf("No se encontró SaldosConvenio para cliente %ld\n", lNroCliente);
+      printf("No se encontró SaldosConvenio para cliente %ld\n", reg->numero_cliente);
    }
    
-   if(dSaldoActual != 0.00)
+   if(dSaldoActual != 0.00){
+      dSaldoFica += dSaldoActual;
       iFica++;
-      
-   if(dSaldoIntAcum != 0.00)
+   }
+         
+   if(dSaldoIntAcum != 0.00){
+      dSaldoFica += dSaldoIntAcum;
       iFica++;
-      
+   }      
    
-   $EXECUTE selImpuConve INTO :iCant USING :lNroCliente;
+   
+   $EXECUTE selImpuConve INTO :dSaldoImp, :iCant USING :reg->numero_cliente;
    
    if(SQLCODE != 0){
-      printf("No se encontró detalleImpConve para cliente %ld\n", lNroCliente);
+      printf("No se encontró detalleImpConve para cliente %ld\n", reg->numero_cliente);
    }
 
+   reg->dSaldoEnFica = dSaldoFica + dSaldoImp;
+   
    iFica = iFica + iCant;
    
    return iFica;

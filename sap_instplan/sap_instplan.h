@@ -29,6 +29,7 @@ $typedef struct{
    long     lFechaVigencia;
    char     sFechaVigencia[9];
    long     lFechaVtoUltimaFactura;
+   double   dSaldoEnFica;
 }ClsConve;
 
 /* Prototipos de Funciones */
@@ -42,7 +43,7 @@ long  getCorrelativo(char*);
 
 short LeoConve(ClsConve *);
 void  InicializaConve(ClsConve *);
-int   getFica(long);
+int   getFica(ClsConve*);
 
 /*
 short CargaAltaCliente(ClsDepgar *);

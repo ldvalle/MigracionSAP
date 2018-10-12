@@ -134,57 +134,6 @@ $ClsAgenda  regAgeAux;
    }else{
       lFechaPivote = glFechaParametro;   
    }
-
-   /* Procesa 417 */
-/*   
-   if(giArchivo==0 || giArchivo==1){
-   	$OPEN cur417 USING :lFechaPivote;
-   
-      if(Leo417(&regAge)){
-         iRcv=1;
-         strcpy(portionAnterior, regAge.cod_porcion);
-         strcpy(ulAnterior, regAge.cod_ul);
-         anio_anterior = regAge.anio_periodo;
-         periodo_anterior = regAge.periodo;
-         lMinFeGeneracion = regAge.fecha_generacion;
-         
-         lMinFeLectura = regAge.min_fecha_lectu;
-         lMaxFeLectura = regAge.max_fecha_lectu;
-         
-         lMaxFeLectuAnterior = lMinFeLectura - 30;
-       }
-      while(iRcv){
-   
-         while(iRcv && strcmp(regAge.cod_porcion, portionAnterior)==0 && 
-               regAge.anio_periodo == anio_anterior &&
-               regAge.periodo == periodo_anterior){
-      
-            if( regAge.fecha_generacion < lMinFeGeneracion )
-               lMinFeGeneracion = regAge.fecha_generacion;
-            if( regAge.min_fecha_lectu < lMinFeLectura )
-               lMinFeLectura = regAge.min_fecha_lectu;
-      
-            if( regAge.max_fecha_lectu > lMaxFeLectura )
-               lMaxFeLectura = regAge.max_fecha_lectu;
-      
-            iRcv=Leo417(&regAge);
-         }   
-         Generar417(pFile417Unx, portionAnterior, lMinFeGeneracion, lMinFeLectura, lMaxFeLectura, lMaxFeLectuAnterior);
-         
-         lMaxFeLectuAnterior = lMaxFeLectura;      
-         iCantPortion++;
-         strcpy(portionAnterior, regAge.cod_porcion);
-         anio_anterior = regAge.anio_periodo;
-         periodo_anterior = regAge.periodo;
-         lMinFeGeneracion = regAge.fecha_generacion;
-         lMinFeLectura = regAge.min_fecha_lectu;
-         lMaxFeLectura = regAge.max_fecha_lectu; 
-         
-      }   
-   
-      $CLOSE cur417;
-   }   
-*/
    
    if(giArchivo==0 || giArchivo==2){
       /* Procesa 418 */
@@ -222,31 +171,36 @@ $ClsAgenda  regAgeAux;
                   regAge.anio_periodo == anio_anterior &&
                   regAge.periodo == periodo_anterior){
                   
-               if(regAge.min_fecha_lectu < lMinFeUL )
+               if(regAge.min_fecha_lectu < lMinFeUL && regAge.min_fecha_lectu > 0)
                   lMinFeUL = regAge.min_fecha_lectu;
                   
-               if(regAge.max_fecha_lectu > lMaxFeUL )
+               if(regAge.max_fecha_lectu > lMaxFeUL && regAge.max_fecha_lectu > 0)
                   lMaxFeUL = regAge.max_fecha_lectu;
 
+               if((lMaxFeUL - lMinFeUL)>30){
+                  lMinFeUL = lMaxFeUL -30;
+               }
+               
                iRcv=Leo418(&regAge);
             }
+            if(lMinFeUL > 0 && lMaxFeUL > 0){
+               $BEGIN WORK;
+               if(!RegistraAgenda(regAgeAux, lMinFeUL, lMaxFeUL)){
+                  printf("No se grabó la agenda %ld\n", regAge.identif_agenda);
+               }
+               $COMMIT WORK;
+                         
+               Generar418(pFile418Unx, regAgeAux, portionAnterior, ulAnterior, lMinFeUL, lMaxFeUL, lMaxFeULAnterior);
+               iCantUL++;
 
-            $BEGIN WORK;
-            if(!RegistraAgenda(regAgeAux, lMinFeUL, lMaxFeUL)){
-               printf("No se grabó la agenda %ld\n", regAge.identif_agenda);
-            }
-            $COMMIT WORK;
-                      
-            Generar418(pFile418Unx, regAgeAux, portionAnterior, ulAnterior, lMinFeUL, lMaxFeUL, lMaxFeULAnterior);
-            iCantUL++;
-
+               if(strcmp(regAge.cod_porcion, portionAnterior)==0 && strcmp(regAge.cod_ul, ulAnterior)==0 ){
+                  lMaxFeULAnterior = lMaxFeUL;
+               }else{
+                  lMaxFeULAnterior =  lMinFeUL-30;
+               }
+               
+            }               
             CopiaEstructura(regAge, &regAgeAux);
-
-            if(strcmp(regAge.cod_porcion, portionAnterior)==0 && strcmp(regAge.cod_ul, ulAnterior)==0 ){
-               lMaxFeULAnterior = lMaxFeUL;
-            }else{
-               lMaxFeULAnterior =  lMinFeUL-30;
-            }
                      
             lMinFeUL = regAge.min_fecha_lectu; 
             lMaxFeUL = regAge.max_fecha_lectu;
@@ -255,7 +209,7 @@ $ClsAgenda  regAgeAux;
             strcpy(ulAnterior, regAge.cod_ul);
             anio_anterior = regAge.anio_periodo;
             periodo_anterior = regAge.periodo;
-      
+                  
          }
       }
       $CLOSE cur418;
@@ -282,104 +236,6 @@ $ClsAgenda  regAgeAux;
    }   
 
       
-/**************************************/
-/************** INICIO VIEJO ************************/
-/**************************************/
-/*
-	while(Leo417(&regAge)){
-      if(iVuelta==0){
-         strcpy(portionAnterior, regAge.cod_porcion);
-         strcpy(ulAnterior, regAge.cod_ul);
-         anio_anterior = regAge.anio_periodo;
-         periodo_anterior = regAge.periodo;
-         lMinFeGeneracion = regAge.fecha_generacion;
-         
-         lMinFeLectura = regAge.min_fecha_lectu;
-         lMaxFeLectura = regAge.max_fecha_lectu;
-         
-         lMinFeUL = regAge.min_fecha_lectu; 
-         lMaxFeUL = regAge.max_fecha_lectu;
-          
-         lMaxFeLectuAnterior = lMinFeLectura - 30;
-         lMaxFeULAnterior = lMaxFeLectuAnterior;
-         iVuelta = 1;
-      }
-         
-      if(strcmp(regAge.cod_porcion, portionAnterior)==0 && 
-            regAge.anio_periodo == anio_anterior &&
-            regAge.periodo == periodo_anterior){
-         // Porcion para el mismo año mes            
-         if( regAge.fecha_generacion < lMinFeGeneracion )
-            lMinFeGeneracion = regAge.fecha_generacion;
-         if( regAge.min_fecha_lectu < lMinFeLectura )
-            lMinFeLectura = regAge.min_fecha_lectu;
-
-         if( regAge.max_fecha_lectu > lMaxFeLectura )
-            lMaxFeLectura = regAge.max_fecha_lectu;
-                         
-      }else{
-         
-         Generar417(pFile417Unx, portionAnterior, lMinFeGeneracion, lMinFeLectura, lMaxFeLectura, lMaxFeLectuAnterior);
-         lMaxFeLectuAnterior = lMaxFeLectura;      
-         iCantPortion++;
-         strcpy(portionAnterior, regAge.cod_porcion);
-         anio_anterior = regAge.anio_periodo;
-         periodo_anterior = regAge.periodo;
-         lMinFeGeneracion = regAge.fecha_generacion;
-         lMinFeLectura = regAge.min_fecha_lectu;
-         lMaxFeLectura = regAge.max_fecha_lectu; 
-
-         
-      }
-      if(iVuelta==0)
-         regAge.fechaAgendaAnterior = lMaxFeLectuAnterior;
-
-      if(strcmp(regAge.cod_porcion, portionAnterior)==0 &&
-            strcmp(regAge.cod_ul, ulAnterior)==0 &&
-            regAge.anio_periodo == anio_anterior &&
-            regAge.periodo == periodo_anterior){
-            
-            if(regAge.min_fecha_lectu < lMinFeUL )
-               lMinFeUL = regAge.min_fecha_lectu;
-               
-            if(regAge.max_fecha_lectu > lMaxFeUL )
-               lMaxFeUL = regAge.max_fecha_lectu;
-            
-      }else{
-      
-         $BEGIN WORK;
-         if(!RegistraAgenda(regAge, lMinFeUL, lMaxFeUL)){
-            printf("No se grabó la agenda %ld\n", regAge.identif_agenda);
-         }
-         $COMMIT WORK;
-                   
-         Generar418(pFile418Unx, regAge, lMinFeUL, lMaxFeUL, lMaxFeULAnterior);
-         iCantUL++;
-      
-         lMinFeUL = regAge.min_fecha_lectu; 
-         lMaxFeUL = regAge.max_fecha_lectu;
-         lMaxFeULAnterior = lMaxFeUL;
-         strcpy(ulAnterior, regAge.cod_ul); 
-      
-      }
-
-   // El ultimo 417    
-   Generar417(pFile417Unx, portionAnterior, lMinFeGeneracion, lMinFeLectura, lMaxFeLectura, lMaxFeLectuAnterior);
-   iCantPortion++;
-
-   // El ultimo 418 
-   $BEGIN WORK;
-   if(!RegistraAgenda(regAge, lMinFeUL, lMaxFeUL )){
-      printf("No se grabó la agenda %ld\n", regAge.identif_agenda);
-   }
-   $COMMIT WORK;
-
-   Generar418(pFile418Unx, regAge, lMinFeUL, lMaxFeUL, lMaxFeULAnterior);
-   iCantUL++;
-*/
-/**************************************/
-/************** CIERRE VIEJO ************************/
-/**************************************/
 			
 	CerrarArchivos();
 
@@ -400,17 +256,6 @@ $ClsAgenda  regAgeAux;
 	********************************************* */
 
 	FormateaArchivos();
-
-/*	
-	if(! EnviarMail(sArchResumenDos, sArchControlDos)){
-		printf("Error al enviar mail con lista de respaldo.\n");
-		printf("El mismo se pueden extraer manualmente en..\n");
-		printf("     [%s]\n", sArchResumenDos);
-	}else{
-		sprintf(sCommand, "rm -f %s", sArchResumenDos);
-		iRcv=system(sCommand);			
-	}
-*/
 
 	printf("==============================================\n");
 	printf("SAP_AGENDAS - Proceso Concluido.\n");
@@ -634,6 +479,8 @@ $char sAux[1000];
 	strcat(sql, "FROM agenda a1, sucur_centro_op sc, det_agenda d ");
 	strcat(sql, "WHERE a1.sector <= 82 "); 
 	strcat(sql, "AND a1.fecha_generacion >= ? ");
+   strcat(sql, "AND a1.fecha_emision_real IS NOT NULL ");
+   strcat(sql, "AND a1.tipo_agenda = 'L' ");
 	strcat(sql, "AND sc.cod_centro_op = a1.sucursal "); 
 	strcat(sql, "AND sc.fecha_activacion <= TODAY "); 
 	strcat(sql, "AND (sc.fecha_desactivac IS NULL OR sc.fecha_desactivac > TODAY) "); 
@@ -655,6 +502,7 @@ if(giTipoCorrida == 1){
    strcat(sql, "AND h.sector = ? ");
    strcat(sql, "AND h.zona = ? ");
    strcat(sql, "AND h.fecha_facturacion = ? ");
+   strcat(sql, "AND h.tipo_docto IN ('01', '07') ");
 if(giTipoCorrida == 1){
    strcat(sql, "AND ma.numero_cliente = h.numero_cliente ");
 }   
@@ -672,6 +520,7 @@ if(giTipoCorrida == 1){
    strcat(sql, "AND h.sector = ? ");
    strcat(sql, "AND h.zona = ? ");
    strcat(sql, "AND h.fecha_facturacion = ? ");
+   strcat(sql, "AND h.tipo_docto IN ('01', '07') ");
 if(giTipoCorrida == 1){
    strcat(sql, "AND ma.numero_cliente = h.numero_cliente ");
 }   
@@ -820,11 +669,11 @@ $ClsAgenda *reg;
       printf("No se encontró minima para Suc %s Sec %d Zona %d emi.real %ld\n", reg->sucursal,
                reg->sector, reg->zona, reg->fecha_emision_real);
                
-      reg->min_fecha_lectu = reg->fecha_generacion;
+      reg->min_fecha_lectu = 0;
    }               
 
    if(reg->min_fecha_lectu <= 0 || risnull(CLONGTYPE, (char *) reg->min_fecha_lectu)){
-      reg->min_fecha_lectu = reg->fecha_generacion;
+      reg->min_fecha_lectu = 0;
    }
 
    /* Busca Maxima Fecha Lectura para la agenda */
@@ -838,11 +687,11 @@ $ClsAgenda *reg;
       printf("No se encontró maxima para Suc %s Sec %d Zona %d emi.real %ld\n", reg->sucursal,
                reg->sector, reg->zona, reg->fecha_emision_real);
                
-      reg->max_fecha_lectu = reg->fecha_generacion;
+      reg->max_fecha_lectu = 0;
    }               
 
    if(reg->max_fecha_lectu <= 0 || risnull(CLONGTYPE, (char *) reg->max_fecha_lectu)){
-      reg->max_fecha_lectu = reg->fecha_generacion;
+      reg->max_fecha_lectu = 0;
    }
    
   
@@ -902,7 +751,11 @@ $ClsAgenda *reg;
 		}
     }			
 	
+   reg->min_fecha_lectu = reg->fecha_generacion;
+   reg->max_fecha_lectu = reg->fecha_generacion+8;
+   
    /* Busca Minima Fecha Lectura para la agenda */
+/*   
    $EXECUTE selMinLectu INTO :reg->min_fecha_lectu
          USING :reg->sucursal,
                :reg->sector,
@@ -913,14 +766,15 @@ $ClsAgenda *reg;
       printf("No se encontró minima para Suc %s Sec %d Zona %d emi.real %ld\n", reg->sucursal,
                reg->sector, reg->zona, reg->fecha_emision_real);
                
-      reg->min_fecha_lectu = reg->fecha_generacion;
+      reg->min_fecha_lectu = 0;
    }               
 
    if(reg->min_fecha_lectu <= 0 || risnull(CLONGTYPE, (char *) reg->min_fecha_lectu)){
-      reg->min_fecha_lectu = reg->fecha_generacion;
+      reg->min_fecha_lectu = 0;
    }
-
+*/
    /* Busca Maxima Fecha Lectura para la agenda */
+/*   
    $EXECUTE selMaxLectu INTO :reg->max_fecha_lectu
          USING :reg->sucursal,
                :reg->sector,
@@ -931,20 +785,20 @@ $ClsAgenda *reg;
       printf("No se encontró maxima para Suc %s Sec %d Zona %d emi.real %ld\n", reg->sucursal,
                reg->sector, reg->zona, reg->fecha_emision_real);
                
-      reg->max_fecha_lectu = reg->fecha_generacion;
+      reg->max_fecha_lectu = 0;
    }               
 
    if(reg->max_fecha_lectu <= 0 || risnull(CLONGTYPE, (char *) reg->max_fecha_lectu)){
-      reg->max_fecha_lectu = reg->fecha_generacion;
+      reg->max_fecha_lectu = 0;
    }
    
-
+*/
    /* El menor menos 3 días. */
    /*reg->menorMenos3 = getMenorMenos3(reg->min_fecha_lectu);*/
 
           
    /* Busca Cierre Agenda Anterior */
-         
+/*         
    $EXECUTE selFechaCierreAnterior INTO :reg->fechaAgendaAnterior
       USING :reg->sucursal,
             :reg->sector,
@@ -961,7 +815,7 @@ $ClsAgenda *reg;
    if(reg->fechaAgendaAnterior <= 0 || risnull(CLONGTYPE, (char *) reg->fechaAgendaAnterior)){
       reg->fechaAgendaAnterior = reg->min_fecha_lectu - 1;
    }
- 
+*/ 
   
 	return 1;	
 }
@@ -1132,12 +986,16 @@ long        lFeMaxAnterior;
    char  sFechaIni[11];
    char  sFechaCierre[11];
    char  sFechaCierreAnterior[11];
+   int   iRcv;
+   int   difDias=0;
 
 	memset(sLinea, '\0', sizeof(sLinea));
    memset(sFechaIni, '\0', sizeof(sFechaIni));
    memset(sFechaCierre, '\0', sizeof(sFechaCierre));
    memset(sFechaCierreAnterior, '\0', sizeof(sFechaCierreAnterior));
    
+   difDias =reg.max_fecha_lectu - reg.min_fecha_lectu;
+    
    rfmtdate( reg.min_fecha_lectu, "dd.mm.yyyy", sFechaIni);
    rfmtdate( reg.max_fecha_lectu, "dd.mm.yyyy", sFechaCierre);
    rfmtdate( lFeMaxAnterior, "dd.mm.yyyy", sFechaCierreAnterior);
@@ -1192,11 +1050,18 @@ long        lFeMaxAnterior;
    /* IDENT */
    strcat(sLinea, "AR\t");
    /* TS_DYN (vacio)*/
+   strcat(sLinea, "\t");
+   
+   /* difdias */
+   sprintf(sLinea, "%s%ld", sLinea, difDias);
 
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
-
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir 417\n");
+      exit(1);
+   }	
 }
 
 
@@ -1220,6 +1085,8 @@ long        lHastaAnterior;
    char  sHastaAnterior[11];
    
    long  lMenorMenos3;
+   int   iRcv;
+   int   difDias=0;
    
    memset(sLinea, '\0', sizeof(sLinea));
    memset(sFechaMin, '\0', sizeof(sFechaMin));
@@ -1234,6 +1101,7 @@ long        lHastaAnterior;
    rfmtdate( reg.menorMenos3, "dd.mm.yyyy", sFechaMinMenos3);
 */
    
+   difDias = lHasta - lDesde;
    rfmtdate( lDesde, "dd.mm.yyyy", sDesde);
    rfmtdate( lHasta, "dd.mm.yyyy", sHasta);
    rfmtdate( lHastaAnterior, "dd.mm.yyyy", sHastaAnterior);
@@ -1313,10 +1181,18 @@ long        lHastaAnterior;
    /* ESTINBILL */
    strcat(sLinea, "\t");
    /* ABSLANP (vacio) */
+   strcat(sLinea, "\t");
+   
+   /* dif dias */
+   sprintf(sLinea, "%s%ld", sLinea, difDias);
    
 	strcat(sLinea, "\n");
 	
-	fprintf(fp, sLinea);	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir 418\n");
+      exit(1);
+   }	
 
 }
 
