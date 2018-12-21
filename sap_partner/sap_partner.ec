@@ -508,9 +508,8 @@ void MensajeParametros(void){
 		printf("\t<Base> = synergia.\n");
 		printf("\t<Estado Cliente> = 0 Activo - 1 No Activo 2 - Todos.\n");
 		printf("\t<Tipo Generación> G = Generación, R = Regeneración.\n");
-      printf("\t<Tipo Corrida> 0 = Normal, 1 = Reducida.\n");
+      printf("\t<Tipo Corrida> 0 = Normal, 1 = Reducida, 3 = Delta.\n");
 		printf("\t<Nro.Cliente> Opcional.\n");
-
 }
 
 
@@ -579,6 +578,9 @@ $char sAux[1000];
    
    if(giTipoCorrida == 1)
       strcat(sql, ", migra_activos ma ");	
+
+   if(giTipoCorrida == 3)
+      strcat(sql, ", sf_actuclie sf ");   
 	
 	if(glNroCliente > 0){
 		strcat(sql, "WHERE c.numero_cliente = ? ");	
@@ -615,7 +617,9 @@ $char sAux[1000];
 
    if(giTipoCorrida == 1)
       strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
-	
+   if(giTipoCorrida == 3)   
+      strcat(sql, "AND sf.numero_cliente = c.numero_cliente ");
+
 /*	
 	strcat(sql, "ORDER BY c.numero_cliente ");
 */
@@ -1805,21 +1809,35 @@ $ClsCliente	regCliente;
 	memset(sAux, '\0', sizeof(sAux));	
 
 	alltrim(regCliente.rut, ' ');
+/*   
 	if(strcmp(regCliente.rut, "")==0){
 		return;	
 	}
-
+*/
 	if(strcmp(regCliente.tipo_cliente, "PR")==0 || strcmp(regCliente.tipo_cliente, "RP")==0){
 		strcpy(sAux, "AR1B");		
 	}else{
 		strcpy(sAux, "AR1A");
 	}
 	
+   if(strcmp(regCliente.rut, "")==0){
+      strcpy(sAux, "AR1A");
+      strcpy(regCliente.rut, "23000000000");
+   }
 	memset(sLinea, '\0', sizeof(sLinea));
-	
-	sprintf(sLinea, "T1%ld\tTAXNUM\t%s\tI\t", regCliente.numero_cliente, sAux);
-	sprintf(sLinea, "%s%s\t", sLinea, regCliente.rut);
-	sprintf(sLinea, "%sX", sLinea);
+   
+	sprintf(sLinea, "T1%ld\tTAXNUM\t", regCliente.numero_cliente);
+   /* TAXTYPE */
+   sprintf(sLinea, "%s%s\t", sLinea, sAux);
+   
+   /* CHIND_TAX */
+   strcat(sLinea, "I\t");
+   
+   /* TAXNUM*/
+   sprintf(sLinea, "%s%s\t", sLinea, regCliente.rut);
+   
+   /* INTERNAL */
+   strcat(sLinea, "X");
 
 	strcat(sLinea, "\n");
 	

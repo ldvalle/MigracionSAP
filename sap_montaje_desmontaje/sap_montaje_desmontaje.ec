@@ -93,6 +93,7 @@ $char    sMarcaMedidorActual[4];
 $char    sModeloMedidorActual[3];
 $char    sTarifaInstal[11];
 $long    lNroBeneficiario;
+$long    lFechaMoveInMenos1;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -191,7 +192,8 @@ $long    lNroBeneficiario;
                lFechaPivote = glFechaParametro;   
             }
             
-            if(lFechaAlta < lFechaPivote ){
+            /*if(lFechaAlta < lFechaPivote ){*/
+            if(lFechaAlta < lFechaMoveIn ){
                if(LeoPrimeraLectura(lNroCliente, lFechaPivote, lFechaMoveIn, &regLectu)){
                   strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
                   if (!GenerarPlanos(regLectu)){
@@ -202,12 +204,34 @@ $long    lNroBeneficiario;
                   iNroIndex++;
                }
  				}
-	
+            
+            if(giMovimientos!=1 && iNx==0){
+					if(LeoUltInstalacion(lNroCliente, lFechaMoveIn, &regLectu)){	
+						GenerarPlanos(regLectu);
+						cantMontajes++;
+                  iNx=1;
+					}
+	         }
+            
             if(giMovimientos==1){
 				/*$OPEN curLecturas using :lNroCliente, :lFechaValTarifa;*/
-               $OPEN curLecturas using :lNroCliente, :lFechaPivote;
+               lFechaMoveInMenos1=lFechaMoveIn-1;
+               /*$OPEN curLecturas using :lNroCliente, :lFechaMoveIn;*/
+               $OPEN curLecturas using :lNroCliente, :lFechaMoveInMenos1;
    				while(LeoLecturas(&regLectu) ){
                   strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
+                  if(regLectu.fecha_lectura < lFechaMoveIn){
+                     regLectu.fecha_lectura = lFechaMoveIn;
+                     rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu.sFechaLectura);
+                  }
+/*                  
+if(iNroIndex==1){
+// Aca le truche esto por la prueba facturacion masiva    
+regLectu.fecha_lectura = lFechaPivote;
+// Aca le truche esto por la prueba facturacion masiva    
+rfmtdate(lFechaPivote, "yyyymmdd", regLectu.sFechaLectura);
+}
+*/                  
                   /*if(!EsMedidorVigente(lNroMedidorActual, sMarcaMedidorActual, sModeloMedidorActual, regLectu)){*/
       					if (!GenerarPlanos(regLectu)){
       						/*$ROLLBACK WORK;*/
@@ -226,10 +250,23 @@ $long    lNroBeneficiario;
    				
    				/* hay algunos que no tuvieron factura despues del cambio de medidor */
    				/*$OPEN curSinFactura using :lNroCliente,:lFechaValTarifa;*/
-               $OPEN curSinFactura using :lNroCliente,:lFechaPivote;
+               $OPEN curSinFactura using :lNroCliente,:lFechaMoveIn;
    				
    				if(LeoSinFactura(lFechaMoveIn, &regLectu)){
                   strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
+                  if(regLectu.fecha_lectura < lFechaMoveIn){
+                     regLectu.fecha_lectura = lFechaMoveIn;
+                     rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu.sFechaLectura);
+                  }
+                  
+/*
+if(iNroIndex==1){
+// Aca le truche esto por la prueba facturacion masiva    
+regLectu.fecha_lectura = lFechaPivote;
+// Aca le truche esto por la prueba facturacion masiva    
+rfmtdate(lFechaPivote, "yyyymmdd", regLectu.sFechaLectura);
+} 
+*/                 
    					if (!GenerarPlanos(regLectu)){
    						/*$ROLLBACK WORK;*/
    						exit(2);
@@ -244,7 +281,21 @@ $long    lNroBeneficiario;
    						/*$ROLLBACK WORK;*/
    						exit(2);
    					}
-                  strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);				
+                  strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
+                  if(regLectu.fecha_lectura < lFechaMoveIn){
+                     regLectu.fecha_lectura = lFechaMoveIn;
+                     rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu.sFechaLectura);
+                  }
+                  
+/*
+if(iNroIndex==1){
+// Aca le truche esto por la prueba facturacion masiva    
+regLectu.fecha_lectura = lFechaPivote;
+// Aca le truche esto por la prueba facturacion masiva    
+rfmtdate(lFechaPivote, "yyyymmdd", regLectu.sFechaLectura);
+} 
+*/                 
+                  				
    					if (!GenerarPlanos(regLectu)){
    						/*$ROLLBACK WORK;*/
    						exit(2);
@@ -623,9 +674,9 @@ $char sAux[1000];
 	strcat(sql, "m.enteros, ");
 	strcat(sql, "m.decimales ");
 	
-	strcat(sql, "FROM hislec la, cliente c, hisfac h, medid m, sap_transforma t1, medidor me ");
+	strcat(sql, "FROM hislec la, cliente c, OUTER( hisfac h, sap_transforma t1), medid m, medidor me ");
 	strcat(sql, "WHERE la.numero_cliente = ? ");
-	strcat(sql, "AND la.fecha_lectura > ? ");
+	strcat(sql, "AND la.fecha_lectura >= ? ");
 	/*
 	strcat(sql, "AND la.corr_facturacion > ? ");
    */
@@ -710,10 +761,17 @@ $char sAux[1000];
 	strcat(sql, "FROM hislec la, cliente c, hisfac h, medid m, OUTER sap_transforma t1, medidor me ");
 	strcat(sql, "WHERE la.numero_cliente = ? ");
 
+	strcat(sql, "AND la.fecha_lectura = (	SELECT MAX(h2.fecha_lectura) FROM hislec h2 ");
+	strcat(sql, "   WHERE h2.numero_cliente = la.numero_cliente ");
+	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4) "); 
+	strcat(sql, "   AND h2.fecha_lectura < ?) ");
+
+/*
 	strcat(sql, "AND la.fecha_lectura = (	SELECT MIN(h2.fecha_lectura) FROM hislec h2 ");
 	strcat(sql, "   WHERE h2.numero_cliente = la.numero_cliente ");
 	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4) "); 
 	strcat(sql, "   AND h2.fecha_lectura >= ?) ");
+*/   
 /*
    strcat(sql, "AND la.fecha_lectura = ? ");
 */
@@ -1463,7 +1521,7 @@ $ClsLecturas *regLectu;
 	InicializaLecturas(regLectu);
 	
 	$OPEN curPrimLectu 	using :lNroCliente,
-		  					  :lFechaPrimFactu;
+		  					  :lFechaMoveIn;
 
 	$FETCH curPrimLectu into 
 		:regLectu->numero_cliente,
@@ -1499,8 +1557,16 @@ $ClsLecturas *regLectu;
  
     alltrim(regLectu->tarifa, ' ');
     regLectu->fecha_lectura = lFechaMoveIn;
-    rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu->sFechaLectura); /* long to char */
+    rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu->sFechaLectura);
     
+/*    
+// Aca le truche esto por la prueba facturacion masiva    
+    regLectu->fecha_lectura = lFechaPrimFactu;
+    
+    rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu->sFechaLectura);
+// Aca le truche esto por la prueba facturacion masiva    
+    rfmtdate(lFechaPrimFactu, "yyyymmdd", regLectu->sFechaLectura);
+*/    
 	return 1;
 }
 
@@ -1926,7 +1992,7 @@ ClsLecturas	regLectu;
          strcat(sLinea, "ENERGIA\t");
       }
 */
-      if(strcmp(regLectu.sTarifaInstalacion, "T1-GENME")==0){
+      if(strcmp(regLectu.sTarifaInstalacion, "T1-GEN-MED")==0){
          strcat(sLinea, "T1-GENMED\t");
       }else if(strcmp(regLectu.sTarifaInstalacion, "T1-AP")==0){
          strcat(sLinea, "T1-AP\t");

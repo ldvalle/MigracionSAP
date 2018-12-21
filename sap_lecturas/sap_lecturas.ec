@@ -178,9 +178,11 @@ char  sFechaIniAnterior[9];
 												
 						while(LeoLecturasActivas(lNroCliente, &regLecturas)){
                      if(iVuelta==1){
+/********/                     
             				rdefmtdate(&lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /*char a long*/
             				lFechaAux=lFechaAux+1;
-            				rfmtdate(lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /* long to char */
+            				rfmtdate(lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /* long to char*/
+/********/                        
                         strcpy(sFechaIniAnterior, regLecturas.fechaIniVentana);
                      }else{
                         if(strcmp(sFechaIniAnterior, regLecturas.fechaIniVentana)==0 || strcmp(regLecturas.fechaIniVentana,"")==0){
@@ -192,7 +194,7 @@ char  sFechaIniAnterior[9];
                      }
                      
 				         if((iVuelta ==1 && regLecturas.tipo_lectura != 8) || (iVuelta > 1)){
-    							if (!GenerarPlano("A", pFileLecturasUnx, regLecturas, lFechaMoveIn)){
+    							if (!GenerarPlano("A", pFileLecturasUnx, regLecturas, lFechaMoveIn, lFechaPivote)){
     								/*$ROLLBACK WORK;*/
     								exit(1);	
     							}
@@ -200,27 +202,32 @@ char  sFechaIniAnterior[9];
     							if(regLecturas.tipo_medidor[0]=='R'){
     								/* Si el medidor es de Reactiva, busco la lectura Reactiva */
     								DuplicaRegistro(regLecturas, &regLectuAux);
-                           
     								
     								if(getUltimoConsumoReactiva(1, lNroCliente, regLecturas.corr_facturacion, &regLecturas)){
                               if(iVuelta==1){
+/***********/                              
                      				rdefmtdate(&lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /*char a long*/
                      				lFechaAux=lFechaAux+1;
-                     				rfmtdate(lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /* long to char */
+                     				rfmtdate(lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /* long to char*/
+/***********/                                 
                               }
                               strcpy(regLecturas.fechaIniVentana, regLectuAux.fechaIniVentana);
-    									if (!GenerarPlano("R", pFileLecturasUnx, regLecturas, lFechaMoveIn)){
+    									if (!GenerarPlano("R", pFileLecturasUnx, regLecturas, lFechaMoveIn, lFechaPivote)){
     										/*$ROLLBACK WORK;*/
     										exit(1);	
     									}					
     								}else{
-    									if (!GenerarPlano("R", pFileLecturasUnx, regLectuAux, lFechaMoveIn)){
+    									if (!GenerarPlano("R", pFileLecturasUnx, regLectuAux, lFechaMoveIn, lFechaPivote)){
     										/*$ROLLBACK WORK;*/
     										exit(1);	
     									}
     								}
     							}
-                        GeneraENDE(pFileLecturasUnx, regLecturas);
+                        if(!risnull(CLONGTYPE, (char *) &regLecturas.numero_cliente)){
+                           GeneraENDE(pFileLecturasUnx, regLecturas);
+                        }else{
+                           GeneraENDE(pFileLecturasUnx, regLectuAux);
+                        }
                      }
                      
                      iVuelta++;
@@ -229,10 +236,10 @@ char  sFechaIniAnterior[9];
 						$CLOSE curLectuActi;
 						
 						/* Proceso FP_Lectu  */
-               
+/*               
 						if(getFPLectu(lNroCliente, &regFPLectu)){
-							/* Informo Tramo sin facturar */ 
-/*                     
+							// Informo Tramo sin facturar 
+                     
 							CargoLectuFP("A", regFPLectu, &regLecturas);
 							regLecturas.corr_facturacion++;
 							if (!GenerarPlano("A", pFileLecturasUnx, regLecturas, lFechaMoveIn)){
@@ -245,10 +252,9 @@ char  sFechaIniAnterior[9];
 								}						
 							}
                      GeneraENDE(pFileLecturasUnx, regLecturas);
-*/                     
+                     
 						}else{
-							/* Invento tramo con ultimo consumo */
-/*                    
+							// Invento tramo con ultimo consumo
 							memset(sFechaFacturacion, '\0', sizeof(sFechaFacturacion));
 							
 							$EXECUTE selCorrFactuActu into :lCorrFactuActu using :lNroCliente;
@@ -282,9 +288,9 @@ char  sFechaIniAnterior[9];
 									}							
 								}
 							}
-*/                     
+                     
 						}
-		
+*/		
 						/*
 						GeneraENDE(pFileLecturasUnx, regLecturas);
 						*/
@@ -693,7 +699,9 @@ $char sAux[1000];
 	strcat(sql, "AND h2.corr_facturacion = h1.corr_facturacion "); 
 	strcat(sql, "AND med.med_numero = h1.numero_medidor ");
 	strcat(sql, "AND med.mar_codigo = h1.marca_medidor ");
-	strcat(sql, "AND med.cli_tarifa = 'T1' ");
+   strcat(sql, "AND med.numero_cliente = h1.numero_cliente ");
+	strcat(sql, "AND (med.cli_tarifa != 'T2' OR med.cli_tarifa IS NULL) ");
+	/*strcat(sql, "AND med.cli_tarifa = 'T1' ");*/
 	strcat(sql, "AND m.mar_codigo = h1.marca_medidor ");
 	strcat(sql, "AND m.mod_codigo = med.mod_codigo ");
 	strcat(sql, "AND t1.clave = 'TIPOLECTU' ");
@@ -1216,7 +1224,7 @@ $long    *lMoveIn;
 		}
 	}
 	
-   *lPivote=lFechaPivote;
+   *lPivote=lFechaPivote-1;
    *lMoveIn=lFechaMoveIn;
    
 	if(strcmp(sMarca, "S")==0){
@@ -1233,15 +1241,16 @@ $long    *lMoveIn;
 }
 
 
-short GenerarPlano(sTabla, fp, regLectu, lFechaMv)
+short GenerarPlano(sTabla, fp, regLectu, lFechaMv, lFechaPivote)
 char				sTabla[2];
 FILE 				*fp;
 $ClsLecturas		regLectu;
 long           lFechaMv;
+long           lFechaPivote;
 {
 
 	/* IEABLU */	
-	GeneraIEABLU(sTabla, fp, regLectu, lFechaMv);	
+	GeneraIEABLU(sTabla, fp, regLectu, lFechaMv, lFechaPivote);	
 	
 	return 1;
 }
@@ -1288,11 +1297,12 @@ int		iFlagMigra;
 }
 
 
-void GeneraIEABLU(sTabla, fp, regLectu, lFechaMv)
+void GeneraIEABLU(sTabla, fp, regLectu, lFechaMv, lFechaPivote)
 char			sTabla[2];
 FILE 			*fp;
 ClsLecturas		regLectu;
 long        lFechaMv;
+long        lFechaPivote;
 {
 	char	   sLinea[1000];	
 	int		iNumerador;
@@ -1306,6 +1316,7 @@ long        lFechaMv;
    
    lFechaAux=lFechaLectura+1;
    if(lFechaAux == lFechaMv){
+   /*if(lFechaLectura == lFechaPivote){*/
       rfmtdate(lFechaAux, "yyyymmdd", regLectu.fecha_lectura); /* long to char */   
    }
 
@@ -1332,7 +1343,8 @@ long        lFechaMv;
 
       /* ABLESGR */
       /* Condicional a la fecha de MOVE_IN */
-      if(lFechaLectura == lFechaMv){
+      if(lFechaLectura == lFechaMv ){
+      /*if(lFechaLectura == lFechaPivote){*/
          strcat(sLinea, "06\t"); /* Motivo */
       }else{
          strcat(sLinea, "01\t"); /* Motivo */
@@ -1353,7 +1365,8 @@ long        lFechaMv;
       /* AKTIV */
 		strcat(sLinea, "1\t");
       /* ADATSOLL (Inicio Ventana) */
-      if(lFechaLectura != lFechaMv){
+      if(lFechaLectura != lFechaMv ){
+      /*if(lFechaLectura != lFechaPivote){*/
 		    sprintf(sLinea, "%s%s", sLinea, regLectu.fechaIniVentana);
       }
 			
@@ -1403,6 +1416,7 @@ long        lFechaMv;
    /* ABLESGR */
    /* Condicional a la fecha de MOVE_IN */
    if(lFechaLectura == lFechaMv){
+   /*if(lFechaLectura == lFechaPivote){*/
       strcat(sLinea, "06\t"); /* Motivo */
    }else{
       strcat(sLinea, "01\t"); /* Motivo */
@@ -1427,6 +1441,7 @@ long        lFechaMv;
 	strcat(sLinea, "1\t");
    /* ADATSOLL (fecha inicio ventana)*/
    if(lFechaLectura != lFechaMv){
+   /*if(lFechaLectura != lFechaPivote){*/
 	  /*sprintf(sLinea, "%s%s", sLinea, regLectu.fecha_lectura);*/
      sprintf(sLinea, "%s%s", sLinea, regLectu.fechaIniVentana);
    }

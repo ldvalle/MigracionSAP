@@ -124,7 +124,7 @@ long     iCantCalculos=0;
             CalculoDatos(&regAltas);
             iCantCalculos++;         
          }
-                  
+                           
 			if (!GenerarPlanoAltas(pFileAltas, regAltas)){
 				$ROLLBACK WORK;
 				exit(1);	
@@ -578,7 +578,14 @@ $char sAux[1000];
 	strcat(sql, "WHERE numero_cliente = ? ");
    
    $PREPARE selAsset FROM $sql;   
-*/   
+*/
+   /* Fecha Move In Trucha */
+   $PREPARE selMoveInTrucho FROM "SELECT TO_CHAR(fecha_lectura, '%Y%m%d')
+      FROM hisfac
+      WHERE numero_cliente = ?
+      AND corr_facturacion = ? ";
+   
+      
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -1130,6 +1137,18 @@ ClsEstados *reg;
    memset(reg->tarifa, '\0', sizeof(reg->tarifa));
    memset(reg->ul, '\0', sizeof(reg->ul));
    memset(reg->motivo_alta, '\0', sizeof(reg->motivo_alta));
+}
+
+void FechaMoveInTrucha(reg)
+$ClsAltas   *reg;
+{
+   $long corrFactuAux = reg->corr_facturacion - 1;
+   
+   $EXECUTE selMoveInTrucho INTO :reg->fecha_alta
+      USING :reg->numero_cliente,
+            :corrFactuAux;
+            
+   
 }
 
 /****************************

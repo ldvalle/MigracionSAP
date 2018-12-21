@@ -47,6 +47,7 @@ $typedef struct{
    double   porc;
    char     sFechaDesde[9];
    char     sFechaHasta[9];
+   double   porc_sap;
    char     MWSKZ[3];
    char     KSCHL[5];
    double   EXRAT;

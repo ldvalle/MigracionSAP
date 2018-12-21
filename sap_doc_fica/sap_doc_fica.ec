@@ -1578,9 +1578,9 @@ short RegistraArchivo(void)
 				:glNroCliente,
 				:sNombreArchivo;
 	}
-
+*/
    $EXECUTE insCorrida;
-*/   	
+   	
 	return 1;
 }
 

@@ -171,7 +171,8 @@ long   index=1;
 	if(giArchivosGen==0 || giArchivosGen==2){
 
 		/* Hago la Unidad de Lectura */
-		$OPEN curUnLectu USING :lFechaPivote;
+		/*$OPEN curUnLectu USING :lFechaPivote;*/
+      $OPEN curUnLectu USING :lFechaPivote2;
 		
 		fpUL=pFileULActivoUnx;
 	
@@ -451,7 +452,7 @@ $char sAux[1000];
    /******** Fecha Pivote 2  ****************/
    /*strcpy(sql, "SELECT TODAY - 70 FROM dual ");*/
    /*strcpy(sql, "SELECT fecha_pivote - 60 FROM sap_regi_cliente ");*/
-   strcpy(sql, "SELECT fecha_pivote - 10 FROM sap_regi_cliente ");
+   strcpy(sql, "SELECT fecha_pivote FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = 0 ");
    
    $PREPARE selPivote2 FROM $sql;

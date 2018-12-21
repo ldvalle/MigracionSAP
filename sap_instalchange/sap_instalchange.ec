@@ -594,14 +594,10 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	$DECLARE curClienteInactivo CURSOR WITH HOLD FOR selClienteInactivo;
 		
 	/******** Cursor Facturas **********/
+/*   
 	strcpy(sql, "SELECT h.corr_facturacion, ");
 	strcat(sql, "a.fecha_generacion, ");
 	strcat(sql, "TO_CHAR(a.fecha_generacion, '%Y%m%d'), ");
-   
-/*   
-	strcat(sql, "h.fecha_facturacion, ");
-	strcat(sql, "TO_CHAR(h.fecha_facturacion - 1 UNITS DAY, '%Y%m%d'), ");
-*/   
 	strcat(sql, "CASE ");
    strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
@@ -622,6 +618,32 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND a.sucursal = h.sucursal ");
 	strcat(sql, "AND a.sector = h.sector ");
 	strcat(sql, "AND a.fecha_emision_real = h.fecha_facturacion ");
+*/
+
+	strcpy(sql, "SELECT h.corr_facturacion, ");
+	strcat(sql, "h2.fecha_lectura - 1, ");
+	strcat(sql, "TO_CHAR(h2.fecha_lectura - 1, '%Y%m%d'), ");
+	strcat(sql, "CASE ");
+   strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
+	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+	strcat(sql, "	ELSE t1.cod_sap ");
+	strcat(sql, "END, ");
+	strcat(sql, "s.cod_ul_sap || ");
+	strcat(sql, "LPAD(CASE WHEN h.sector>60 AND h.sector < 81 THEN h.sector ELSE h.sector END, 2, 0) || "); 
+	strcat(sql, "LPAD(h.zona,5,0) "); 
+	strcat(sql, "FROM cliente c, hisfac h, sap_transforma t1, sucur_centro_op s, hisfac h2 ");
+	strcat(sql, "WHERE c.numero_cliente = ? ");
+	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND h.fecha_lectura >= ? ");
+   
+	strcat(sql, "AND h2.numero_cliente = h.numero_cliente ");
+	strcat(sql, "AND h2.corr_facturacion = h.corr_facturacion - 1 ");
+   
+	strcat(sql, "AND t1.clave = 'TARIFTYP' ");
+	strcat(sql, "AND t1.cod_mac = h.tarifa ");
+	strcat(sql, "AND s.cod_centro_op = h.sucursal ");
+	strcat(sql, "AND s.fecha_activacion <= TODAY ");
+	strcat(sql, "AND (s.fecha_desactivac IS NULL OR s.fecha_desactivac > TODAY) ");
    
    strcat(sql, "ORDER BY h.corr_facturacion ASC ");   
    

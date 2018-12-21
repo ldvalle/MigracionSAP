@@ -114,6 +114,8 @@ int   iIndice;
    strcpy(sFechaPivote, "20141201");
    rdefmtdate(&lFechaPivote, "yyyymmdd", sFechaPivote); /*char a long*/
    
+   $EXECUTE selFePivote INTO :lFechaPivote;
+   
 	/*********************************************
 				AREA CURSORes PPALes
 	**********************************************/
@@ -430,7 +432,11 @@ $char sAux[1000];
 	/******** Fecha Actual  ****************/
 	strcpy(sql, "SELECT TO_CHAR(TODAY, '%d/%m/%Y') FROM dual ");
 	
-	$PREPARE selFechaActual FROM $sql;	
+	$PREPARE selFechaActual FROM $sql;
+   
+   /*********** Fecha Pivote *********/
+   $PREPARE selFePivote FROM "SELECT fecha_pivote FROM sap_regi_cliente
+      WHERE numero_cliente = 0";   	
 
    /************ Cursor Instalados ************/
    strcpy(sql, "SELECT mi.numero_medidor, ");
@@ -548,7 +554,7 @@ if(giTipoCorrida==2){
 	strcat(sql, "WHERE numero_cliente = ? ");
 	strcat(sql, "AND numero_medidor = ? ");
 	strcat(sql, "AND marca_medidor = ? ");
-	strcat(sql, "AND fecha_lectura >= TODAY - 420 "); /* 420 = 14 meses */
+	strcat(sql, "AND fecha_lectura >= ? "); /* 420 = 14 meses */
   
    $PREPARE selMovimientos FROM $sql;   
    
@@ -1236,7 +1242,8 @@ $ClsMedidor  regMed;
    $EXECUTE selMovimientos INTO :iCant
       USING :regMed.numero_cliente,
             :regMed.numero_medidor,
-            :regMed.marca_medidor;
+            :regMed.marca_medidor,
+            :lFechaPivote;
              
    if(SQLCODE != 0 )
       return 0;

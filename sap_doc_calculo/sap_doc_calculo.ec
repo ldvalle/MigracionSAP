@@ -1298,11 +1298,15 @@ ClsHisfac      regFactu;
    char  sIdDocumento[21];
    char  sTipoFpago[2];
    int   iRcv;
+   char  sADATSOLL[9];
    
 	memset(sLinea, '\0', sizeof(sLinea));
    memset(sIdDocumento, '\0', sizeof(sIdDocumento));
    memset(sTipoFpago, '\0', sizeof(sTipoFpago));
+   memset(sADATSOLL, '\0', sizeof(sADATSOLL));
 
+   rfmtdate(regFactu.lFechaIniVentana, "yyyymmdd", sADATSOLL)
+   
    /* Armo el ID de la factura */   
    if(strcmp(regFactu.tipo_iva, "RIN")==0 || strcmp(regFactu.tipo_iva, "RM")==0 ){
       sprintf(sIdDocumento, "A %s%s-%ld", regFactu.centro_emisor, regFactu.tipo_docto, regFactu.numero_factura);
@@ -1373,10 +1377,12 @@ ClsHisfac      regFactu;
   sprintf(sLinea, "%s%s\t", sLinea, regFactu.fecha_lectura);
 
   /* ABRDATS */
-  strcat(sLinea, "\t");
+  /*strcat(sLinea, "\t");*/
+  sprintf(sLinea, "%s%s\t", sLinea, sADATSOLL);
 
   /* ADATSOLL */
-  strcat(sLinea, "\t");
+  /*strcat(sLinea, "\t");*/
+  sprintf(sLinea, "%s%s\t", sLinea, sADATSOLL);
 
   /* PTERMTDAT */
   sprintf(sLinea, "%s%s\t", sLinea, regFactu.fecha_vencimiento);

@@ -123,7 +123,7 @@ long     lCantInFiles;
    cantCorpoT1=0;
    
 	/*********************************************
-				AREA CORPO T1
+				      AREA CORPO T1
 	**********************************************/
    
    $OPEN curCorpoT1;
@@ -330,7 +330,7 @@ void MensajeParametros(void){
 		printf("\t<Base> = synergia.\n");
 		printf("\t<Estado Cliente> = 0 Activo - 1 No Activo 2 - Todos.\n");
 		printf("\t<Tipo Generación> G = Generación, R = Regeneración.\n");
-      printf("\t<Tipo Corrida> 0 = Normal, 1 = Reducida.\n");
+      printf("\t<Tipo Corrida> 0 = Normal, 1 = Reducida, 3 = Delta.\n");
 		printf("\t<Nro.Cliente> Opcional.\n");
 }
 
@@ -354,7 +354,7 @@ $char sAux[1000];
 	$PREPARE selFechaActual FROM $sql;	
 	
    /******** Cursor Corpos T1 ****************/
-	strcpy(sql, "SELECT c.numero_cliente, ");
+  	strcpy(sql, "SELECT c.numero_cliente, ");
 	strcat(sql, "t6.acronimo_sap, ");  /* CDC - Tipo Cliente */
 	strcat(sql, "t6.cod_sap, ");		/* Categoria de cuenta*/
 	strcat(sql, "c.tipo_fpago, ");
@@ -402,7 +402,7 @@ $char sAux[1000];
 	strcat(sql, "AND (cd.fecha_baja IS NULL OR cd.fecha_baja > TODAY) ");
 	strcat(sql, "AND t8.clave = 'ESTCOB' ");
 	strcat(sql, "AND t8.cod_mac = c.estado_cobrabilida ");
-   strcat(sql, "AND t8.clave = 'CENTROOP' ");
+   strcat(sql, "AND t9.clave = 'CENTROOP' ");
 	strcat(sql, "AND t9.cod_mac = c.sucursal ");
    
 	$PREPARE selCorpoT1 FROM $sql;
@@ -446,6 +446,8 @@ $char sAux[1000];
    
 if(giTipoCorrida == 1)
    strcat(sql, ", migra_activos ma ");   
+if(giTipoCorrida == 3)
+   strcat(sql, ", sf_actuclie sf ");   
   
 /*	
 if(giEstadoCliente!=0){
@@ -503,8 +505,12 @@ if(giEstadoCliente!=0){
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM corpoT1migrado ct ");
 	strcat(sql, "   WHERE ct.numero_cliente = c.numero_cliente) ");
 */
+
 if(giTipoCorrida == 1)   
    strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
+if(giTipoCorrida == 3)   
+   strcat(sql, "AND sf.numero_cliente = c.numero_cliente ");
+
 
 /*	
 	strcat(sql, "ORDER BY c.numero_cliente ");
@@ -626,6 +632,20 @@ if(giTipoCorrida == 1)
       AND (fecha_desactivac IS NULL OR fecha_desactivac > TODAY)";
 
 	/********* Exenciones Impositivas **********/
+	strcpy(sql, "SELECT DISTINCT e.numero_cliente, ");  
+	strcat(sql, "TO_CHAR(e.fecha_desde, '%Y%d%m'), "); 
+	strcat(sql, "NVL(TO_CHAR(e.fecha_hasta, '%Y%d%m'),'99991231'), "); 
+	strcat(sql, "e.porcentaje_nuevo, ");
+	strcat(sql, "k1.kschl, k1.porc, k2.indicador ");
+	strcat(sql, "FROM exencion_imp e, sap_eximp k1, sap_eximp_z k2 "); 
+	strcat(sql, "WHERE e.numero_cliente = ? ");
+	strcat(sql, "AND e.fecha_desde <= TODAY "); 
+	strcat(sql, "AND (e.fecha_hasta IS NULL OR e.fecha_hasta > TODAY) "); 
+	strcat(sql, "AND e.codigo_cargo NOT IN('721', '796') "); 
+	strcat(sql, "AND k1.cod_mac = e.codigo_cargo ");
+	strcat(sql, "AND k2.kschl = k1.kschl ");
+   
+/*   
 	strcpy(sql, "SELECT e.numero_cliente, "); 
 	strcat(sql, "e.codigo_cargo, "); 
 	strcat(sql, "TO_CHAR(e.fecha_desde, '%Y%d%m'), ");
@@ -636,10 +656,11 @@ if(giTipoCorrida == 1)
 	strcat(sql, "AND e.fecha_desde <= TODAY ");
 	strcat(sql, "AND (e.fecha_hasta IS NULL OR e.fecha_hasta > TODAY) ");
    strcat(sql, "AND e.codigo_cargo NOT IN('721', '796') ");
-
+*/
    $PREPARE selExenciones FROM $sql;
    
    $DECLARE curExenciones CURSOR FOR selExenciones;
+
 
    /******** Exenciones %SAP *********/
    $PREPARE selExeSap1 FROM "SELECT kschl, porc FROM sap_eximp
@@ -1115,14 +1136,14 @@ char  sTipo[2];
    
 	memset(sLinea, '\0', sizeof(sLinea));
 
-   /*
+
    if(iTipo == 1){
       sprintf(sLinea, "T1%ldCORP\tVKLOCK\t", regCliente.numero_cliente);
    }else{
 	  sprintf(sLinea, "T1%ld\tVKLOCK\t", regCliente.numero_cliente);
    }
-   */
-   sprintf(sLinea, "T1%ld\tVKLOCK\t", regCliente.numero_cliente);
+
+   /*sprintf(sLinea, "T1%ld\tVKLOCK\t", regCliente.numero_cliente);*/
    
    /* LOCKAKTYP */
    /*
@@ -1232,14 +1253,14 @@ int iTipo;
 	}
 	
    /* llave */
-   /*
+
    if(iTipo == 1){
       sprintf(sLinea, "T1%ldCORP\tVKP\t",regCliente.numero_cliente);
    }else{
 	  sprintf(sLinea, "T1%ld\tVKP\t",regCliente.numero_cliente);
    }
-   */
-   sprintf(sLinea, "T1%ld\tVKP\t",regCliente.numero_cliente);
+
+   /*sprintf(sLinea, "T1%ld\tVKP\t",regCliente.numero_cliente);*/
    
    /* PARTNER */
    /*
@@ -1468,11 +1489,12 @@ int   iTipo;
 	memset(sLinea, '\0', sizeof(sLinea));
    
    if(regExe.porc == 0.0){
+/*   
       if(!getPorcentajeExe(&regExe, 1)){
          printf("No se encontró porcentajes para cliente %ld\n", regCliente.numero_cliente);
          return;
       }
-   
+*/   
       regExe.EXRAT = 100.00;
    }else{
       if(!getPorcentajeExe(&regExe, 0)){
@@ -1480,7 +1502,7 @@ int   iTipo;
          return;
       }
    }
-
+/*
    $OPEN curIndIva USING :regExe.KSCHL;
    
    while(LeoIndiIva(&regExe)){
@@ -1488,6 +1510,8 @@ int   iTipo;
    }
    
    $CLOSE curIndIva;
+*/   
+   GeneraVKTXEX(fp, regCliente, regExe, iTipo);
 
 }
 
@@ -1589,9 +1613,9 @@ short getPorcentajeExe(reg, iTipo)
 $ClsExencion *reg;
 int   iTipo;
 {
-   $double porSap=0.00;
+   $double porSap=reg->porc_sap;
    $double porFinal=0.00;
-   
+/*   
    $EXECUTE selExeSap1 INTO :reg->KSCHL, 
                             :porSap 
                   USING :reg->cod_cargo;
@@ -1600,7 +1624,7 @@ int   iTipo;
       printf("No se encontró exencion SAP para cliente %ld cargo %s\n", reg->numero_cliente, reg->cod_cargo);
       return 0;
    }
-
+*/
    if(porSap > 0.00)
       porFinal = (reg->porc / porSap) * 100;
 
@@ -2105,10 +2129,13 @@ $ClsExencion   *reg;
 
    $FETCH curExenciones INTO
       :reg->numero_cliente,
-      :reg->cod_cargo,
+      /*:reg->cod_cargo,*/
       :reg->sFechaDesde,
       :reg->sFechaHasta,
-      :reg->porc;
+      :reg->porc,
+      :reg->KSCHL,
+      :reg->porc_sap,
+      :reg->MWSKZ;
       
    if(SQLCODE != 0){
       return 0;

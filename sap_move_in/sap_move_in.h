@@ -70,6 +70,8 @@ short	ClienteYaMigrado(long, int*, int*, ClsEstados*);
 short	RegistraCliente(ClsAltas, int);
 char	*getFechaFactura(long, long);
 
+void  FechaMoveInTrucha(ClsAltas *);
+
 /*
 short	EnviarMail( char *, char *);
 void  	ArmaMensajeMail(char **);

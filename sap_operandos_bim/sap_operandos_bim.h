@@ -32,6 +32,16 @@ $typedef struct{
    double   cons_61;
    long  fecha_facturacion;
    long  numero_factura;
+   int   tipo_lectura;
+   char  tipo_medidor[2];
+   char  porcion[9];
+   char  ul[9];
+   double   consumo_sum_reactiva;
+   double   lectura_reactiva;
+   double   cosenoPhi;
+   char     leyendaPhi[6];
+   long     lFechaEvento;
+   char     sFechaEvento[9];
 }ClsFactura;
 
 $typedef struct{
@@ -80,6 +90,12 @@ void  InicializaOperandos(ClsFacts *);
 short LeoFactura(ClsFactura *);
 void  InicializaFactura(ClsFactura *);
 short LeoRefac(ClsFactura *);
+short getConsuReactiva(ClsFactura *);
+short getLectuReactiva(ClsFactura *);
+short getLectuReactivaRefac(ClsFactura *);
+short getIniVentanaAgenda(ClsFactura *);
+short getLeyenda(ClsFactura *, long);
+
 
 void  GenerarPlanos(FILE*, int, ClsFacts);
 void  GeneraKey(FILE*, int, ClsFacts);
@@ -91,7 +107,7 @@ short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(char*, int);
-void  MueveArchivos();
+void  MueveArchivos(void);
 
 short	ClienteYaMigrado(long, long*, int*);
 short	RegistraCliente(long, int);

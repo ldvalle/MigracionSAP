@@ -80,7 +80,8 @@ $long    lMaxFeULAnterior;
 long     iCantPortion;
 long     iCantUL;
 int      iRcv;
-$ClsAgenda  regAgeAux;  
+$ClsAgenda  regAgeAux;
+$long    lFechaPivoteAux;  
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -144,7 +145,8 @@ $ClsAgenda  regAgeAux;
    
       $COMMIT WORK;
       
-   	$OPEN cur418 USING :lFechaPivote;
+      lFechaPivoteAux = lFechaPivote - 10; 
+   	$OPEN cur418 USING :lFechaPivote, :lFechaPivoteAux;
       
       if(Leo418(&regAge)){
          iRcv=1;
@@ -419,7 +421,8 @@ $char sAux[1000];
    $PREPARE selPivote FROM $sql;
 
    /******** Fecha Pivote 2  ****************/
-   strcpy(sql, "SELECT TODAY - 70 FROM dual ");
+   /*strcpy(sql, "SELECT TODAY - 70 FROM dual ");*/
+   strcpy(sql, "SELECT TODAY - 480 FROM dual ");
    
    $PREPARE selPivote2 FROM $sql;
 	
@@ -478,8 +481,16 @@ $char sAux[1000];
    strcat(sql, "a1.identif_agenda ");    
 	strcat(sql, "FROM agenda a1, sucur_centro_op sc, det_agenda d ");
 	strcat(sql, "WHERE a1.sector <= 82 "); 
-	strcat(sql, "AND a1.fecha_generacion >= ? ");
+	strcat(sql, "AND a1.fecha_generacion >= (SELECT MAX(a2.fecha_generacion) FROM agenda a2 ");
+
+	strcat(sql, "   WHERE a2.sucursal = a1.sucursal ");
+	strcat(sql, "   AND a2.sector = a1.sector ");
+	strcat(sql, "   AND a2.tipo_agenda = a1.tipo_agenda ");
+	strcat(sql, "   AND a2.tipo_ciclo != 'F' ");
+	strcat(sql, "   AND a2.fecha_generacion < ? ) ");
+   
    strcat(sql, "AND a1.fecha_emision_real IS NOT NULL ");
+   strcat(sql, "AND a1.fecha_generacion > ? ");
    strcat(sql, "AND a1.tipo_agenda = 'L' ");
 	strcat(sql, "AND sc.cod_centro_op = a1.sucursal "); 
 	strcat(sql, "AND sc.fecha_activacion <= TODAY "); 
@@ -751,8 +762,10 @@ $ClsAgenda *reg;
 		}
     }			
 	
-   reg->min_fecha_lectu = reg->fecha_generacion;
-   reg->max_fecha_lectu = reg->fecha_generacion+8;
+   /*lFechaAux1 = RestarDiasHabiles(lFechaAux, 1, lFDesde);*/
+   
+   reg->min_fecha_lectu = reg->fecha_generacion-1;
+   reg->max_fecha_lectu = reg->fecha_generacion+7;
    
    /* Busca Minima Fecha Lectura para la agenda */
 /*   
@@ -1150,7 +1163,7 @@ long        lHastaAnterior;
    /* ABLESGR	*/
    strcat(sLinea, "01\t");
    /* ABLESART	*/
-   if(reg.tipo_ciclo[0]=='R'){
+   if(reg.tipo_ciclo[0]=='F'){
       strcat(sLinea, "04\t");
    }else{
       strcat(sLinea, "01\t");
