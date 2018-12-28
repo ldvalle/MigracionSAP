@@ -103,6 +103,8 @@ char        sFechaHasta[11];
 $long       lFechaDesde;
 $long       lFechaHasta;
 
+$long       cantConsu;
+$long       cantLectuActi;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -116,7 +118,7 @@ $long       lFechaHasta;
 	
 	$DATABASE :nombreBase;	
 	
-	$SET LOCK MODE TO WAIT;
+	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
 	$SET ISOLATION TO CURSOR STABILITY;
 	
@@ -170,7 +172,8 @@ $long       lFechaHasta;
 		printf("Procesando Sucursal %s......\n", sSucursal);
 */         
       while(LeoCliente(&regCliente)){
-         
+         cantConsu=0;
+         cantLectuActi=0;
          if(!ClienteYaMigrado(regCliente.numero_cliente, &lFechaInicio, &iFlagMigra)){
             
             if(regCliente.corr_facturacion > 0){
@@ -199,10 +202,12 @@ $long       lFechaHasta;
                      fpUnx=fpFacDiasPC;
                      GenerarPlanos(fpUnx, 2, regFact);
                      
+                     cantConsu++;
                      if(regFactu.fhasta >= lFechaLimiteInferior){
                         /* QCONBFPACT*/
                         TraspasoDatosFactu(3, regCliente, regFactu, &regFact);
                         GenerarPlanos(fpQConsActiva, 3, regFact);
+                        cantLectuActi++;
                         if(regFactu.tipo_medidor[0]=='R'){
                            if(getConsuReactiva(&regFactu)){
                               /* QCONBFPREAC */
@@ -258,10 +263,12 @@ $long       lFechaHasta;
                      fpUnx=fpFacDiasPC;
                      GenerarPlanos(fpUnx, 2, regFact);
                      
+                     cantConsu++;
                      if(regFactu.fhasta >= lFechaLimiteInferior){
                         /* QCONBFPACT*/
                         TraspasoDatosFactu(3, regCliente, regFactu, &regFact);
                         GenerarPlanos(fpQConsActiva, 3, regFact);
+                        cantLectuActi++;
                         
                         if(regFactu.tipo_medidor[0]=='R'){
                            /* QCONBFPREAC */
@@ -306,6 +313,8 @@ $long       lFechaHasta;
                      fpUnx=fpFacDiasPC;
                      GenerarPlanos(fpUnx, 2, regFact);
                      lFechaLectuAnterior = regAhorro.lFechaInicio;
+                     
+                     cantConsu++;
                   }
                }
                
@@ -325,18 +334,21 @@ $long       lFechaHasta;
             		}
                }
             }
-/*            
-            $BEGIN WORK;            
-            if(!RegistraCliente(regCliente.numero_cliente,iFlagMigra)){
-               $ROLLBACK WORK;
-               exit(2);
-            }
-            $COMMIT WORK;
-*/            
+
+            /*if(giTipoCorrida==0){*/            
+               $BEGIN WORK;            
+               if(!RegistraCliente(regCliente.numero_cliente, cantConsu, cantLectuActi, iFlagMigra)){
+                  $ROLLBACK WORK;
+                  exit(2);
+               }
+               $COMMIT WORK;
+            /*}*/            
             cantProcesada++;
          }else{
             cantPreexistente++;
-         }         
+         } 
+         
+                 
       } /* Clientes */
    
       $CLOSE curClientes;
@@ -883,14 +895,17 @@ $char sAux[1000];
 
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, facts_bim ");
-	strcat(sql, ")VALUES(?, 'S') ");
+	strcat(sql, "numero_cliente, facts_bim, gconsbimes, facdiaspc, qconbfpact ");
+	strcat(sql, ")VALUES(?, 'S', ?, ?, ?) ");
 	
 	$PREPARE insClientesMigra FROM $sql;
 	
 	/************ Update Clientes Migra **************/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
-	strcat(sql, "facts_bim = 'S' ");
+	strcat(sql, "facts_bim = 'S', ");
+	strcat(sql, "gconsbimes = ?, ");
+	strcat(sql, "facdiaspc = ?, ");
+	strcat(sql, "qconbfpact = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE updClientesMigra FROM $sql;
@@ -1635,15 +1650,17 @@ short RegistraArchivo(void)
 	return 1;
 }
 */
-short RegistraCliente(nroCliente, iFlagMigra)
+short RegistraCliente(nroCliente, cantConsu, cantActi, iFlagMigra)
 $long	nroCliente;
+$long  cantConsu;
+$long  cantActi;
 int		iFlagMigra;
 {
 	
 	if(iFlagMigra==1){
-		$EXECUTE insClientesMigra using :nroCliente;
+		$EXECUTE insClientesMigra using :nroCliente, :cantConsu, :cantConsu, :cantActi;
 	}else{
-		$EXECUTE updClientesMigra using :nroCliente;
+		$EXECUTE updClientesMigra using :cantConsu, :cantConsu, :cantActi, :nroCliente;
 	}
 
 	return 1;

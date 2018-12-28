@@ -68,7 +68,7 @@ void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 
 short	ClienteYaMigrado(long, int*, long*, long*);
-short	RegistraCliente(long, int);
+short	RegistraCliente(long, long, int);
 
 short	LeoClientes(long*, long*);
 long	getCorrFactu(long);

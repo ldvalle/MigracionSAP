@@ -110,7 +110,7 @@ void	FormateaArchivos(char*, int);
 void  MueveArchivos(void);
 
 short	ClienteYaMigrado(long, long*, int*);
-short	RegistraCliente(long, int);
+short	RegistraCliente(long, long, long, int);
 
 /*
 short	EnviarMail( char *, char *);

@@ -116,7 +116,7 @@ int		iFlagMigra;
 	
 	$DATABASE :nombreBase;	
 	
-	$SET LOCK MODE TO WAIT;
+	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
 	$SET ISOLATION TO CURSOR STABILITY;
 	
@@ -173,7 +173,7 @@ int		iFlagMigra;
 				}else{
 					cantProcesadaConexNoActivo++;			
 				}
-/*
+
 				if(gsTipoGenera[0]!='R'){
                $BEGIN WORK;
 					if(!RegistraCliente("OBJCONEX", regCliente.numero_cliente, iFlagMigra)){
@@ -182,7 +182,6 @@ int		iFlagMigra;
 					}
                $COMMIT WORK;
 				}
-*/            
 				
 			}else{
 				cantPreexistenteConex++;
@@ -211,14 +210,14 @@ int		iFlagMigra;
 				}else{
 					cantProcesadaPtoSumNoActivo++;			
 				}
-/*            
+           
             $BEGIN WORK;
 				if(!RegistraCliente("PUNTOSUM", regCliente.numero_cliente, iFlagMigra)){
 					$ROLLBACK WORK;
 					exit(1);					
 				}
             $COMMIT WORK;
-*/            				
+          				
 			}else{
 				cantPreexistentePtoSum++;
 			}						

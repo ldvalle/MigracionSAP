@@ -135,12 +135,13 @@ void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 
 short	ClienteYaMigrado(char *, long, long *,int*);
-short	RegistraCliente(char*, long, int);
+short	RegistraCliente(char*, long, long, int);
 char	*getFechaFactura(long, long);
 
 short getFechaIni(ClsOperando, long*);
 short getFechaFin(ClsOperando, long*);
 
+int   getExiste(long);
 /*
 short	EnviarMail( char *, char *);
 void  	ArmaMensajeMail(char **);

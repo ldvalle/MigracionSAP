@@ -82,6 +82,7 @@ $long lFechaMoveInMenos1;
 int      iVuelta;
 long  lFechaAux;
 char  sFechaIniAnterior[9];
+$long lCantLectuClie;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -95,7 +96,7 @@ char  sFechaIniAnterior[9];
 	
 	$DATABASE :nombreBase;	
 	
-	$SET LOCK MODE TO WAIT;
+	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
 	$SET ISOLATION TO CURSOR STABILITY;
 	
@@ -142,6 +143,7 @@ char  sFechaIniAnterior[9];
 		printf("Procesando Todas las Sucursales%s......\n", sSucursal);
 			
 		while(LeoClientes(&lNroCliente, &lCorrFactu)){
+         lCantLectuClie=0;
 			/*$BEGIN WORK;*/
 			if(lCorrFactu > 0){
 				/*if(! ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaValTarifa, &lFechaMoveIn)){*/
@@ -228,6 +230,7 @@ char  sFechaIniAnterior[9];
                         }else{
                            GeneraENDE(pFileLecturasUnx, regLectuAux);
                         }
+                        lCantLectuClie++;
                      }
                      
                      iVuelta++;
@@ -294,16 +297,15 @@ char  sFechaIniAnterior[9];
 						/*
 						GeneraENDE(pFileLecturasUnx, regLecturas);
 						*/
-/*                  
-                  $BEGIN WORK;
-                  
-						if(!RegistraCliente(lNroCliente, iFlagMigra)){
-							$ROLLBACK WORK;
-							exit(1);	
-						}
-                  
-                  $COMMIT WORK;
-*/                  			
+
+                  /*if(giTipoCorrida == 0){*/                  
+                     $BEGIN WORK;
+   						if(!RegistraCliente(lNroCliente, lCantLectuClie, iFlagMigra)){
+   							$ROLLBACK WORK;
+   							exit(1);	
+   						}
+                     $COMMIT WORK;
+                  /*}*/                  			
 						cantProcesada++;
                /*                  
 					} 
@@ -938,14 +940,15 @@ $char sAux[1000];
 
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, lecturas ");
+	strcat(sql, "numero_cliente, lecturas, cant_lecturas ");
 	strcat(sql, ")VALUES(?, 'S') ");
 	
 	$PREPARE insClientesMigra FROM $sql;
 	
 	/************ Update Clientes Migra **************/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
-	strcat(sql, "lecturas = 'S' ");
+	strcat(sql, "lecturas = 'S', ");
+   strcat(sql, "cant_lecturas = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE updClientesMigra FROM $sql;
@@ -1283,14 +1286,15 @@ short RegistraArchivo(void)
 	return 1;
 }
 
-short RegistraCliente(nroCliente, iFlagMigra)
+short RegistraCliente(nroCliente, lCant, iFlagMigra)
 $long	nroCliente;
+$long lCant;
 int		iFlagMigra;
 {
 	if(iFlagMigra==1){
-		$EXECUTE insClientesMigra using :nroCliente;
+		$EXECUTE insClientesMigra using :nroCliente, :lCant;
 	}else{
-		$EXECUTE updClientesMigra using :nroCliente;
+		$EXECUTE updClientesMigra using :lCant, :nroCliente;
 	}
 
 	return 1;

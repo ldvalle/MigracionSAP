@@ -115,8 +115,9 @@ $long       lFechaValTarifa;
 	
 	$DATABASE :nombreBase;	
 	
-	$SET LOCK MODE TO WAIT;
+	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
+   $SET ISOLATION TO CURSOR STABILITY;
 
 	CreaPrepare();
 
@@ -609,7 +610,11 @@ $char sAux[1000];
 	strcpy(sql, "SELECT TO_CHAR(TODAY, '%d/%m/%Y') FROM dual ");
 	
 	$PREPARE selFechaActual FROM $sql;	
-	
+
+   /***** Existe Cliente *****/	
+   $PREPARE selExiste FROM "SELECT COUNT(*) FROM sap_regi_cliente
+      WHERE numero_cliente = ?";
+   
 	/******** ELECTRO DEPENDIENTES *********/
 	strcpy(sql, "SELECT v.numero_cliente, ");
 	strcat(sql, "v.fecha_activacion, ");
@@ -663,7 +668,7 @@ $char sAux[1000];
 
 	$PREPARE selElectro FROM $sql;
 	
-	$DECLARE curElectro CURSOR FOR selElectro;
+	$DECLARE curElectro CURSOR WITH HOLD FOR selElectro;
 
 
    /******** Temporal TIS ******/
@@ -718,7 +723,7 @@ $char sAux[1000];
 	
 	$PREPARE selTarsoc FROM $sql;
 	
-	$DECLARE curTis CURSOR FOR selTarsoc;
+	$DECLARE curTis CURSOR WITH HOLD FOR selTarsoc;
 		
 	/******** Buscamos el Alta en ESTOC *********/
 	strcpy(sql, "SELECT TO_CHAR(fecha_terr_puser, '%Y%m%d') ");
@@ -790,31 +795,103 @@ $char sAux[1000];
 	
 	/*********Insert Clientes extraidos VIP **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, operando_vip ");
-	strcat(sql, ")VALUES(?, 'S') ");
+	strcat(sql, "numero_cliente, flag_vip, operando_vip ");
+	strcat(sql, ")VALUES(?, ?, 'S') ");
 	
-	$PREPARE insClientesMigra FROM $sql;
+	$PREPARE insFlagVip FROM $sql;
 	
 	/************ Update Clientes Migra VIP **************/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
-	strcat(sql, "operando_vip = 'S' ");
+	strcat(sql, "operando_vip = 'S', ");
+   strcat(sql, "flag_vip = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
-	$PREPARE updClientesMigra FROM $sql;
+	$PREPARE updFlagVip FROM $sql;
 
 	/*********Insert Clientes extraidos TIS **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, operando_tis ");
-	strcat(sql, ")VALUES(?, 'S') ");
+	strcat(sql, "numero_cliente, flag_tis, operando_tis ");
+	strcat(sql, ")VALUES(?, ?, 'S') ");
 	
-	$PREPARE insClientesMigra2 FROM $sql;
+	$PREPARE insFlagTis FROM $sql;
 	
 	/************ Update Clientes Migra TIS **************/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
-	strcat(sql, "operando_tis = 'S' ");
+	strcat(sql, "operando_tis = 'S', ");
+   strcat(sql, "flag_tis = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
-	$PREPARE updClientesMigra2 FROM $sql;
+	$PREPARE updFlagTis FROM $sql;
+
+	/*********Insert Flag Tasa **********/
+	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
+	strcat(sql, "numero_cliente, flag_tap");
+	strcat(sql, ")VALUES(?, ?) ");
+	
+	$PREPARE insFlagTasa FROM $sql;
+	
+	/************ Update Flag Tasa **************/
+	strcpy(sql, "UPDATE sap_regi_cliente SET ");
+   strcat(sql, "flag_tap = ? ");
+	strcat(sql, "WHERE numero_cliente = ? ");
+	
+	$PREPARE updFlagTasa FROM $sql;
+
+	/*********Insert Factor Tasa **********/
+	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
+	strcat(sql, "numero_cliente, factor_tap");
+	strcat(sql, ")VALUES(?, ?) ");
+	
+	$PREPARE insFactorTasa FROM $sql;
+	
+	/************ Update Factor Tasa **************/
+	strcpy(sql, "UPDATE sap_regi_cliente SET ");
+   strcat(sql, "factor_tap = ? ");
+	strcat(sql, "WHERE numero_cliente = ? ");
+	
+	$PREPARE updFactorTasa FROM $sql;
+
+	/*********Insert Precio Tasa **********/
+	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
+	strcat(sql, "numero_cliente, qptap");
+	strcat(sql, ")VALUES(?, ?) ");
+	
+	$PREPARE insQTasa FROM $sql;
+	
+	/************ Update Precio Tasa **************/
+	strcpy(sql, "UPDATE sap_regi_cliente SET ");
+   strcat(sql, "qptap = ? ");
+	strcat(sql, "WHERE numero_cliente = ? ");
+	
+	$PREPARE updQTasa FROM $sql;
+
+	/*********Insert EBP **********/
+	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
+	strcat(sql, "numero_cliente, flag_ebp");
+	strcat(sql, ")VALUES(?, ?) ");
+	
+	$PREPARE insEbp FROM $sql;
+	
+	/************ Update EBP **************/
+	strcpy(sql, "UPDATE sap_regi_cliente SET ");
+   strcat(sql, "flag_ebp = ? ");
+	strcat(sql, "WHERE numero_cliente = ? ");
+	
+	$PREPARE updEbp FROM $sql;
+
+	/*********Insert FP **********/
+	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
+	strcat(sql, "numero_cliente, qcontador");
+	strcat(sql, ")VALUES(?, ?) ");
+	
+	$PREPARE insFp FROM $sql;
+	
+	/************ Update FP **************/
+	strcpy(sql, "UPDATE sap_regi_cliente SET ");
+   strcat(sql, "qcontador = ? ");
+	strcat(sql, "WHERE numero_cliente = ? ");
+	
+	$PREPARE updFp FROM $sql;
 
 	/************ Busca Instalacion 1 **************/
 	strcpy(sql, "SELECT NVL(TO_CHAR(m.fecha_ult_insta, '%Y%m%d'), '19950924') ");
@@ -945,7 +1022,7 @@ $char sAux[1000];
       strcat(sql, "AND m.numero_cliente = t.numero_cliente ");	
    
    $PREPARE selCliTasa FROM $sql;   
-   $DECLARE curCliTasa CURSOR FOR selCliTasa;
+   $DECLARE curCliTasa CURSOR WITH HOLD FOR selCliTasa;
 
    /******** Cursor Exencion Tasa *******/
    $PREPARE selTasaVig FROM "SELECT numero_cliente, 
@@ -1002,11 +1079,10 @@ $char sAux[1000];
    if(giTipoCorrida==1)	
       strcat(sql, "AND m.numero_cliente = c.numero_cliente ");	
    
-   strcat(sql, "ORDER BY e.fecha_inicio ASC ");   
+   strcat(sql, "ORDER BY e.numero_cliente, e.fecha_inicio ASC ");   
                   	
    $PREPARE selEBP FROM $sql;   
-   $DECLARE curEBP CURSOR FOR selEBP;
-
+   $DECLARE curEBP CURSOR WITH HOLD FOR selEBP;
    
    /********** Cursor FP **********/
    strcpy(sql, "SELECT r.numero_cliente, r.evento, r.fecha_evento, ");
@@ -1029,7 +1105,7 @@ $char sAux[1000];
       strcat(sql, "AND m.numero_cliente = c.numero_cliente ");	
 
    $PREPARE selFP FROM $sql;   
-   $DECLARE curFP CURSOR FOR selFP;
+   $DECLARE curFP CURSOR WITH HOLD FOR selFP;
                      
 }
 
@@ -1352,26 +1428,66 @@ short RegistraArchivo(void)
 	return 1;
 }
 */
-short RegistraCliente(sOpe, nroCliente, iFlagMigra)
-char	sOpe[4];
+short RegistraCliente(sOpe, nroCliente, cantidad, iFlagMigra)
+char	*sOpe;
 $long	nroCliente;
+$long cantidad;
 int		iFlagMigra;
 {
 
-	if(strcmp(sOpe, "VIP")){
+   alltrim(sOpe, ' ');
+   
+	if(strcmp(sOpe, "VIP")==0){
 		if(iFlagMigra==1){
-			$EXECUTE insClientesMigra using :nroCliente;
+			$EXECUTE insFlagVip using :nroCliente, :cantidad;
 		}else{
-			$EXECUTE updClientesMigra using :nroCliente;
+			$EXECUTE updFlagVip using :cantidad, :nroCliente;
 		}
-	}else{
+   }
+   
+	if(strcmp(sOpe, "TIS")==0){
 		if(iFlagMigra==1){
-			$EXECUTE insClientesMigra2 using :nroCliente;
+			$EXECUTE insFlagTis using :nroCliente, :cantidad;
 		}else{
-			$EXECUTE updClientesMigra2 using :nroCliente;
+			$EXECUTE updFlagTis using :cantidad, :nroCliente;
 		}
 	}
 
+   if(strcmp(sOpe, "TASAFF")==0){
+		if(iFlagMigra==1){
+			$EXECUTE insFlagTasa using :nroCliente, :cantidad;
+         $EXECUTE insFactorTasa using :nroCliente, :cantidad;
+         
+		}else{
+			$EXECUTE updFlagTasa using :cantidad, :nroCliente;
+         $EXECUTE updFactorTasa using :cantidad, :nroCliente;
+		}
+   }
+
+   if(strcmp(sOpe, "QTASA")==0){
+		if(iFlagMigra==1){
+			$EXECUTE insQTasa using :nroCliente, :cantidad;
+		}else{
+			$EXECUTE updQTasa using :cantidad, :nroCliente;
+		}
+   }
+
+   if(strcmp(sOpe, "EBP")==0){
+		if(iFlagMigra==1){
+			$EXECUTE insEbp using :nroCliente, :cantidad;
+		}else{
+			$EXECUTE updEbp using :cantidad, :nroCliente;
+		}
+   }
+
+   if(strcmp(sOpe, "FP")==0){
+		if(iFlagMigra==1){
+			$EXECUTE insFp using :nroCliente, :cantidad;
+		}else{
+			$EXECUTE updFp using :cantidad, :nroCliente;
+		}
+   }
+   
 	return 1;
 }
 
@@ -1531,6 +1647,7 @@ int				 iNx;
 $long			    lClienteAnterior;
 $long           lFechaValTarifa;
 $int            iFlagMigra;
+$long           CantCliVip;
 
    if(glFechaParametro > 0){
       $OPEN curElectro USING :glFechaParametro;
@@ -1544,8 +1661,20 @@ $int            iFlagMigra;
   
 		if(lClienteAnterior != regOperandos.numero_cliente){
 			/* Primera ocurrencia del cliente */
+         if(lClienteAnterior > 0){
+            /*if(giTipoCorrida == 0){*/
+               $BEGIN WORK;
+               if(!RegistraCliente("VIP", lClienteAnterior, CantCliVip, iFlagMigra)){
+                  $ROLLBACK WORK;
+                  printf("No se registro cliente %ld\n", lClienteAnterior);
+               }else{
+                  $COMMIT WORK;
+               }
+            /*}*/
+         }
          lClienteAnterior = regOperandos.numero_cliente;
 			iNx=1;
+         CantCliVip=1;
          
 			if(! ClienteYaMigrado("VIP", regOperandos.numero_cliente, &lFechaValTarifa, &iFlagMigra)){
             rfmtdate(lFechaValTarifa, "yyyymmdd", regOperandos.fecha_vig_tarifa);
@@ -1570,6 +1699,7 @@ $int            iFlagMigra;
                   GenerarPlano("R", pFileOperandosUnx, regOperandos, iNx);
                   cantVipProcesada++;
                   iNx++;
+                  CantCliVip++;
                }
             /*}*/
 			}else{
@@ -1591,13 +1721,15 @@ $int            iFlagMigra;
 */                   
                    /* registro desactivado */
                    GenerarPlano("R", pFileOperandosUnx, regOperandos, iNx);
-                   iNx++;                  
+                   iNx++;
+                   CantCliVip++;                  
                 /*}*/
              }else{
                 /* registro activo */
                 GenerarPlano("R", pFileOperandosUnx, regOperandos, iNx);
                 cantVipProcesada++;
                 iNx++;
+                CantCliVip++;
              }
           }
 		/*}*/
@@ -1614,6 +1746,7 @@ int				 iNx;
 $long			    lClienteAnterior;
 $long           lFechaValTarifa;
 $int            iFlagMigra;
+$long           CantCliTis;
 
    if(glFechaParametro > 0){
       $OPEN curTis USING :glFechaParametro;
@@ -1626,8 +1759,21 @@ $int            iFlagMigra;
    while(LeoTis(&regOperandos)){
 		if(lClienteAnterior != regOperandos.numero_cliente){
 			/* Primera ocurrencia del cliente */
+         if(lClienteAnterior > 0){
+             /*if(giTipoCorrida ==0 ){*/
+               $BEGIN WORK;
+               if(!RegistraCliente("TIS", lClienteAnterior, CantCliTis, iFlagMigra)){
+                  $ROLLBACK WORK;
+                  printf("No se registro TIS para cliente %ld\n", lClienteAnterior);            
+               }else{
+                  $COMMIT WORK;
+               }
+            /*}*/
+         }
+         
          lClienteAnterior = regOperandos.numero_cliente;
 			iNx=1;
+         CantCliTis=1;
          
 			if(! ClienteYaMigrado("TIS", regOperandos.numero_cliente, &lFechaValTarifa, &iFlagMigra)){
             rfmtdate(lFechaValTarifa, "yyyymmdd", regOperandos.fecha_vig_tarifa);
@@ -1644,12 +1790,14 @@ $int            iFlagMigra;
 */                     
                      /* registro desactivado */
                      GenerarPlano("R", pFileOperandosUnx, regOperandos, iNx);
-                     iNx++;                  
+                     iNx++;
+                     CantCliTis++;                  
                   /*}*/
                }else{
                   /* registro activo */
                   GenerarPlano("R", pFileOperandosUnx, regOperandos, iNx);
                   iNx++;
+                  CantCliTis++;
                   cantTisProcesada++;
                }
             /*}*/
@@ -1672,13 +1820,15 @@ $int            iFlagMigra;
 */                   
                    /* registro desactivado */
                    GenerarPlano("R", pFileOperandosUnx, regOperandos, iNx);
-                   iNx++;                  
+                   iNx++;
+                   CantCliTis++;                  
                 /*}*/
              }else{
                 /* registro activo */
                 GenerarPlano("R", pFileOperandosUnx, regOperandos, iNx);
                 iNx++;
                 cantTisProcesada++;
+                CantCliTis++;
              }
           }
 		/*}*/
@@ -1689,7 +1839,8 @@ $int            iFlagMigra;
 
 }
 
-void GenerarTasa(){
+void GenerarTasa()
+{
 $ClsOperando   regOpe;
 $ClsTasa       regTasa;
 $ClsTasaVig    regVig;
@@ -1699,14 +1850,20 @@ $long          lFechaDesde;
 $long          lFechaHasta;
 $double        dMonto;
 int            iNx;
+$long          cantOpTasa;
+int            iFlagMigra;
 
    /*$OPEN curCliTasa USING :lFechaPivote;*/
    $OPEN curCliTasa;
    
    while(LeoTasa(&regTasa)){
+      
+      iFlagMigra=getExiste(regTasa.numero_cliente);
+      
       iVuelta=0;
       $OPEN curTasaVig USING :regTasa.numero_cliente, :lFechaPivote;
-      iNx=1;      
+      iNx=1;
+      cantOpTasa=1;      
       while(LeoTasaVig(&regVig)){
          lFechaDesde = regVig.lFechaActivacion;
          InicializaOperando(&regOpe);
@@ -1719,15 +1876,27 @@ int            iNx;
          InicializaOperando(&regOpe);
          TraspasoTasaFactor(regVig, lFechaDesde, &regOpe);
          PrintTasaFactor(regOpe, iNx);
-         
+
          iNx++;
       }
       $CLOSE curTasaVig;
 
+      /*if(giTipoCorrida==0){*/
+         cantOpTasa = iNx-1;
+         $BEGIN WORK;
+         if(!RegistraCliente("TASAFF", regTasa.numero_cliente, cantOpTasa, iFlagMigra)){
+            printf("No registre TASAFF cliente %ld\n", regTasa.numero_cliente);
+            $ROLLBACK WORK;
+         }else{
+            $COMMIT WORK;
+         }
+      /*}*/
+      
       /* Precio */
       iVuelta=0;
       $OPEN curPrecioTasa USING :regTasa.numero_cliente, :lFechaPivote;
       iNx=1;
+      cantOpTasa=1;
       while(LeoTasaPrecio(&regPrecio)){
          if(iVuelta==0){
             /*lFechaDesde = regPrecio.fecha;*/
@@ -1744,6 +1913,18 @@ int            iNx;
          iNx++;
       }
       $CLOSE curPrecioTasa;
+
+      /*if(giTipoCorrida==0){*/
+         cantOpTasa = iNx-1;
+         $BEGIN WORK;
+         if(!RegistraCliente("QTASA", regTasa.numero_cliente, cantOpTasa, iFlagMigra)){
+            printf("No registre QTASA cliente %ld\n", regTasa.numero_cliente);
+            $ROLLBACK WORK;
+         }else{
+            $COMMIT WORK;
+         }
+      /*}*/
+
             
       cantTasa++;
    }
@@ -2058,6 +2239,7 @@ void GenerarEBP(){
 $ClsOperando   regOpe;
 $ClsEBP        regEbp;
 int            iNx;
+int            iFlagMigra;
 
    $OPEN curEBP USING :lFechaPivote;
    
@@ -2066,6 +2248,16 @@ int            iNx;
       InicializaOperando(&regOpe);
       TraspasoEBP(regEbp, &regOpe);
       PrintEBP(regOpe, iNx);
+      /*if(giTipoCorrida==0){*/
+         iFlagMigra=getExiste(regEbp.numero_cliente);
+         $BEGIN WORK;
+         if(!RegistraCliente("EBP", regEbp.numero_cliente, 1, iFlagMigra)){
+            $ROLLBACK WORK;
+            printf("No se registro EBP para cliente %ld\n", regEbp.numero_cliente);
+         }else{
+            $COMMIT WORK;
+         }
+      /*}*/
       iNx++;
       cantEBP++;
    }
@@ -2137,6 +2329,7 @@ void GenerarFP(){
 $ClsOperando   regOpe;
 $ClsFP         regFp;
 int            iNx;
+int            iFlagMigra;
 
    $OPEN curFP;
    
@@ -2148,6 +2341,15 @@ int            iNx;
       PrintFP(regOpe, iNx);
       iNx++;
       cantFP++;
+      /*if(giTipoCorrida ==0){*/
+         iFlagMigra=getExiste(regFp.numero_cliente);
+         $BEGIN WORK;
+         if(!RegistraCliente("FP", regFp.numero_cliente, 1, iFlagMigra)){
+            printf("No registro FP para cliente %ld\n", regFp.numero_cliente);
+         }else{
+            $COMMIT WORK;
+         }
+      /*}*/
    }
    
    $CLOSE curFP;
@@ -2278,6 +2480,22 @@ int         inx;
       printf("Error al escribir VQUAN\n");
       exit(1);
    }	
+}
+
+int   getExiste(lNroCliente)
+$long lNroCliente;
+{
+   $int iRcv=0;
+
+   $EXECUTE selExiste INTO :iRcv USING :lNroCliente;
+   
+   if(iRcv==0){
+      iRcv=1;
+   }else{
+      iRcv=2;
+   }
+   
+   return iRcv;
 }
 
 

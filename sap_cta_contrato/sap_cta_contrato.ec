@@ -101,7 +101,7 @@ long     lCantInFiles;
 	
 	$DATABASE :nombreBase;	
 	
-	$SET LOCK MODE TO WAIT;
+	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
 	$SET ISOLATION TO CURSOR STABILITY;
    
@@ -134,22 +134,21 @@ long     lCantInFiles;
 
 			iFlagMigra=0;
 			if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra)){
-            $BEGIN WORK;
 
 				if (!GenerarPlanoT1(pFileCtaCorpoT1Unx, regCliente, 1)){
-					$ROLLBACK WORK;
 					exit(1);	
 				}
-/*
-				if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
-					$ROLLBACK WORK;
-					exit(1);	
-				}
-*/
+            
+            /*if(giTipoCorrida==0){*/
+               $BEGIN WORK;
+   				if(!RegistraCliente(regCliente, "T1", iFlagMigra)){
+   					$ROLLBACK WORK;
+   					exit(1);	
+   				}
+               $COMMIT WORK;
+            }
 				cantCorpoT1++;
-
-				$COMMIT WORK;
-			}
+			/*}*/
 		}
    }
    
@@ -174,40 +173,41 @@ long     lCantInFiles;
 			/* Los Activos */
 			iFlagMigra=0;
 			if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra)){
-            /*$BEGIN WORK;*/
 				if(! CorporativoT23(&regCliente)){
 
 					/* Generar Plano */
 					if (!GenerarPlanoT1(pFileCtaActivaUnx, regCliente, 2)){
-						/*$ROLLBACK WORK;*/
 						exit(1);	
 					}
                lCantInFiles++;
 
 					/* Registrar Control Cliente */
-/*               
-					if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
-						$ROLLBACK WORK;
-						exit(1);	
-					}
-*/               
+               /*if(giTipoCorrida==0){*/
+                  $BEGIN WORK;
+   					if(!RegistraCliente(regCliente, "T1", iFlagMigra)){
+   						$ROLLBACK WORK;
+   						exit(1);	
+   					}
+                  $COMMIT WORK;
+               /*}*/
 					cantActivoProcesada++;
 					
 				}else{
 					/* Hijo de Corporativo de T23 */	
 					/* Generar Plano */
 					if (!GenerarPlanoT23(pFileCtaFicticiaUnx, regCliente)){
-						/*$ROLLBACK WORK;*/
 						exit(1);	
 					}
 
 					/* Registrar Control Cliente */
-/*               
-					if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
-						$ROLLBACK WORK;
-						exit(1);	
-					}
-*/               
+               /*if(giTipoCorrida==0){*/
+                  $BEGIN WORK;
+   					if(!RegistraCliente(regCliente, "T2", iFlagMigra)){
+   						$ROLLBACK WORK;
+   						exit(1);	
+   					}
+                  $COMMIT WORK;
+               /*}*/
 					cantFicticia++;
 					
 					cantActivoProcesada++;
@@ -220,23 +220,22 @@ long     lCantInFiles;
 
 			iFlagMigra=0;
 			if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra)){
-            /*$BEGIN WORK;*/
 				iEsCorpo=0;
 
 				/* Generar Plano */
 				if (!GenerarPlanoT1(pFileCtaNoActivaUnx, regCliente, 2)){
-					/*$ROLLBACK WORK;*/
 					exit(1);	
 				}
             lCantInFiles++;
 				/* Registrar Control Cliente */
-/*            
-				if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
-					$ROLLBACK WORK;
-					exit(1);	
-				}
-*/            
-            /*$COMMIT WORK;*/
+            /*if(giTipoCorrida==0){*/
+               $BEGIN WORK;            
+   				if(!RegistraCliente(regCliente, "T1", iFlagMigra)){
+   					$ROLLBACK WORK;
+   					exit(1);	
+   				}
+               $COMMIT WORK;
+            /*}*/
 				cantNoActivoProcesada++;
 			}
 		}/* Verif Estado Cliente */
@@ -248,13 +247,11 @@ long     lCantInFiles;
 	CierroArchivos();
 
 	/* Registrar Control Plano */
-   
+/*   
    $BEGIN WORK;
-      
-	/*AdministraPlanos();*/
-
-	$COMMIT WORK;
-
+	AdministraPlanos();
+   $COMMIT WORK;
+*/
 	$CLOSE DATABASE;
 
 	$DISCONNECT CURRENT;
@@ -599,14 +596,16 @@ if(giTipoCorrida == 3)
 	
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, cuenta_contrato ");
-	strcat(sql, ")VALUES(?, 'S') ");
+	strcat(sql, "numero_cliente, cdc, cc_padre, cuenta_contrato ");
+	strcat(sql, ")VALUES(?, ?, ?, 'S') ");
 
 	$PREPARE insClientesMigra FROM $sql;
 	
 	/*********Update Clientes extraidos **********/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
 	strcat(sql, "cuenta_contrato = 'S' ");
+	strcat(sql, "cc_padre = ?, ");
+	strcat(sql, "cdc = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE updClientesMigra FROM $sql;
@@ -1670,15 +1669,31 @@ int		*iFlagMigra;
 	return 0;
 }
 
-short RegistraCliente(nroCliente, iFlagMigra)
-$long	nroCliente;
+short RegistraCliente(reg, sTarifa, iFlagMigra)
+$ClsCliente reg;
+char     sTarifa[3];
 int		iFlagMigra;
 {
+   $char sPadre[11];
+   
+   memset(sPadre, '\0', sizeof(sPadre));
+
+	if (strcmp(sTarifa, "T1")==0){
+		if(reg.minist_repart > 0){
+			sprintf(sPadre, "%ld", reg.minist_repart);
+		}else{
+         sprintf(sPadre, "%ld", reg.numero_cliente);
+		}
+	}else{
+		if(strcmp(reg.sCodCorpoPadreT23, "")!=0){
+         sprintf(sPadre, "%s", reg.sCodCorpoPadreT23);
+		}
+	}
 
 	if(iFlagMigra==1){
-		$EXECUTE insClientesMigra using :nroCliente;
+		$EXECUTE insClientesMigra using :reg.numero_cliente, :sPadre, :reg.tipo_cliente;
 	}else{
-		$EXECUTE updClientesMigra using :nroCliente;
+		$EXECUTE updClientesMigra using :sPadre, :reg.tipo_cliente, :reg.numero_cliente;
 	}
 
 	return 1;

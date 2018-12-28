@@ -73,7 +73,7 @@ void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 
 short	ClienteYaMigrado(long, int*, long*, long*, long*);
-short	RegistraCliente(long, int);
+short	RegistraCliente(long, long, int);
 
 short	LeoCliente(ClsCliente *);
 void  InicializaCliente(ClsCliente *);

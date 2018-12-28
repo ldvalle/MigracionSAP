@@ -78,7 +78,7 @@ short	CorporativoT23(ClsCliente *);
 short	GenerarPlanoT1(FILE *, ClsCliente, int);
 short	GenerarPlanoT23(FILE *, ClsCliente);
 
-short	RegistraCliente(long, int);
+short	RegistraCliente(ClsCliente, char *,  int);
 
 short	LeoCorpoPropio(ClsCliente *);
 short	RegistraArchivo(char*, char *, long);

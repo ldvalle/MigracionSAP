@@ -94,7 +94,7 @@ $char    sModeloMedidorActual[3];
 $char    sTarifaInstal[11];
 $long    lNroBeneficiario;
 $long    lFechaMoveInMenos1;
-
+$long    lCantMonta;
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
 	}
@@ -107,7 +107,7 @@ $long    lFechaMoveInMenos1;
 	
 	$DATABASE :nombreBase;	
 	
-	$SET LOCK MODE TO WAIT;
+	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
    $SET ISOLATION TO CURSOR STABILITY;
    
@@ -144,6 +144,7 @@ $long    lFechaMoveInMenos1;
 	}
 
 	while(LeoClientes(&lNroCliente, &lCorrFactuActual, &lNroBeneficiario)){
+      lCantMonta=0;
 		iSuperaMedid=0;
 		
 		iSuperaMedid=EncontroMedid(lNroCliente);
@@ -200,6 +201,7 @@ $long    lFechaMoveInMenos1;
                   	/*$ROLLBACK WORK;*/
                   	exit(2);
                   }
+                  lCantMonta++;
                   iNx++;				
                   iNroIndex++;
                }
@@ -210,6 +212,7 @@ $long    lFechaMoveInMenos1;
 						GenerarPlanos(regLectu);
 						cantMontajes++;
                   iNx=1;
+                  lCantMonta++;
 					}
 	         }
             
@@ -236,7 +239,11 @@ rfmtdate(lFechaPivote, "yyyymmdd", regLectu.sFechaLectura);
       					if (!GenerarPlanos(regLectu)){
       						/*$ROLLBACK WORK;*/
       						exit(2);
-      					}			
+      					}
+                     
+                     if(regLectu.tipo_lectura==6 || regLectu.tipo_lectura==7){
+                        lCantMonta++;
+                     }			
       					iNroIndex++;
       					iNx++;
                   /*}*/
@@ -270,7 +277,8 @@ rfmtdate(lFechaPivote, "yyyymmdd", regLectu.sFechaLectura);
    					if (!GenerarPlanos(regLectu)){
    						/*$ROLLBACK WORK;*/
    						exit(2);
-   					}				
+   					}
+                  lCantMonta++;				
    					iNx++;
    				}
    					
@@ -300,6 +308,7 @@ rfmtdate(lFechaPivote, "yyyymmdd", regLectu.sFechaLectura);
    						/*$ROLLBACK WORK;*/
    						exit(2);
    					}
+                  lCantMonta++;
    				}
    								
    				if(giEstadoCliente==1){
@@ -313,11 +322,14 @@ rfmtdate(lFechaPivote, "yyyymmdd", regLectu.sFechaLectura);
    				}				
    			}
          }         
-/*         
-			if(!RegistraCliente(lNroCliente, iFlagMigra)){
-				exit(2);	
-			}
-*/
+
+         /*if(giTipoCorrida==0){*/
+            $BEGIN WORK;         
+   			if(!RegistraCliente(lNroCliente, lCantMonta, iFlagMigra)){
+   				$ROLLBACK WORK;	
+   			}
+            $COMMIT WORK;
+         /*}*/
          
 			cantProcesada++;			
 		}else{
@@ -920,8 +932,8 @@ $char sAux[1000];
 	
 	/*********Insert Clientes extraidos Montaje **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, montaje ");
-	strcat(sql, ")VALUES(?, 'S') ");
+	strcat(sql, "numero_cliente, montaje, montaje_con, montaje_sin ");
+	strcat(sql, ")VALUES(?, 'S', ?, ?) ");
 	
 	$PREPARE insClientesMigraM FROM $sql;
 
@@ -934,7 +946,9 @@ $char sAux[1000];
 		
 	/************ Update Clientes Migra Montaje**************/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
-	strcat(sql, "montaje = 'S' ");
+	strcat(sql, "montaje = 'S', ");
+	strcat(sql, "montaje_con = ?, ");
+	strcat(sql, "montaje_sin = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE updClientesMigraM FROM $sql;
@@ -1894,15 +1908,26 @@ short RegistraArchivo(void)
 	return 1;
 }
 */
-short RegistraCliente(nroCliente, iFlagMigra)
+short RegistraCliente(nroCliente, lCantMonta, iFlagMigra)
 $long	nroCliente;
+$long lCantMonta;
 int		iFlagMigra;
 {
-
+   $long cantCon=0;
+   $long cantSin=0;
+   
+   if(giMovimientos==0){
+      cantCon=0;
+      cantSin=lCantMonta;
+   }else{
+      cantCon=lCantMonta;
+      cantSin=0;
+   }
+   
 	if(iFlagMigra==1){
-		$EXECUTE insClientesMigraM using :nroCliente;
+		$EXECUTE insClientesMigraM using :nroCliente, :cantCon, :cantSin;
 	}else{
-		$EXECUTE updClientesMigraM using :nroCliente;
+		$EXECUTE updClientesMigraM using :cantCon, :cantSin, :nroCliente;
 	}
 
 	return 1;

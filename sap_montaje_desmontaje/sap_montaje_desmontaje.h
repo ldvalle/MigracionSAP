@@ -80,7 +80,7 @@ char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 short	ClienteYaMigrado(long, int*, long*, long*, long*, char*);
-short	RegistraCliente(long, int);
+short	RegistraCliente(long, long, int);
 char	*getFechaFactura(long, long, long*);
 short	LeoPrimerMontajeReal(long, long, ClsLecturas*);
 short	EncontroMedid(long);

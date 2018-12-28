@@ -87,8 +87,9 @@ char			sFechaAlta[9];
 	
 	$DATABASE :nombreBase;	
 	
-	$SET LOCK MODE TO WAIT;
+	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
+   $SET ISOLATION TO CURSOR STABILITY;
 	
 	/*$BEGIN WORK;*/
 
@@ -143,7 +144,15 @@ char			sFechaAlta[9];
          }
          */
          GenerarPlano(pFileDepgarUnx, regDepgar);
-			
+         /*
+			if(giTipoCorrida==0){
+            $BEGIN WORK;
+            if(!RegistraCliente(regDepgar.numero_cliente, iFlagMigra)){
+               $ROLLBACK WORK;
+            }
+            $COMMIT WORK;
+         }
+         */         
          cantProcesada++;
 		}else{
 			cantPreexistente++;
@@ -316,10 +325,10 @@ char	sPathCp[100];
 
     if(giEstadoCliente==0){
 	    /*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
-       strcpy(sPathCp, "%sActivos/", sPathCopia);
+       sprintf(sPathCp, "%sActivos/", sPathCopia);
 	}else{
 	    /*strcpy(sPathCp, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Inactivos/");*/
-       strcpy(sPathCp, "%sInactivos/", sPathCopia);
+       sprintf(sPathCp, "%sInactivos/", sPathCopia);
 	}
 
 	sprintf(sCommand, "chmod 755 %s", sArchDepgarUnx);
@@ -404,7 +413,7 @@ $char sAux[1000];
 
 	$PREPARE selDepgar FROM $sql;
 	
-	$DECLARE curDepgar CURSOR FOR selDepgar;
+	$DECLARE curDepgar CURSOR WITH HOLD FOR selDepgar;
 		
 	/******** Select Path de Archivos ****************/
 	strcpy(sql, "SELECT valor_alf ");

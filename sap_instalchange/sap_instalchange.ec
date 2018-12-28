@@ -92,6 +92,7 @@ $long    lFechaAltaReal;
 $long    lFechaMoveIn;
 int      iCantOcurr;
 int      iTeniaPendiente;
+$long    iCantCambios;
 
 $ClsCliente    regCliente;
 $ClsFacturas   regFacturas;
@@ -109,7 +110,7 @@ $ClsFacturas   regAux;
 	
 	$DATABASE :nombreBase;	
 	
-	$SET LOCK MODE TO WAIT;
+	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
    $SET ISOLATION TO CURSOR STABILITY;
 
@@ -151,6 +152,7 @@ $ClsFacturas   regAux;
 	fpIntalacion=pFileInstalacionUnx;
 
 	while(LeoCliente(&regCliente)){
+      iCantCambios=0;
 		if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra, &lFechaValTarifa, &lFechaMoveIn, &lFechaAltaReal)){
          /*$OPEN curFacturas using :regCliente.numero_cliente, :lFechaRti;*/
 			/*$OPEN curFacturas using :regCliente.numero_cliente, :lFechaValTarifa;*/
@@ -206,6 +208,7 @@ $ClsFacturas   regAux;
                      /* Informo la novedad pendiente y preparo la novedad actual */
                      strcpy(regAux.sFechaHasta, regFacturas.sFechaFacturacion);
                      GenerarPlano(regAux.sFechaFacturacion, regCliente, regAux, iSec);
+                     iCantCambios++;
                      iSec++;
                      /* Armo la novedad y espero la siguiente para cerrarla e informar */
                      strcpy(regAux.tarifa, regFacturas.tarifa);
@@ -231,6 +234,7 @@ $ClsFacturas   regAux;
                   /* cierro la pendiente */
                   strcpy(regAux.sFechaHasta, sFechaUltiFactura);
                   GenerarPlano(regAux.sFechaFacturacion, regCliente, regAux, iSec);
+                  iCantCambios++;
                   iSec++;
                   /* lo igualo al estado actual del cliente */
                   strcpy(regAux.tarifa, regCliente.tarifa);
@@ -238,24 +242,26 @@ $ClsFacturas   regAux;
                   strcpy(regAux.sFechaFacturacion, sFechaUltiFactura);
                   strcpy(regAux.sFechaHasta, "99991231");
                   GenerarPlano(regAux.sFechaFacturacion, regCliente, regAux, iSec);
+                  iCantCambios++;
                }else{
                   /* cierro la pendiente */
                   strcpy(regAux.sFechaHasta, "99991231");
                   GenerarPlano(regAux.sFechaFacturacion, regCliente, regAux, iSec);
+                  iCantCambios++;
                }
             }
          }
 
-/*			
-         $BEGIN WORK;
-			if(iFlagCambio==1){
-				if(!RegistraCliente(lNroCliente, iFlagMigra)){
-					$ROLLBACK WORK;
-					exit(1);	
-				}
-			}
-         $COMMIT WORK;
-*/         
+         /*if(giTipoCorrida == 0){*/			
+            $BEGIN WORK;
+   			if(iFlagCambio==1){
+   				if(!RegistraCliente(lNroCliente, iCantCambios, iFlagMigra)){
+   					$ROLLBACK WORK;
+   					exit(1);	
+   				}
+   			}
+            $COMMIT WORK;
+         /*}*/
 			cantProcesada++;         
          
 		}else{
@@ -701,13 +707,14 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
 	strcat(sql, "numero_cliente, modif ");
-	strcat(sql, ")VALUES(?, 'S') ");
+	strcat(sql, ")VALUES(?, 'S', ?) ");
 	
 	$PREPARE insClientesMigra FROM $sql;
 	
 	/************ Update Clientes Migra **************/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
-	strcat(sql, "modif = 'S' ");
+	strcat(sql, "modif = 'S', ");
+   strcat(sql, "cant_cha = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE updClientesMigra FROM $sql;
@@ -943,15 +950,16 @@ short RegistraArchivo(void)
 	return 1;
 }
 */
-short RegistraCliente(nroCliente, iFlagMigra)
+short RegistraCliente(nroCliente, iCant, iFlagMigra)
 $long	nroCliente;
+$long iCant;
 int		iFlagMigra;
 {
 
 	if(iFlagMigra==1){
-		$EXECUTE insClientesMigra using :nroCliente;
+		$EXECUTE insClientesMigra using :nroCliente, :iCant;
 	}else{
-		$EXECUTE updClientesMigra using :nroCliente;
+		$EXECUTE updClientesMigra using :iCant, :nroCliente;
 	}
 
 	return 1;
