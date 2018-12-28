@@ -28,6 +28,8 @@ $typedef struct{
 	char tipo_cliente[3];
 	char actividad_economic[5];
 	char sNroBeneficiario[17];
+   char sTarifaActual[11];
+   char sULactual[11];
 }ClsCliente;
 
 $typedef struct{
@@ -39,6 +41,9 @@ $typedef struct{
 	char sTarifa[11];
 	char sUL[11];
 	char sMotivoAlta[4];
+   char sTarifaActual[11];
+   char sULactual[11];
+   char  sMedidorActual[16];
 }ClsEstado;
    
 
@@ -56,7 +61,7 @@ long  getAlta(ClsCliente);
 long  getMoveIn(ClsCliente, long);
 void  CargaEstados(ClsCliente, ClsEstado *);
 short GrabaEstados(ClsEstado);
-
+char  *getMedidor(long);
 /*
 short   LeoInstalacion(ClsInstalacion *);
 void    InicializaInstalacion(ClsInstalacion *);

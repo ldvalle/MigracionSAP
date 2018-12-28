@@ -29,6 +29,7 @@ $long	glNroCliente;
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
 int   giTipoCorrida;
+int   giTipoTabla;
 
 FILE	*pFileDepgarUnx;
 
@@ -54,7 +55,7 @@ $long	lFechaLimiteInferior;
 char  sFechaLimInf[11];
 $long lFechaMac;
 char  sFechaMac[11];
-
+$char sFechaPivoteAux[11];
 
 $WHENEVER ERROR CALL SqlException;
 
@@ -108,7 +109,9 @@ long        lFechaValTarifa;
    strcpy(sFechaValTarifa, "01-12-2014");
    rdefmtdate(&lFechaValTarifa, "dd-mm-yyyy", sFechaValTarifa);   
 
-   $EXECUTE selFechaPivote INTO :lFechaPivote;
+   strcpy(sFechaPivoteAux, "12-08-2017");
+   rdefmtdate(&lFechaPivote, "dd-mm-yyyy", sFechaPivoteAux);   
+   /*$EXECUTE selFechaPivote INTO :lFechaPivote;*/
 
    if(SQLCODE != 0){
       printf("Error no se levanto la fecha pivote\n");
@@ -164,8 +167,11 @@ long        lFechaValTarifa;
 	}
    if(giTipoCorrida != 2){   
       $BEGIN WORK;
-         
-      $EXECUTE insParam USING :lFechaPivote, :lFechaLimiteInferior;
+      if(giTipoTabla == 0){   
+         $EXECUTE insParam USING :lFechaPivote, :lFechaLimiteInferior;
+      }else{
+         $EXECUTE insParamAux USING :lFechaPivote, :lFechaLimiteInferior;
+      }
    
       $COMMIT WORK;
    }
@@ -214,12 +220,13 @@ int		argc;
 char	* argv[];
 {
 
-	if(argc != 3){
+	if(argc != 4){
 		MensajeParametros();
 		return 0;
 	}
 	
    giTipoCorrida=atoi(argv[2]);
+   giTipoTabla=atoi(argv[3]);
    
 	return 1;
 }
@@ -227,7 +234,8 @@ char	* argv[];
 void MensajeParametros(void){
 		printf("Error en Parametros.\n");
 		printf("	<Base> = synergia.\n");
-      printf("	<Modo> 0=Total, 1=Reducida, 2=Actualiza \n");
+      printf("	<Univ.> 0=Total, 1=Reducida, 2=Actualiza \n");
+      printf(" <Modo>  0=Normal, 1=Tabla Auxiliar\n");
 }
 
 
@@ -265,7 +273,7 @@ $char sAux[1000];
    $PREPARE selFechaRti FROM $sql;   
    
 	/******** Clientes  *********/
-	strcpy(sql, "SELECT c.numero_cliente, ");
+	strcpy(sql, "SELECT DISTINCT c.numero_cliente, ");
 	strcat(sql, "c.sucursal, "); 
 	strcat(sql, "c.sector, ");
 	strcat(sql, "c.tarifa, ");
@@ -277,8 +285,19 @@ $char sAux[1000];
 	strcat(sql, "c.tipo_iva, ");
 	strcat(sql, "c.tipo_cliente, ");
 	strcat(sql, "c.actividad_economic, ");
-	strcat(sql, "NVL(c.nro_beneficiario, 0) beneficiario ");
-	strcat(sql, "FROM cliente c ");
+	strcat(sql, "NVL(c.nro_beneficiario, 0) beneficiario, ");
+   
+	strcat(sql, "CASE ");
+	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
+	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+	strcat(sql, "	ELSE t1.cod_sap ");
+	strcat(sql, "END, ");
+    
+	strcat(sql, "s.cod_ul_sap || "); 
+	strcat(sql, "LPAD(CASE WHEN c.sector>60 AND c.sector < 81 THEN c.sector ELSE c.sector END, 2, 0) || ");  
+	strcat(sql, "LPAD(c.zona,5,0) ");
+   
+	strcat(sql, "FROM cliente c, sap_transforma t1, sucur_centro_op s ");
    
 if(giTipoCorrida == 1){
    strcat(sql, ", migra_activos ma ");
@@ -289,21 +308,29 @@ if(giTipoCorrida == 2){
 
 	strcat(sql, "WHERE c.estado_cliente = 0 ");
 	strcat(sql, "AND c.tipo_sum != 5 ");
-   
-if(giTipoCorrida != 2){   
-   strcat(sql, "AND not exists ( select 1 from sap_regi_cliente s where s.numero_cliente = c.numero_cliente ) ");
-}   
-	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
-	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
-	strcat(sql, "AND cm.fecha_activacion < TODAY ");
-	strcat(sql, "AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
 
 if(giTipoCorrida == 1){
    strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
 }   
 if(giTipoCorrida == 2){
    strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
-}   
+}
+   
+if(giTipoCorrida != 2 && giTipoTabla ==0){   
+   strcat(sql, "AND not exists ( select 1 from sap_regi_cliente s where s.numero_cliente = c.numero_cliente ) ");
+}
+
+	strcat(sql, "AND t1.clave = 'TARIFTYP' " );
+	strcat(sql, "AND t1.cod_mac = c.tarifa "); 
+	strcat(sql, "AND s.cod_centro_op = c.sucursal "); 
+	strcat(sql, "AND s.fecha_activacion <= TODAY "); 
+	strcat(sql, "AND (s.fecha_desactivac IS NULL OR s.fecha_desactivac > TODAY) "); 
+   
+	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
+	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND cm.fecha_activacion < TODAY ");
+	strcat(sql, "AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
+   
 	$PREPARE selClientes FROM $sql;
 	
 	$DECLARE curClientes CURSOR WITH HOLD FOR selClientes;
@@ -436,8 +463,11 @@ if(giTipoCorrida == 2){
    strcat(sql, "fecha_limi_inf,");
 	strcat(sql, "tarifa, ");
 	strcat(sql, "ul, ");
-	strcat(sql, "motivo_alta ");
-	strcat(sql, " )VALUES( ?,?,?,?,?,?,?,?,?) ");
+	strcat(sql, "motivo_alta, ");
+   strcat(sql, "tarifa_actual, ");
+   strcat(sql, "ul_actual, ");
+   strcat(sql, "device ");
+	strcat(sql, " )VALUES( ?,?,?,?,?,?,?,?,?,?,?,?) ");
    
    $PREPARE insRegiMigra FROM $sql;   
    
@@ -458,10 +488,62 @@ if(giTipoCorrida == 2){
    strcat(sql, "fecha_limi_inf = ?,");
 	strcat(sql, "tarifa = ?, ");
 	strcat(sql, "ul = ?, ");
-	strcat(sql, "motivo_alta = ?");
+	strcat(sql, "motivo_alta = ?, ");
+   strcat(sql, "tarifa_actual = ?, ");
+   strcat(sql, "ul_actual = ?, ");
+   strcat(sql, "device = ? ");
    strcat(sql, "WHERE numero_cliente = ? ");
    
    $PREPARE updParam FROM $sql;
+
+
+   /******** Inserta Estados AUX *********/
+	strcpy(sql, "INSERT INTO sap_regi_cliaux (numero_cliente, "); 
+	strcat(sql, "fecha_val_tarifa, "); 
+	strcat(sql, "fecha_alta_real, ");
+	strcat(sql, "fecha_move_in, "); 
+	strcat(sql, "fecha_pivote, ");
+   strcat(sql, "fecha_limi_inf,");
+	strcat(sql, "tarifa, ");
+	strcat(sql, "ul, ");
+	strcat(sql, "motivo_alta, ");
+   strcat(sql, "tarifa_actual, ");
+   strcat(sql, "ul_actual, ");
+   strcat(sql, "device ");
+	strcat(sql, " )VALUES( ?,?,?,?,?,?,?,?,?,?,?,?) ");
+   
+   $PREPARE insRegiMigraAux FROM $sql;   
+   
+   /******** Inserta parametro AUX *********/
+	strcpy(sql, "INSERT INTO sap_regi_cliaux (numero_cliente, "); 
+	strcat(sql, "fecha_pivote, ");
+   strcat(sql, "fecha_limi_inf ");
+	strcat(sql, " )VALUES( 0,?,?) ");
+   
+   $PREPARE insParamAux FROM $sql;   
+   
+   /********* Actualiza Estados AUX ********/
+   strcpy( sql, "UPDATE sap_regi_cliaux SET ");
+	strcat(sql, "fecha_val_tarifa = ?, "); 
+	strcat(sql, "fecha_alta_real = ?, ");
+	strcat(sql, "fecha_move_in = ?, "); 
+	strcat(sql, "fecha_pivote = ?, ");
+   strcat(sql, "fecha_limi_inf = ?,");
+	strcat(sql, "tarifa = ?, ");
+	strcat(sql, "ul = ?, ");
+	strcat(sql, "motivo_alta = ?, ");
+   strcat(sql, "tarifa_actual = ?, ");
+   strcat(sql, "ul_actual = ?, ");
+   strcat(sql, "device = ? ");
+   strcat(sql, "WHERE numero_cliente = ? ");
+   
+   $PREPARE updParamAux FROM $sql;
+   
+   /****** Medidor Actual ******/
+   $PREPARE selMedidor FROM "SELECT 'T1' || numero_medidor || marca_medidor || modelo_medidor 
+      FROM medid
+      WHERE numero_cliente = ?
+      AND estado = 'I' ";
    
 }
 
@@ -484,7 +566,9 @@ $ClsCliente *reg;
       :reg->tipo_iva,
       :reg->tipo_cliente,
       :reg->actividad_economic,
-      :reg->sNroBeneficiario;
+      :reg->sNroBeneficiario,
+      :reg->sTarifaActual,
+      :reg->sULactual;
    
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -515,6 +599,9 @@ $ClsCliente	*reg;
    memset(reg->tipo_cliente, '\0', sizeof(reg->tipo_cliente));
    memset(reg->actividad_economic, '\0', sizeof(reg->actividad_economic));
    memset(reg->sNroBeneficiario, '\0', sizeof(reg->sNroBeneficiario));
+   
+   memset(reg->sULactual, '\0', sizeof(reg->sULactual));
+   memset(reg->sTarifaActual, '\0', sizeof(reg->sTarifaActual));
 
 }
 
@@ -531,6 +618,10 @@ $ClsEstado	*reg;
    memset(reg->sTarifa, '\0', sizeof(reg->sTarifa));
    memset(reg->sUL, '\0', sizeof(reg->sUL));
    memset(reg->sMotivoAlta, '\0', sizeof(reg->sMotivoAlta));
+   
+   memset(reg->sULactual, '\0', sizeof(reg->sULactual));
+   memset(reg->sTarifaActual, '\0', sizeof(reg->sTarifaActual));
+   memset(reg->sMedidorActual, '\0', sizeof(reg->sMedidorActual));
 
 }
 
@@ -640,6 +731,9 @@ $ClsCliente regCliente;
 $ClsEstado  *regEstado;
 {
 
+   strcpy(regEstado->sTarifaActual, regCliente.sTarifaActual);
+   strcpy(regEstado->sULactual, regCliente.sULactual);
+
    $EXECUTE selEstados INTO :regEstado->sTarifa, 
                             :regEstado->sUL
                        USING :regCliente.numero_cliente,
@@ -682,40 +776,100 @@ $ClsEstado  *regEstado;
    
    if(strcmp(regEstado->sMotivoAlta, "")==0){
       printf("ERROR. No se encontro Motivo Alta para cliente %ld en CLIENTE\n", regCliente.numero_cliente);
-   }   
+   }
+   
+   strcpy(regEstado->sMedidorActual, getMedidor(regCliente.numero_cliente));
+      
 }
 
 short GrabaEstados(reg)
 $ClsEstado  reg;
 {
 
-   if(giTipoCorrida != 2){
-      $EXECUTE insRegiMigra USING
-         :reg.numero_cliente,
-         :reg.lFechaValTar,
-         :reg.lFechaAlta,
-         :reg.lFechaMoveIn,
-         :reg.lFechaPivote,
-         :lFechaLimiteInferior,
-         :reg.sTarifa,
-         :reg.sUL,
-         :reg.sMotivoAlta;
+   if(giTipoTabla==0){
+      if(giTipoCorrida != 2){
+         $EXECUTE insRegiMigra USING
+            :reg.numero_cliente,
+            :reg.lFechaValTar,
+            :reg.lFechaAlta,
+            :reg.lFechaMoveIn,
+            :reg.lFechaPivote,
+            :lFechaLimiteInferior,
+            :reg.sTarifa,
+            :reg.sUL,
+            :reg.sMotivoAlta,
+            :reg.sTarifaActual,
+            :reg.sULactual,
+            :reg.sMedidorActual;
+      }else{
+         $EXECUTE updParam USING
+            :reg.lFechaValTar,
+            :reg.lFechaAlta,
+            :reg.lFechaMoveIn,
+            :reg.lFechaPivote,
+            :lFechaLimiteInferior,
+            :reg.sTarifa,
+            :reg.sUL,
+            :reg.sMotivoAlta,
+            :reg.sTarifaActual,
+            :reg.sULactual,
+            :reg.sMedidorActual,
+            :reg.numero_cliente;
+      }
    }else{
-      $EXECUTE updParam USING
-         :reg.lFechaValTar,
-         :reg.lFechaAlta,
-         :reg.lFechaMoveIn,
-         :reg.lFechaPivote,
-         :lFechaLimiteInferior,
-         :reg.sTarifa,
-         :reg.sUL,
-         :reg.sMotivoAlta,
-         :reg.numero_cliente;
+      if(giTipoCorrida != 2){
+         $EXECUTE insRegiMigraAux USING
+            :reg.numero_cliente,
+            :reg.lFechaValTar,
+            :reg.lFechaAlta,
+            :reg.lFechaMoveIn,
+            :reg.lFechaPivote,
+            :lFechaLimiteInferior,
+            :reg.sTarifa,
+            :reg.sUL,
+            :reg.sMotivoAlta
+            :reg.sTarifaActual,
+            :reg.sULactual,
+            :reg.sMedidorActual;
+            
+      }else{
+         $EXECUTE updParamAux USING
+            :reg.lFechaValTar,
+            :reg.lFechaAlta,
+            :reg.lFechaMoveIn,
+            :reg.lFechaPivote,
+            :lFechaLimiteInferior,
+            :reg.sTarifa,
+            :reg.sUL,
+            :reg.sMotivoAlta,
+            :reg.sTarifaActual,
+            :reg.sULactual,
+            :reg.sMedidorActual,
+            :reg.numero_cliente;
+      }
+   
    }      
    if(SQLCODE != 0){
       return 0;
    }
    return 1;
+}
+
+char  *getMedidor(lNroCliente)
+$long lNroCliente;
+{
+   $char device[16];
+   
+   memset(device, '\0', sizeof(device));
+   
+   $EXECUTE selMedidor INTO :device USING :lNroCliente;
+   
+   if(SQLCODE != 0){
+      printf("No se encontró medidor para cliente %ld\n", lNroCliente);
+      return;
+   }
+
+   return device;
 }
 
 
