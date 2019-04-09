@@ -102,6 +102,7 @@ typedef struct{
 }ClsOPL;
 
 $typedef struct{
+   long  numero_cliente;
    char  tipo_saldo[4];
    int   corr_facturacion;
    long  fecha_vencimiento1;
@@ -180,12 +181,11 @@ void CopiaClienteToOp(ClsCliente, ClsOP *);
 void CopiaClienteToOpk(ClsCliente, double, ClsOPK *);
 void CopiaImpuToOp(ClsCliente, ClsImpuesto, ClsOP *);
 
-
-
 short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
+char  *retornaCampo(char *, int, char *);
 
 short	ClienteYaMigrado(long, long*, int*);
 short	RegistraCliente(long, int);

@@ -52,6 +52,9 @@ FILE	*pFileCredito;
 char	sArchCredito[100];
 char	sSoloArchCredito[100];
 
+FILE  *pFileAge;
+char  sArchivoAgeing[100];
+
 char	sPathSalida[100];
 char	sPathCopia[100];
 char	FechaGeneracion[9];	
@@ -193,10 +196,16 @@ char     sTipo[2];
          
          if(!ClienteYaMigrado(regCliente.numero_cliente, &lFechaVigTarifa, &iFlagMigra)){
             dSaldoGral = getSaldoGral(regCliente);
-            rfmtdate(lFechaVigTarifa, "yyyymmdd", regCliente.sFechaVigTarifa); /* long to char */
+            
+            if(!risnull(CLONGTYPE, (char *) &lFechaVigTarifa)){
+               rfmtdate(lFechaVigTarifa, "yyyymmdd", regCliente.sFechaVigTarifa); /* long to char */
+            }else{
+               strcpy(regCliente.sFechaVigTarifa, "20141201");   
+            }
+            
             inicializaOPL(&(regOPL));
             strcpy(sTipo, "D");
-            if(dSaldoGral < 0){
+            if(dSaldoGral <= 0){
                /* Saldo a favor del Cliente */
                GeneraSaldoCliente(pFileGral, regCliente);
                strcpy(sTipo, "C");
@@ -241,8 +250,10 @@ char     sTipo[2];
       $CLOSE curClientes;
 
       CerrarArchivos();
-      
+/*      
       FormateaArchivos();
+*/
+      
 /*      
    }  // Sucursales 
 */
@@ -348,6 +359,9 @@ char  sSucur[5];
 	memset(sArchCredito,'\0',sizeof(sArchCredito));
 	memset(sSoloArchCredito,'\0',sizeof(sSoloArchCredito));
 */
+
+   memset(sArchivoAgeing, '\0', sizeof(sArchivoAgeing));
+   
    FechaGeneracionFormateada(FechaGeneracion);
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
@@ -409,7 +423,20 @@ char  sSucur[5];
 		printf("ERROR al abrir archivo %s.\n", sArchCredito );
 		return 0;
 	}
-*/ 
+*/
+
+   /* AGEING */
+   if(giEstadoCliente==0){
+      sprintf(sArchivoAgeing, "%ssap_ageing.txt", sPathSalida);
+   }else{
+      sprintf(sArchivoAgeing, "%ssap_ageing_inactivos.txt", sPathSalida);   
+   }
+	pFileAge=fopen( sArchivoAgeing, "r" );
+	if( !pFileAge ){
+		printf("ERROR al abrir archivo %s.\n", sArchivoAgeing );
+		return 0;
+	}
+    
 	return 1;	
 }
 
@@ -547,6 +574,7 @@ $char sAux[1000];
 	}else{
 		strcat(sql, ", sap_inactivos si ");
 		strcat(sql, "WHERE c.estado_cliente != 0 ");
+      strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	}
 	
 	if(glNroCliente > 0 ){
@@ -564,10 +592,6 @@ $char sAux[1000];
    strcat(sql, "AND t3.clave = 'CENTROOP' ");
    strcat(sql, "AND t3.cod_mac = c.sucursal ");
 
-	if(giEstadoCliente!=0){
-		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
-	}
-		
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
@@ -674,7 +698,7 @@ $char sAux[1000];
 	$PREPARE selFechaLimInf FROM $sql;
 
    /************ Cursor Ageing **************/
-   $PREPARE selAgeing FROM "SELECT a.tipo_saldo,
+   $PREPARE selAgeingTot FROM "SELECT a.tipo_saldo,
       a.corr_facturacion,
       a.fecha_vencimiento1,
       a.cod_cargo,
@@ -700,7 +724,39 @@ $char sAux[1000];
       ORDER BY a.tipo_saldo ASC, a.corr_facturacion, 
       a.fecha_vencimiento1 ASC, a.cod_cargo DESC ";
 
-   $DECLARE curAgeing CURSOR FOR selAgeing;
+   $DECLARE curAgeing CURSOR FOR selAgeingTot;
+
+   /*-- Distinto de CNR monto +/-  <> SA8 SA9 */
+   $PREPARE selTrafoAge1 FROM "SELECT t.hvorg,
+      t.hkont,
+      t.tvorg,
+      t.optxt
+      FROM sap_trafo_fica t
+      WHERE t.cod_mac = ?
+      AND t.cnr = 'N'
+      AND t.tipo_cargo = ? ";
+
+
+   /*-- CNR distinto SA8, SA9,  SA4 y SA5 monto +/- */
+   $PREPARE selTrafoAge2 FROM "SELECT t.hvorg,
+      t.hkont,
+      t.tvorg,
+      t.optxt
+      FROM sap_trafo_fica t
+      WHERE t.cod_mac = ?
+      AND t.cnr = 'N'
+      AND t.tipo_cargo = ? ";
+
+
+   /*-- CNR SA4 y SA5 distinto SA8, SA9 y monto +/- */
+   $PREPARE selTrafoAge3 FROM "SELECT t.hvorg,
+      t.hkont,
+      t.tvorg,
+      t.optxt
+      FROM sap_trafo_fica t
+      WHERE t.cod_mac = ?
+      AND t.cnr = 'S'
+      AND t.tipo_cargo = ? ";
 
    /************ Saldos Convenio **************/
    $PREPARE selConvenio FROM "SELECT saldo_actual, 
@@ -778,6 +834,11 @@ $char sAux[1000];
       'FICA',
       CURRENT)";
    
+   /******* Indice Ageing *******/
+   $PREPARE selAgeing FROM "SELECT start_point FROM sap_inx_age 
+      WHERE numero_cliente = ? 
+      AND estado_cliente = ? ";
+      
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -1127,12 +1188,13 @@ int   inx;
    /*sprintf(sLinea, "%sMSGD%sT1\t", sLinea, sSucursalActual);*/
    /*sprintf(sLinea, "%sMSGD%02dT1\t", sLinea, iCorrelativos);*/
    /*strcat(sLinea, "MGSDOT1\t");*/
+
+   /* Se invierte el orden de BLART y APPLK */
+   /* BLART */
+   strcat(sLinea, "MGSDOT1\t");
    
    /* APPLK */
    strcat(sLinea, "R\t");
-   
-   /* BLART */
-   strcat(sLinea, "MGSDOT1\t");
    
    /* HERKF */
    strcat(sLinea, "R1\t");
@@ -1846,88 +1908,117 @@ $ClsCliente regCli;
    int   inx1, inx2;
    $ClsImpuesto regImpu;
    
+   $long    inxPos;
+   int      iRcv;
+   int      iS;
+   $int     stsCliente;
+   
    inx1=1; inx2=1;
    
    inicializaOPL(&(regOPL));
    
-   $OPEN curAgeing USING :regCli.numero_cliente;
-
-   while(LeoAgeing(&regAge)){
-      if(iTeracion==0){
-         if(strcmp(regAge.tipo_saldo, "SCL")==0){
-            fpLocal = pFileGral;
-         }else if(strcmp(regAge.tipo_saldo, "CNR")==0){
-            fpLocal = pFileCNR;
-         }else if(strcmp(regAge.tipo_saldo, "FAC")==0){
-            fpLocal = pFileGral;
-         }else{
-            printf("Tipo de saldo [%s] desconocido para cliente %ld del ageing.\n", regAge.tipo_saldo, regCli.numero_cliente);
-            return;
-         }
-         GenerarKO(fpLocal, regCli, inx2);
-         strcpy(sTipoAnterior, regAge.tipo_saldo);
-         iCorrelAnterior = regAge.corr_facturacion;
-         dSuma=0;
-      }   
-      if(strcmp(regAge.tipo_saldo, sTipoAnterior)==0 && regAge.corr_facturacion == iCorrelAnterior){
-         dSuma += regAge.valor_cargo;
-         BORRA_STR(&regOP);
-         CopiaClienteAgeToOp(regCli, regAge, &regOP);
-         GenerarOP(fpLocal, regOP, inx1, "D", inx2);
-         CargaOPL(regCli, inx1, &(regOPL), "M", regAge.fecha_vencimiento1);
-         inx1++;
-      }else{
-
-         if(risnull(CDOUBLETYPE, (char *) &dSuma)){
-            dSuma=0;
-         }
-         if(dSuma != 0.00){
-            dSuma=dSuma *-1;
-         }
-         
-         BORRA_STR(&regOPK);
-         CopiaClienteToOpk(regCli, dSuma, &regOPK);
-         GenerarOPK(fpLocal, regOPK, inx2, "D");
-
-         /* Cierre y reapertura*/
-         if(iCantOPL>0){
-            GenerarOPL(fpLocal, regCli, regOPL, "A", inx2);
-            inicializaOPL(&(regOPL));
-         }
-         GeneraENDE(fpLocal, regCli, inx2);
-
-         inx2++;
-         
-         /* Siguiente documento del cliente */         
-         inx1=1;
-         if(strcmp(regAge.tipo_saldo, "SCL")){
-            fpLocal = pFileGral; 
-         }else if(strcmp(regAge.tipo_saldo, "CNR")){
-            fpLocal = pFileCNR;
-         }else if(strcmp(regAge.tipo_saldo, "FAC")){
-            fpLocal = pFileGral;
-         }else{
-            printf("Tipo de saldo [%s] desconocido para cliente %ld del ageing.\n", regAge.tipo_saldo, regCli.numero_cliente);
-            return;
-         }
-         GenerarKO(fpLocal, regCli, inx2);
-         
-         /*************************/
-
-         BORRA_STR(&regOP);
-         CopiaClienteAgeToOp(regCli, regAge, &regOP);
-         GenerarOP(fpLocal, regOP, inx1, "D", inx2);
-         CargaOPL(regCli, inx1, &(regOPL), "M", regAge.fecha_vencimiento1);
-         inx1++;
-
-         strcpy(sTipoAnterior, regAge.tipo_saldo);
-         iCorrelAnterior = regAge.corr_facturacion;
-         dSuma = regAge.valor_cargo;
-          
-      }
       
-      iTeracion++;
+   /*$OPEN curAgeing USING :regCli.numero_cliente;*/
+
+   if(giEstadoCliente==0){
+      stsCliente=0;
+   }else{
+      stsCliente=1;   
    }
+   
+   $EXECUTE selAgeing INTO :inxPos USING :regCli.numero_cliente, :stsCliente;
+   
+   if(SQLCODE != 0){
+      printf("No se encontró indice ageing para cliente %ld\n", regCli.numero_cliente);
+      return;
+   }
+
+   iRcv=fseek(pFileAge, inxPos, SEEK_SET);
+   iS=0;
+         
+   while(LeoAgeing(&regAge) && iS==0){
+      
+      if(regAge.numero_cliente == regCli.numero_cliente ){
+         if(regAge.valor_cargo != 0.00){
+            if(iTeracion==0){
+               if(strcmp(regAge.tipo_saldo, "SCL")==0){
+                  fpLocal = pFileGral;
+               }else if(strcmp(regAge.tipo_saldo, "CNR")==0){
+                  fpLocal = pFileCNR;
+               }else if(strcmp(regAge.tipo_saldo, "FAC")==0){
+                  fpLocal = pFileGral;
+               }else{
+                  printf("Tipo de saldo [%s] desconocido para cliente %ld del ageing.\n", regAge.tipo_saldo, regCli.numero_cliente);
+                  return;
+               }
+               GenerarKO(fpLocal, regCli, inx2);
+               strcpy(sTipoAnterior, regAge.tipo_saldo);
+               iCorrelAnterior = regAge.corr_facturacion;
+               dSuma=0;
+            }   
+            if(strcmp(regAge.tipo_saldo, sTipoAnterior)==0 && regAge.corr_facturacion == iCorrelAnterior){
+               dSuma += regAge.valor_cargo;
+               BORRA_STR(&regOP);
+               CopiaClienteAgeToOp(regCli, regAge, &regOP);
+               GenerarOP(fpLocal, regOP, inx1, "D", inx2);
+               CargaOPL(regCli, inx1, &(regOPL), "M", regAge.fecha_vencimiento1);
+               inx1++;
+            }else{
+      
+               if(risnull(CDOUBLETYPE, (char *) &dSuma)){
+                  dSuma=0;
+               }
+               if(dSuma != 0.00){
+                  dSuma=dSuma *-1;
+               }
+               
+               BORRA_STR(&regOPK);
+               CopiaClienteToOpk(regCli, dSuma, &regOPK);
+               GenerarOPK(fpLocal, regOPK, inx2, "D");
+      
+               /* Cierre y reapertura*/
+               if(iCantOPL>0){
+                  GenerarOPL(fpLocal, regCli, regOPL, "A", inx2);
+                  inicializaOPL(&(regOPL));
+               }
+               GeneraENDE(fpLocal, regCli, inx2);
+      
+               inx2++;
+               
+               /* Siguiente documento del cliente */         
+               inx1=1;
+               if(strcmp(regAge.tipo_saldo, "SCL")){
+                  fpLocal = pFileGral; 
+               }else if(strcmp(regAge.tipo_saldo, "CNR")){
+                  fpLocal = pFileCNR;
+               }else if(strcmp(regAge.tipo_saldo, "FAC")){
+                  fpLocal = pFileGral;
+               }else{
+                  printf("Tipo de saldo [%s] desconocido para cliente %ld del ageing.\n", regAge.tipo_saldo, regCli.numero_cliente);
+                  return;
+               }
+               GenerarKO(fpLocal, regCli, inx2);
+               
+               /*************************/
+      
+               BORRA_STR(&regOP);
+               CopiaClienteAgeToOp(regCli, regAge, &regOP);
+               GenerarOP(fpLocal, regOP, inx1, "D", inx2);
+               CargaOPL(regCli, inx1, &(regOPL), "M", regAge.fecha_vencimiento1);
+               inx1++;
+      
+               strcpy(sTipoAnterior, regAge.tipo_saldo);
+               iCorrelAnterior = regAge.corr_facturacion;
+               dSuma = regAge.valor_cargo;
+                
+            }
+            
+            iTeracion++;
+         }
+      }else{
+         iS=1;
+      }
+   }/* Fin Linea*/
 
    if(iTeracion > 0){
       /* El Ultimo es el Saldo General */
@@ -1972,16 +2063,128 @@ $ClsCliente regCli;
    }else{
       dSuma=0;
    }
-   $CLOSE curAgeing;
+   /*$CLOSE curAgeing;*/
 }
 
 
 short LeoAgeing(reg)
 $ClsAgeing   *reg;
 {
-
+   char  sLinea[1000];
+   char  sValor[100];
+   $char sTipo[2];
+      
    InicializaAgeing(reg);
 
+   memset(sLinea, '\0', sizeof(sLinea));
+   memset(sTipo, '\0', sizeof(sTipo));
+   
+   if(fgets(sLinea,1000, pFileAge)){
+      
+      /* NroCliente */
+      memset(sValor, '\0', sizeof(sValor));
+      strcpy(sValor, retornaCampo(sLinea,1,"|"));
+      reg->numero_cliente = atol(sValor);
+      
+      /* Tipo Saldo */
+      memset(sValor, '\0', sizeof(sValor));
+      strcpy(sValor, retornaCampo(sLinea,2,"|"));
+      strcpy(reg->tipo_saldo, sValor);
+      
+      /* Corr.Facturacion */
+      memset(sValor, '\0', sizeof(sValor));
+      strcpy(sValor, retornaCampo(sLinea,3,"|"));
+      reg->corr_facturacion = atoi(sValor);
+      
+      /* Fecha Vto1 */
+      memset(sValor, '\0', sizeof(sValor));
+      strcpy(sValor, retornaCampo(sLinea,4,"|"));
+      reg->fecha_vencimiento1 = atol(sValor);
+      
+      /* Cod Cargo */
+      memset(sValor, '\0', sizeof(sValor));
+      strcpy(sValor, retornaCampo(sLinea,5,"|"));
+      strcpy(reg->cod_cargo, sValor);
+      
+      /* Valor Cargo */
+      memset(sValor, '\0', sizeof(sValor));
+      strcpy(sValor, retornaCampo(sLinea,6,"|"));
+      reg->valor_cargo = atof(sValor);
+
+      /* -- Carga Transformados --*/
+      alltrim(reg->tipo_saldo, ' ');
+      alltrim(reg->cod_cargo, ' ');
+      
+      if(reg->valor_cargo != 0.00){
+         if(strcmp(reg->tipo_saldo, "CNR")){
+            /* NO ES CNR */
+            if(strcmp(reg->cod_cargo, "SA8") && strcmp(reg->cod_cargo, "SA9")){
+               /* NO ES SA8 ni SA9 */
+               if(reg->valor_cargo > 0){
+                  strcpy(sTipo, "S");
+               }else{
+                  strcpy(sTipo, "H");
+               }
+               $EXECUTE selTrafoAge1 INTO :reg->hvorg,
+                                          :reg->hkont,
+                                          :reg->tvorg,
+                                          :reg->optxt
+                                    USING :reg->cod_cargo, :sTipo;
+
+               if(SQLCODE != 0){
+                  printf("No se encontró Trafo CNR para codigo %s Tipo Saldo %s\n", reg->cod_cargo, sTipo);
+                  return 0;
+               }                                    
+            }
+            
+         }else{
+            /* Es CNR*/
+            if(strcmp(reg->cod_cargo, "SA8") && strcmp(reg->cod_cargo, "SA9") &&
+               strcmp(reg->cod_cargo, "SA4") && strcmp(reg->cod_cargo, "SA5")){
+         
+               if(reg->valor_cargo > 0){
+                  strcpy(sTipo, "S");
+               }else{
+                  strcpy(sTipo, "H");
+               }
+               $EXECUTE selTrafoAge2 INTO :reg->hvorg,
+                                          :reg->hkont,
+                                          :reg->tvorg,
+                                          :reg->optxt
+                                    USING :reg->cod_cargo, :sTipo;
+
+               if(SQLCODE != 0){
+                  printf("No se encontró Trafo NO CNR para codigo %s Tipo Saldo %s\n", reg->cod_cargo, sTipo);
+                  return 0;
+               }                                    
+            }
+            if(strcmp(reg->cod_cargo, "SA8") && strcmp(reg->cod_cargo, "SA9") &&
+               (strcmp(reg->cod_cargo, "SA4") || strcmp(reg->cod_cargo, "SA5"))){
+
+               if(reg->valor_cargo > 0){
+                  strcpy(sTipo, "S");
+               }else{
+                  strcpy(sTipo, "H");
+               }
+               $EXECUTE selTrafoAge3 INTO :reg->hvorg,
+                                          :reg->hkont,
+                                          :reg->tvorg,
+                                          :reg->optxt
+                                    USING :reg->cod_cargo, :sTipo;
+
+               if(SQLCODE != 0){
+                  printf("No se encontró Trafo NO CNR para codigo %s Tipo Saldo %s\n", reg->cod_cargo, sTipo);
+                  return 0;
+               }                                    
+            }
+         }
+      } /* Cierre de que el monto sea distinto de cero */      
+   }else{
+      return 0;
+   }
+   
+   return 1;
+/*
    $FETCH curAgeing INTO
       :reg->tipo_saldo,
       :reg->corr_facturacion,
@@ -1999,8 +2202,9 @@ $ClsAgeing   *reg;
       }
       return 0;
    }
-   
+
    return 1;
+*/   
 }
 
 void InicializaAgeing(reg)
@@ -2309,6 +2513,8 @@ char  sTipo[2];
    iCantOPL=0;
    inx1=1; inx2=1;
    
+   dMonto=0;
+   
    $OPEN curDisputa USING :regCli.numero_cliente;   
 
    while(LeoDisputa(&regDispu)){
@@ -2317,9 +2523,9 @@ char  sTipo[2];
          iPrimaVolta=1;
       }
       
-      dMonto=0;
+      
       /*dMonto = regDispu.saldo_actual + regDispu.saldo_int_acum + regDispu.saldo_imp_no_suj_i + regDispu.saldo_imp_suj_int;*/
-      dMonto = regDispu.saldo_actual + regDispu.saldo_int_acum;
+      dMonto += regDispu.saldo_actual + regDispu.saldo_int_acum;
               
       BORRA_STR(&regOP);
       
@@ -2715,3 +2921,49 @@ char cRemp[2];
 	return sNvaCadena;
 }
 
+char *retornaCampo(sLinea, iPos, sep)
+char  sLinea[1000];
+int   iPos;
+char  sep[2];
+{
+   long lLen;
+   char  sCadena[100];
+   char  sAux[100];
+   int   i;
+   int   s;
+   int   cont;
+   
+   lLen = strlen(sLinea);
+   i=0;
+   s=0;
+   cont=0;
+   memset(sCadena, '\0', sizeof(sCadena));
+   memset(sAux, '\0', sizeof(sAux));
+   
+   if(iPos==1){
+      while(s==0 && i<= lLen){
+         if(sLinea[i]!= sep[0]){
+            sprintf(sAux, "%c", sLinea[i]);
+            strcat(sCadena, sAux);
+         }else{
+            s=1;
+         }
+         i++;
+      }
+   }else{
+      cont=1;
+      while(cont<= iPos && i<= lLen){
+         if(sLinea[i]!= sep[0]){
+            if(cont==iPos){
+               sprintf(sAux, "%c", sLinea[i]);
+               strcat(sCadena, sAux);
+            }
+         }else{
+            cont++;
+         }
+         i++;
+      }
+   }
+
+   return sCadena;
+}

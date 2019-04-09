@@ -39,6 +39,8 @@ FILE	*pFileQPTap;
 FILE	*pFileFactorTap;
 FILE	*pFileFlagEbp;
 FILE  *pFileFlagFP;
+FILE  *pFileFlagFP_SB;
+
 
 char	sArchOperandosUnx[100];
 char	sSoloArchivoOperandos[100];
@@ -47,6 +49,7 @@ char  sArchQPTap[100];
 char  sArchFactorTap[100];
 char  sArchFlagEbp[100];
 char  sArchFlagFP[100];
+char  sArchFlagFP_SB[100];
 
 char	sPathSalida[100];
 char	sPathCopia[100];
@@ -68,6 +71,7 @@ long 	cantTisPreexistente;
 long  cantTasa;
 long  cantEBP;
 long  cantFP;
+long  cantFP_SB;
 
 char	sMensMail[1024];	
 
@@ -86,7 +90,7 @@ void main( int argc, char **argv )
 {
 $char 	nombreBase[20];
 time_t 	hora;
-int		iFlagMigra=0;
+int		iFlagMigra=2;
 $long	lCorrFactuIni;
 $ClsOperando	regOperandos;
 
@@ -117,7 +121,7 @@ $long       lFechaValTarifa;
 	
 	$SET LOCK MODE TO WAIT 120;
 	$SET ISOLATION TO DIRTY READ;
-   $SET ISOLATION TO CURSOR STABILITY;
+   /*$SET ISOLATION TO CURSOR STABILITY;*/
 
 	CreaPrepare();
 
@@ -163,6 +167,7 @@ $long       lFechaValTarifa;
 
          GenerarFP();
          fclose(pFileFlagFP);
+         fclose(pFileFlagFP_SB);
 
          break;
       case 1:
@@ -183,6 +188,7 @@ $long       lFechaValTarifa;
       case 4:
          GenerarFP();
          fclose(pFileFlagFP);
+         fclose(pFileFlagFP_SB);
          break;
          
    }
@@ -318,6 +324,7 @@ short AbreArchivos()
    memset(sArchFactorTap,'\0',sizeof(sArchFactorTap));
    memset(sArchFlagEbp,'\0',sizeof(sArchFlagEbp));
    memset(sArchFlagFP,'\0',sizeof(sArchFlagFP));
+   memset(sArchFlagFP_SB,'\0',sizeof(sArchFlagFP_SB));
 
 	memset(sPathSalida,'\0',sizeof(sPathSalida));
    memset(sPathCopia,'\0',sizeof(sPathCopia));
@@ -330,35 +337,35 @@ short AbreArchivos()
    
    switch(giTipoArchivos){
       case 0:
-      	sprintf( sArchOperandosUnx  , "%sT1FACTS.unx", sPathSalida );
+      	sprintf( sArchOperandosUnx  , "%sT1FACTS_VIPTIS.unx", sPathSalida );
       	pFileOperandosUnx=fopen( sArchOperandosUnx, "w" );
       	if( !pFileOperandosUnx ){
       		printf("ERROR al abrir archivo %s.\n", sArchOperandosUnx );
       		return 0;
       	}
 
-      	sprintf( sArchFlagTap  , "%sT1FLAGTAP.unx", sPathSalida );
+      	sprintf( sArchFlagTap  , "%sT1FACTS_FLAGTAP.unx", sPathSalida );
       	pFileFlagTap=fopen( sArchFlagTap, "w" );
       	if( !pFileFlagTap ){
       		printf("ERROR al abrir archivo %s.\n", sArchFlagTap );
       		return 0;
       	}
 
-      	sprintf( sArchQPTap  , "%sT1QPTAP.unx", sPathSalida );
+      	sprintf( sArchQPTap  , "%sT1FACTS_QPTAP.unx", sPathSalida );
       	pFileQPTap=fopen( sArchQPTap, "w" );
       	if( !pFileQPTap ){
       		printf("ERROR al abrir archivo %s.\n", sArchQPTap );
       		return 0;
       	}
 
-      	sprintf( sArchFactorTap  , "%sT1FACTOR_TAP.unx", sPathSalida );
+      	sprintf( sArchFactorTap  , "%sT1FACTS_FACTOR_TAP.unx", sPathSalida );
       	pFileFactorTap=fopen( sArchFactorTap, "w" );
       	if( !pFileFactorTap ){
       		printf("ERROR al abrir archivo %s.\n", sArchFactorTap );
       		return 0;
       	}
 
-      	sprintf( sArchFlagEbp  , "%sT1FLAGEBP.unx", sPathSalida );
+      	sprintf( sArchFlagEbp  , "%sT1FACTS_FLAGEBP.unx", sPathSalida );
       	pFileFlagEbp=fopen( sArchFlagEbp, "w" );
       	if( !pFileFlagEbp ){
       		printf("ERROR al abrir archivo %s.\n", sArchFlagEbp );
@@ -371,10 +378,17 @@ short AbreArchivos()
       		printf("ERROR al abrir archivo %s.\n", sArchFlagFP );
       		return 0;
       	}
+
+      	sprintf( sArchFlagFP_SB  , "%sT1FACTS_STANDBY_.unx", sPathSalida );
+      	pFileFlagFP_SB=fopen( sArchFlagFP_SB, "w" );
+      	if( !pFileFlagFP_SB ){
+      		printf("ERROR al abrir archivo %s.\n", sArchFlagFP_SB );
+      		return 0;
+      	}
          
          break;
       case 1:
-      	sprintf( sArchOperandosUnx  , "%sT1FACTS.unx", sPathSalida );
+      	sprintf( sArchOperandosUnx  , "%sT1FACTS_VIPTIS.unx", sPathSalida );
       	pFileOperandosUnx=fopen( sArchOperandosUnx, "w" );
       	if( !pFileOperandosUnx ){
       		printf("ERROR al abrir archivo %s.\n", sArchOperandosUnx );
@@ -383,21 +397,21 @@ short AbreArchivos()
          break;
                
       case 2:
-      	sprintf( sArchFlagTap  , "%sT1FLAGTAP.unx", sPathSalida );
+         sprintf( sArchFlagTap  , "%sT1FACTS_FLAGTAP.unx", sPathSalida );
       	pFileFlagTap=fopen( sArchFlagTap, "w" );
       	if( !pFileFlagTap ){
       		printf("ERROR al abrir archivo %s.\n", sArchFlagTap );
       		return 0;
       	}
 
-      	sprintf( sArchQPTap  , "%sT1QPTAP.unx", sPathSalida );
+      	sprintf( sArchQPTap  , "%sT1FACTS_QPTAP.unx", sPathSalida );
       	pFileQPTap=fopen( sArchQPTap, "w" );
       	if( !pFileQPTap ){
       		printf("ERROR al abrir archivo %s.\n", sArchQPTap );
       		return 0;
       	}
 
-      	sprintf( sArchFactorTap  , "%sT1FACTOR_TAP.unx", sPathSalida );
+      	sprintf( sArchFactorTap  , "%sT1FACTS_FACTOR_TAP.unx", sPathSalida );
       	pFileFactorTap=fopen( sArchFactorTap, "w" );
       	if( !pFileFactorTap ){
       		printf("ERROR al abrir archivo %s.\n", sArchFactorTap );
@@ -406,7 +420,7 @@ short AbreArchivos()
          break;
                
       case 3:
-      	sprintf( sArchFlagEbp  , "%sT1FLAGEBP.unx", sPathSalida );
+      	sprintf( sArchFlagEbp  , "%sT1FACTS_FLAGEBP.unx", sPathSalida );
       	pFileFlagEbp=fopen( sArchFlagEbp, "w" );
       	if( !pFileFlagEbp ){
       		printf("ERROR al abrir archivo %s.\n", sArchFlagEbp );
@@ -420,6 +434,13 @@ short AbreArchivos()
       	pFileFlagFP=fopen( sArchFlagFP, "w" );
       	if( !pFileFlagFP ){
       		printf("ERROR al abrir archivo %s.\n", sArchFlagFP );
+      		return 0;
+      	}
+
+      	sprintf( sArchFlagFP_SB  , "%sT1FACTS_STANDBY_.unx", sPathSalida );
+      	pFileFlagFP_SB=fopen( sArchFlagFP_SB, "w" );
+      	if( !pFileFlagFP_SB ){
+      		printf("ERROR al abrir archivo %s.\n", sArchFlagFP_SB );
       		return 0;
       	}
       
@@ -518,6 +539,18 @@ char	sPathCp[100];
             sprintf(sCommand, "rm -f %s", sArchFlagFP);
             iRcv=system(sCommand);
          }
+
+         /* ------------ */
+      	sprintf(sCommand, "chmod 755 %s", sArchFlagFP_SB);
+      	iRcv=system(sCommand);
+      	
+      	sprintf(sCommand, "cp %s %s", sArchFlagFP_SB, sPathCp);
+      	iRcv=system(sCommand);
+         
+         if(iRcv == 0){
+            sprintf(sCommand, "rm -f %s", sArchFlagFP_SB);
+            iRcv=system(sCommand);
+         }
          
          break;
                   
@@ -590,6 +623,18 @@ char	sPathCp[100];
             sprintf(sCommand, "rm -f %s", sArchFlagFP);
             iRcv=system(sCommand);
          }
+
+         /* ------------ */
+      	sprintf(sCommand, "chmod 755 %s", sArchFlagFP_SB);
+      	iRcv=system(sCommand);
+      	
+      	sprintf(sCommand, "cp %s %s", sArchFlagFP_SB, sPathCp);
+      	iRcv=system(sCommand);
+         
+         if(iRcv == 0){
+            sprintf(sCommand, "rm -f %s", sArchFlagFP_SB);
+            iRcv=system(sCommand);
+         }
       
    }
 }
@@ -617,8 +662,8 @@ $char sAux[1000];
    
 	/******** ELECTRO DEPENDIENTES *********/
 	strcpy(sql, "SELECT v.numero_cliente, ");
-	strcat(sql, "v.fecha_activacion, ");
-	strcat(sql, "TO_CHAR(v.fecha_activacion, '%Y%m%d'), ");
+	strcat(sql, "v.fecha_activacion + 1, ");
+	strcat(sql, "TO_CHAR(v.fecha_activacion + 1, '%Y%m%d'), ");
 	strcat(sql, "NVL(v.fecha_desactivac, 0), ");
 	strcat(sql, "NVL(TO_CHAR(v.fecha_desactivac, '%Y%m%d'), '99991231'), ");
 	strcat(sql, "v.motivo, ");
@@ -682,8 +727,8 @@ $char sAux[1000];
 	/****** Cursor Tarifa Social  *******/
 	
 	strcpy(sql, "SELECT v.numero_cliente, ");
-	strcat(sql, "v.fecha_inicio, ");
-	strcat(sql, "TO_CHAR(v.fecha_inicio, '%Y%m%d'), ");
+	strcat(sql, "v.fecha_inicio + 1, ");
+	strcat(sql, "TO_CHAR(v.fecha_inicio + 1, '%Y%m%d'), ");
 	strcat(sql, "NVL(v.fecha_desactivac, 0), ");
 	strcat(sql, "NVL(TO_CHAR(v.fecha_desactivac, '%Y%m%d'), '99991231'), ");
 	strcat(sql, "v.motivo, ");
@@ -1026,8 +1071,8 @@ $char sAux[1000];
 
    /******** Cursor Exencion Tasa *******/
    $PREPARE selTasaVig FROM "SELECT numero_cliente, 
-      fecha_activacion,
-      TO_CHAR(fecha_activacion, '%Y%m%d'),
+      fecha_activacion + 1,
+      TO_CHAR(fecha_activacion + 1, '%Y%m%d'),
       NVL(TO_CHAR(fecha_desactivac, '%Y%m%d'), '99991231'),
       cant_valor_tasa
       FROM tasas_vigencia
@@ -1066,8 +1111,8 @@ $char sAux[1000];
    
    /********** Cursor EBP **********/
    strcpy(sql, "SELECT e.numero_cliente, "); 
-   strcat(sql, "e.fecha_inicio, ");
-   strcat(sql, "TO_CHAR(e.fecha_inicio, '%Y%m%d'), ");
+   strcat(sql, "e.fecha_inicio + 1, ");
+   strcat(sql, "TO_CHAR(e.fecha_inicio + 1, '%Y%m%d'), ");
    strcat(sql, "NVL(TO_CHAR(e.fecha_desactivac, '%Y%m%d'), '99991231') ");
    strcat(sql, "FROM entid_bien_publico e, cliente c ");
    if(giTipoCorrida==1)	
@@ -1085,17 +1130,27 @@ $char sAux[1000];
    $DECLARE curEBP CURSOR WITH HOLD FOR selEBP;
    
    /********** Cursor FP **********/
-   strcpy(sql, "SELECT r.numero_cliente, r.evento, r.fecha_evento, ");
+   strcpy(sql, "SELECT r.numero_cliente, t2.cod_sap, r.evento, r.fecha_evento, ");
    strcat(sql, "TRIM(t1.acronimo_sap) tipo_tarifa "); 
-   strcat(sql, "FROM rer_eventos_cabe r, cliente c, sap_transforma t1 ");
+   strcat(sql, "FROM rer_eventos_cabe r, cliente c, medid me, sap_transforma t1, OUTER sap_transforma t2 ");
    if(giTipoCorrida==1)	
       strcat(sql, ", migra_activos m ");	
    
-   strcat(sql, "WHERE c.numero_cliente = r.numero_cliente ");
+   if(glFechaParametro==-1){
+      strcat(sql, "WHERE c.numero_cliente = r.numero_cliente ");
+   }else{
+      strcat(sql, "WHERE r.fecha_evento >= ? ");
+      strcat(sql, "AND c.numero_cliente = r.numero_cliente ");
+   }
    strcat(sql, "AND c.estado_cliente = 0 ");
    strcat(sql, "AND c.tipo_sum != 5 ");
+   strcat(sql, "AND me.numero_cliente = r.numero_cliente ");
+   strcat(sql, "AND me.estado = 'I' ");
+   strcat(sql, "AND me.tipo_medidor = 'R' ");   
    strcat(sql, "AND t1.clave = 'TARIFTYP' ");
    strcat(sql, "AND t1.cod_mac = c.tarifa ");
+   strcat(sql, "AND t2.clave = 'BFP' ");
+   strcat(sql, "AND t2.cod_mac = r.evento ");
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "	WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "	AND cm.fecha_activacion < TODAY ");
@@ -1106,6 +1161,38 @@ $char sAux[1000];
 
    $PREPARE selFP FROM $sql;   
    $DECLARE curFP CURSOR WITH HOLD FOR selFP;
+
+   /****** Cursor Eventos ******/
+   $PREPARE selFPEve FROM "SELECT r.numero_cliente, 
+      r.corr_evento, 
+      t.cod_sap, 
+      r.fecha_evento_desde + 1, 
+      r.fecha_evento_hasta
+      FROM rer_eventos_deta r, sap_transforma t
+      WHERE r.numero_cliente = ?
+      AND r.evento != 'SB'
+      AND r.fecha_evento_desde > ?
+      AND r.fecha_evento_desde != r.fecha_evento_hasta
+      AND t.clave = 'BFP'
+      AND t.cod_mac = r.evento
+      ORDER BY r.corr_evento ";
+   
+   $DECLARE curFpEve CURSOR WITH HOLD FOR selFPEve;
+
+   /****** Cursor Eventos SB ******/
+   $PREPARE selFPEveSB FROM "SELECT r.numero_cliente, 
+      r.corr_evento, 
+      r.evento, 
+      r.fecha_evento_desde + 1, 
+      r.fecha_evento_hasta
+      FROM rer_eventos_deta r
+      WHERE r.numero_cliente = ?
+      AND r.evento = 'SB'
+      AND r.fecha_evento_desde > ?
+      AND r.fecha_evento_desde != r.fecha_evento_hasta
+      ORDER BY r.corr_evento ";
+   
+   $DECLARE curFpEveSB CURSOR WITH HOLD FOR selFPEveSB;
                      
 }
 
@@ -1278,13 +1365,17 @@ int		*iFlagMigra;
 	
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */
+/*      
    	if(gsTipoGenera[0]=='G'){
    		return 1;	
    	}
+*/      
 	}else{
 		*iFlagMigra=2; /* Indica que se debe hacer un update */	
 	}
 
+   *iFlagMigra=2;
+   
    *lFechaTarifa = lFecha;
    
 	return 0;
@@ -1367,17 +1458,19 @@ FILE 				*fp;
 $ClsOperando		regOpe;
 long				iNx;
 {
-	/* KEY */	
-	GeneraKEY(sTipo, fp, regOpe, iNx);
 
-	/* F_FLAG */	
-	GeneraFFlag(sTipo, fp, regOpe, iNx);
-
+   if(iNx==1){
+   	/* KEY */	
+   	GeneraKEY(sTipo, fp, regOpe, iNx);
+   	/* F_FLAG */	
+   	GeneraFFlag(sTipo, fp, regOpe, iNx);
+   }
+   
 	/* V_FLAG */	
 	GeneraVFlag(sTipo, fp, regOpe, iNx);
 		
-	/* ENDE */
-	GeneraENDE(fp, regOpe, iNx);
+	/* ENDE */  
+  	/*GeneraENDE(fp, regOpe, iNx);*/
 	
 	return 1;
 }
@@ -1401,8 +1494,36 @@ long			iNx;
       printf("Error al escribir ENDE\n");
       exit(1);
    }	
+}
+
+void GeneraENDE2(fp, lNroCliente, iNx)
+FILE *fp;
+long  lNroCliente;
+long			iNx;
+{
+	char	sLinea[1000];	
+   int   iRcv;
+   
+	memset(sLinea, '\0', sizeof(sLinea));
+	
+   if(iNx==3){
+      sprintf(sLinea, "T1%ld\t&ENDE", lNroCliente);
+   }else{
+      sprintf(sLinea, "T1%ld-%ld\t&ENDE", lNroCliente, iNx);
+   }
+
+	strcat(sLinea, "\n");
+	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
    	
 }
+
+
+
 /*
 short RegistraArchivo(void)
 {
@@ -1435,7 +1556,8 @@ $long cantidad;
 int		iFlagMigra;
 {
 
-   alltrim(sOpe, ' ');
+   /*alltrim(sOpe, ' ');*/
+   iFlagMigra=2;
    
 	if(strcmp(sOpe, "VIP")==0){
 		if(iFlagMigra==1){
@@ -1456,8 +1578,8 @@ int		iFlagMigra;
    if(strcmp(sOpe, "TASAFF")==0){
 		if(iFlagMigra==1){
 			$EXECUTE insFlagTasa using :nroCliente, :cantidad;
-         $EXECUTE insFactorTasa using :nroCliente, :cantidad;
-         
+         /*$EXECUTE insFactorTasa using :nroCliente, :cantidad;*/
+         $EXECUTE updFactorTasa using :cantidad, :nroCliente;
 		}else{
 			$EXECUTE updFlagTasa using :cantidad, :nroCliente;
          $EXECUTE updFactorTasa using :cantidad, :nroCliente;
@@ -1502,7 +1624,25 @@ long		iNx;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 
-	sprintf(sLinea, "T1%ld-%ld\tKEY\t", regOpe.numero_cliente, iNx);
+   alltrim(regOpe.sOperando, ' ');
+
+   if(strcmp(regOpe.sOperando, "FLAGVIP")==0){
+      iNx=1;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld-%ld\tKEY\t", regOpe.numero_cliente, iNx);
+      
+   }else if(strcmp(regOpe.sOperando, "FLAGTIS")==0){
+      iNx=2;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld-%ld\tKEY\t", regOpe.numero_cliente, iNx);
+      
+   }else{
+      iNx=3;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld\tKEY\t", regOpe.numero_cliente);
+      
+   }
+   
 	/* ANLAGE */
 	sprintf(sLinea, "%sT1%ld\t", sLinea, regOpe.numero_cliente);
    /* BIS */	
@@ -1529,8 +1669,22 @@ long			iNx;
    int   iRcv;
    
 	memset(sLinea, '\0', sizeof(sLinea));
-	
-	sprintf(sLinea, "T1%ld-%ld\tF_FLAG\t", regOpe.numero_cliente, iNx);
+
+   alltrim(regOpe.sOperando, ' ');
+
+   if(strcmp(regOpe.sOperando, "FLAGVIP")==0){
+      iNx=1;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld-%ld\tF_FLAG\t", regOpe.numero_cliente, iNx);
+   }else if(strcmp(regOpe.sOperando, "FLAGTIS")==0){
+      iNx=2;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld-%ld\tF_FLAG\t", regOpe.numero_cliente, iNx);
+   }else{
+      iNx=3;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld\tF_FLAG\t", regOpe.numero_cliente);
+   }
 	
 	sprintf(sLinea, "%s%s\t", sLinea, regOpe.sOperando);
 	
@@ -1559,8 +1713,22 @@ long			iNx;
    int   iRcv;
    
 	memset(sLinea, '\0', sizeof(sLinea));
-	
-	sprintf(sLinea, "T1%ld-%ld\tV_FLAG\t", regOpe.numero_cliente, iNx);
+
+   alltrim(regOpe.sOperando, ' ');
+
+   if(strcmp(regOpe.sOperando, "FLAGVIP")==0){
+      iNx=1;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld-%ld\tV_FLAG\t", regOpe.numero_cliente, iNx);
+   }else if(strcmp(regOpe.sOperando, "FLAGTIS")==0){
+      iNx=2;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld-%ld\tV_FLAG\t", regOpe.numero_cliente, iNx);
+   }else{
+      iNx=3;
+      /* Llave */
+   	sprintf(sLinea, "T1%ld\tV_FLAG\t", regOpe.numero_cliente);
+   }
 	
    /* AB */
 	sprintf(sLinea, "%s%s\t", sLinea, regOpe.sFechaInicio);
@@ -1649,6 +1817,7 @@ $long           lFechaValTarifa;
 $int            iFlagMigra;
 $long           CantCliVip;
 
+
    if(glFechaParametro > 0){
       $OPEN curElectro USING :glFechaParametro;
    }else{
@@ -1660,8 +1829,10 @@ $long           CantCliVip;
 	while(LeoElectroDependencia(&regOperandos)){
   
 		if(lClienteAnterior != regOperandos.numero_cliente){
+      
 			/* Primera ocurrencia del cliente */
          if(lClienteAnterior > 0){
+            GeneraENDE2(pFileOperandosUnx, lClienteAnterior, 1);
             /*if(giTipoCorrida == 0){*/
                $BEGIN WORK;
                if(!RegistraCliente("VIP", lClienteAnterior, CantCliVip, iFlagMigra)){
@@ -1670,6 +1841,7 @@ $long           CantCliVip;
                }else{
                   $COMMIT WORK;
                }
+               
             /*}*/
          }
          lClienteAnterior = regOperandos.numero_cliente;
@@ -1677,6 +1849,8 @@ $long           CantCliVip;
          CantCliVip=1;
          
 			if(! ClienteYaMigrado("VIP", regOperandos.numero_cliente, &lFechaValTarifa, &iFlagMigra)){
+            iFlagMigra=2;
+            
             rfmtdate(lFechaValTarifa, "yyyymmdd", regOperandos.fecha_vig_tarifa);
 /*            
             if(getFechaIni(regOperandos, &lFechaIniAux)){
@@ -1684,6 +1858,7 @@ $long           CantCliVip;
                regOperandos.lFechaInicio=lFechaIniAux;
 */               
                if(strcmp(regOperandos.sFechaFin, "99991231")!=0){
+               
 /*               
                   if(getFechaFin(regOperandos, &lFechaFinAux)){
                      rfmtdate(lFechaFinAux, "yyyymmdd", regOperandos.sFechaFin);
@@ -1706,6 +1881,7 @@ $long           CantCliVip;
 				cantVipPreexistente++;
 			}
 		}else{
+      
          rfmtdate(lFechaValTarifa, "yyyymmdd", regOperandos.fecha_vig_tarifa);
 			/* Mismo Cliente fila anterior*/
 /*         
@@ -1714,6 +1890,7 @@ $long           CantCliVip;
              regOperandos.lFechaInicio=lFechaIniAux;
 */             
              if(strcmp(regOperandos.sFechaFin, "99991231")!=0){
+             
 /*             
                 if(getFechaFin(regOperandos, &lFechaFinAux)){
                    rfmtdate(lFechaFinAux, "yyyymmdd", regOperandos.sFechaFin);
@@ -1725,6 +1902,7 @@ $long           CantCliVip;
                    CantCliVip++;                  
                 /*}*/
              }else{
+             
                 /* registro activo */
                 GenerarPlano("R", pFileOperandosUnx, regOperandos, iNx);
                 cantVipProcesada++;
@@ -1734,7 +1912,9 @@ $long           CantCliVip;
           }
 		/*}*/
    }
-
+   /*GeneraENDE2(pFileOperandosUnx, lClienteAnterior, iNx);*/
+   GeneraENDE2(pFileOperandosUnx, lClienteAnterior, 1);
+   
 	$CLOSE curElectro;
 }
 
@@ -1758,8 +1938,10 @@ $long           CantCliTis;
 	
    while(LeoTis(&regOperandos)){
 		if(lClienteAnterior != regOperandos.numero_cliente){
+         
 			/* Primera ocurrencia del cliente */
          if(lClienteAnterior > 0){
+            GeneraENDE2(pFileOperandosUnx, lClienteAnterior, 2);
              /*if(giTipoCorrida ==0 ){*/
                $BEGIN WORK;
                if(!RegistraCliente("TIS", lClienteAnterior, CantCliTis, iFlagMigra)){
@@ -1776,6 +1958,7 @@ $long           CantCliTis;
          CantCliTis=1;
          
 			if(! ClienteYaMigrado("TIS", regOperandos.numero_cliente, &lFechaValTarifa, &iFlagMigra)){
+            iFlagMigra=2;
             rfmtdate(lFechaValTarifa, "yyyymmdd", regOperandos.fecha_vig_tarifa);
 /*            
             if(getFechaIni(regOperandos, &lFechaIniAux)){
@@ -1834,6 +2017,8 @@ $long           CantCliTis;
 		/*}*/
    }
 
+   /*GeneraENDE2(pFileOperandosUnx, lClienteAnterior, iNx);*/
+   GeneraENDE2(pFileOperandosUnx, lClienteAnterior, 2);
 	$CLOSE curTIS;
 
 
@@ -1861,7 +2046,11 @@ int            iFlagMigra;
       iFlagMigra=getExiste(regTasa.numero_cliente);
       
       iVuelta=0;
-      $OPEN curTasaVig USING :regTasa.numero_cliente, :lFechaPivote;
+      if(glFechaParametro==-1){
+         $OPEN curTasaVig USING :regTasa.numero_cliente, :lFechaPivote;
+      }else{
+         $OPEN curTasaVig USING :regTasa.numero_cliente, :glFechaParametro;
+      }
       iNx=1;
       cantOpTasa=1;      
       while(LeoTasaVig(&regVig)){
@@ -1879,6 +2068,11 @@ int            iFlagMigra;
 
          iNx++;
       }
+      if(iNx > 1){
+         GeneraENDE2(pFileFlagTap, regTasa.numero_cliente, 3); /* Flag Cliente */
+         GeneraENDE2(pFileFactorTap, regTasa.numero_cliente, 3); /* FlagFactor */
+
+      }      
       $CLOSE curTasaVig;
 
       /*if(giTipoCorrida==0){*/
@@ -1894,8 +2088,13 @@ int            iFlagMigra;
       
       /* Precio */
       iVuelta=0;
-      $OPEN curPrecioTasa USING :regTasa.numero_cliente, :lFechaPivote;
-      iNx=1;
+      if(glFechaParametro==-1){
+         $OPEN curPrecioTasa USING :regTasa.numero_cliente, :lFechaPivote;
+      }else{
+         $OPEN curPrecioTasa USING :regTasa.numero_cliente, :glFechaParametro;
+      }
+
+      iNx=0;
       cantOpTasa=1;
       while(LeoTasaPrecio(&regPrecio)){
          if(iVuelta==0){
@@ -1911,6 +2110,9 @@ int            iFlagMigra;
             dMonto = regPrecio.valor;
          }
          iNx++;
+      }
+      if(iNx > 1){
+         GeneraENDE2(pFileQPTap, regTasa.numero_cliente, 3); /* Flag Precio */
       }
       $CLOSE curPrecioTasa;
 
@@ -1944,10 +2146,12 @@ int         inx;
       strcpy(sMarca, "N");
    }
    
-   GeneraKEY(sMarca, pFileFlagTap, reg, inx);
-   GeneraFFlag(sMarca, pFileFlagTap, reg, inx);
+   if(inx==1){
+      GeneraKEY(sMarca, pFileFlagTap, reg, inx);
+      GeneraFFlag(sMarca, pFileFlagTap, reg, inx);
+   }
    GeneraVFlag(sMarca, pFileFlagTap, reg, inx);
-   GeneraENDE(pFileFlagTap, reg, inx);
+   /*GeneraENDE(pFileFlagTap, reg, inx);*/
 
 }
 
@@ -1958,10 +2162,12 @@ int         inx;
    char  sMarca[2];
    strcpy(sMarca, "X");
    
-   GeneraKEY(sMarca, pFileFactorTap, reg, inx);
-   GeneraFFact(pFileFactorTap, reg, inx);
+   if(inx==1){
+      GeneraKEY(sMarca, pFileFactorTap, reg, inx);
+      GeneraFFact(pFileFactorTap, reg, inx);
+   }
    GeneraVFact(pFileFactorTap, reg, inx);
-   GeneraENDE(pFileFactorTap, reg, inx);
+   /*GeneraENDE(pFileFactorTap, reg, inx);*/
 
 }
 
@@ -1975,7 +2181,7 @@ int         inx;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 	
-	sprintf(sLinea, "T1%ld-%ld\tF_FACT\t", reg.numero_cliente, inx);
+	sprintf(sLinea, "T1%ld\tF_FACT\t", reg.numero_cliente);
 	
 	sprintf(sLinea, "%s%s\t", sLinea, reg.sOperando);
    
@@ -2002,7 +2208,7 @@ int			inx;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 	
-	sprintf(sLinea, "T1%ld-%ld\tV_FACT\t", reg.numero_cliente, inx);
+	sprintf(sLinea, "T1%ld\tV_FACT\t", reg.numero_cliente);
 	
    /* AB */
 	sprintf(sLinea, "%s%s\t", sLinea, reg.sFechaInicio);
@@ -2167,10 +2373,12 @@ int         inx;
    char  sMarca[2];
    strcpy(sMarca, "X");
    
-   GeneraKEY(sMarca, pFileQPTap, reg, inx);
-   GeneraFQpri(pFileQPTap, reg, inx);
+   if(inx==1){
+      GeneraKEY(sMarca, pFileQPTap, reg, inx);
+      GeneraFQpri(pFileQPTap, reg, inx);
+   }
    GeneraVQpri(pFileQPTap, reg, inx);
-   GeneraENDE(pFileQPTap, reg, inx);
+   /*GeneraENDE(pFileQPTap, reg, inx);*/
 
 }
 
@@ -2184,7 +2392,7 @@ int         inx;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 	
-	sprintf(sLinea, "T1%ld-%ld\tF_QPRI\t", reg.numero_cliente, inx);
+	sprintf(sLinea, "T1%ld\tF_QPRI\t", reg.numero_cliente);
 	
    /* OPERAND */
 	sprintf(sLinea, "%s%s\t", sLinea, reg.sOperando);
@@ -2215,7 +2423,7 @@ int			inx;
 	
    alltrim(reg.sValor,' ');
    
-	sprintf(sLinea, "T1%ld-%ld\tV_QPRI\t", reg.numero_cliente, inx);
+	sprintf(sLinea, "T1%ld\tV_QPRI\t", reg.numero_cliente);
 	
    /* AB */
 	sprintf(sLinea, "%s%s\t", sLinea, reg.sFechaInicio);
@@ -2240,27 +2448,51 @@ $ClsOperando   regOpe;
 $ClsEBP        regEbp;
 int            iNx;
 int            iFlagMigra;
+$long			    lClienteAnterior;
+int            iTieneColita;
 
-   $OPEN curEBP USING :lFechaPivote;
+   if(glFechaParametro==-1){
+      $OPEN curEBP USING :lFechaPivote;
+   }else{
+      $OPEN curEBP USING :glFechaParametro;
+   }
+   
    
    iNx=1;
+   lClienteAnterior=0;
+   iTieneColita=0;
    while(LeoEBP(&regEbp)){
-      InicializaOperando(&regOpe);
-      TraspasoEBP(regEbp, &regOpe);
-      PrintEBP(regOpe, iNx);
-      /*if(giTipoCorrida==0){*/
-         iFlagMigra=getExiste(regEbp.numero_cliente);
+      iTieneColita=0;
+      if(regEbp.numero_cliente != lClienteAnterior ){
+         iNx=1;
+         InicializaOperando(&regOpe);
+         TraspasoEBP(regEbp, &regOpe);
+         PrintEBP(regOpe, iNx);
+         lClienteAnterior=regEbp.numero_cliente;      
+         
+         iFlagMigra=getExiste(lClienteAnterior);
          $BEGIN WORK;
-         if(!RegistraCliente("EBP", regEbp.numero_cliente, 1, iFlagMigra)){
+         if(!RegistraCliente("EBP", lClienteAnterior, 1, iFlagMigra)){
             $ROLLBACK WORK;
-            printf("No se registro EBP para cliente %ld\n", regEbp.numero_cliente);
+            printf("No se registro EBP para cliente %ld\n", lClienteAnterior);
          }else{
             $COMMIT WORK;
          }
-      /*}*/
-      iNx++;
-      cantEBP++;
+         GeneraENDE2(pFileFlagEbp, lClienteAnterior, 3);
+         iNx++;
+         cantEBP++;
+      }else{
+         InicializaOperando(&regOpe);
+         TraspasoEBP(regEbp, &regOpe);
+         PrintEBP(regOpe, iNx);
+         lClienteAnterior=regEbp.numero_cliente;      
+         iNx++;
+         iTieneColita=1;
+      }
    }
+   
+   if(iTieneColita==1)
+      GeneraENDE2(pFileFlagEbp, lClienteAnterior, 3);
    
    $CLOSE curEBP;
 
@@ -2318,10 +2550,12 @@ int         inx;
       strcpy(sMarca, "N");
    }
    
-   GeneraKEY(sMarca, pFileFlagEbp, reg, inx);
-   GeneraFFlag(sMarca, pFileFlagEbp, reg, inx);
+   if(inx==1){
+      GeneraKEY(sMarca, pFileFlagEbp, reg, inx);
+      GeneraFFlag(sMarca, pFileFlagEbp, reg, inx);
+   }
    GeneraVFlag(sMarca, pFileFlagEbp, reg, inx);
-   GeneraENDE(pFileFlagEbp, reg, inx);
+   /*GeneraENDE(pFileFlagEbp, reg, inx);*/
 
 }
 
@@ -2329,27 +2563,108 @@ void GenerarFP(){
 $ClsOperando   regOpe;
 $ClsFP         regFp;
 int            iNx;
+int            iNx2;
 int            iFlagMigra;
+$char          sFechaPivoteEvento[11];
+$long          lFechaPivoteEvento;
+$ClsFPDeta     regFpDeta;
+int            iTiene;
+int            iTieneSB;
 
-   $OPEN curFP;
+   memset(sFechaPivoteEvento, '\0', sizeof(sFechaPivoteEvento));
+   strcpy(sFechaPivoteEvento, "01/12/2014");
+   rdefmtdate(&lFechaPivoteEvento, "dd/mm/yyyy", sFechaPivoteEvento); /*char to long*/
+
+   if(glFechaParametro==-1){
+      $OPEN curFP;
+   }else{
+      $OPEN curFP USING :glFechaParametro;
+   }
    
-   iNx=1;
+   /*iNx=1;*/
    cantFP=0;
    while(LeoFP(&regFp)){
-      InicializaOperando(&regOpe);
-      TraspasoFP(regFp, &regOpe);
-      PrintFP(regOpe, iNx);
-      iNx++;
-      cantFP++;
-      /*if(giTipoCorrida ==0){*/
+   
+      iNx=1;
+      iNx2=1;
+      iTiene=0;
+      iTieneSB=0;
+      if(regFp.lFechaEvento > lFechaPivoteEvento){
+         /* El Detalle */
+         if(glFechaParametro==-1){
+            $OPEN curFpEve USING :regFp.numero_cliente, :lFechaPivoteEvento;
+         }else{
+            $OPEN curFpEve USING :regFp.numero_cliente, :glFechaParametro;
+         }            
+         
+         while(LeoFPDeta(&regFpDeta)){
+         
+            strcpy(regFpDeta.sTarifa, regFp.sTarifa);
+            
+            InicializaOperando(&regOpe);
+            TraspasoFPDeta(regFpDeta, &regOpe);
+            PrintFP(regOpe, iNx);
+            iNx++;
+            iTiene=1;
+         }         
+         
+         $CLOSE curFpEve;
+         
+         /* El Detalle del SB */
+         if(glFechaParametro==-1){
+            $OPEN curFpEveSB USING :regFp.numero_cliente, :lFechaPivoteEvento;
+         }else{
+            $OPEN curFpEveSB USING :regFp.numero_cliente, :glFechaParametro;
+         }            
+         
+         while(LeoFPDetaSB(&regFpDeta)){
+         
+            strcpy(regFpDeta.sTarifa, regFp.sTarifa);
+            
+            InicializaOperando(&regOpe);
+            TraspasoFPDeta_SB(regFpDeta, &regOpe);
+            PrintFP_SB(regOpe, iNx2);
+            iNx2++;
+            iTieneSB=1;
+         }         
+         
+         $CLOSE curFpEveSB;
+         
+      }else{
+         InicializaOperando(&regOpe);
+         /* Solo la Cabecera */
+         if(strcmp(regFp.sEventoMac, "SB")){
+            TraspasoFP(regFp, &regOpe);
+            PrintFP(regOpe, iNx);
+            iTiene=1;
+         }else{
+            /* Solo la cabecera del SB */
+            TraspasoFP_SB(regFp, &regOpe);
+            PrintFP_SB(regOpe, iNx2);
+            iTieneSB=1;
+         }         
+      }
+      
+      if(iTiene==1){
+         cantFP++;
          iFlagMigra=getExiste(regFp.numero_cliente);
+         
          $BEGIN WORK;
          if(!RegistraCliente("FP", regFp.numero_cliente, 1, iFlagMigra)){
             printf("No registro FP para cliente %ld\n", regFp.numero_cliente);
+            $ROLLBACK WORK;
          }else{
             $COMMIT WORK;
          }
-      /*}*/
+      }
+      
+      if(iTiene==1){
+         GeneraENDE2(pFileFlagFP, regFp.numero_cliente, 3);
+      }
+      
+      if(iTieneSB==1){
+         GeneraENDE2(pFileFlagFP_SB, regFp.numero_cliente, 3);
+      }
    }
    
    $CLOSE curFP;
@@ -2365,6 +2680,7 @@ $ClsFP  *reg;
    $FETCH curFP INTO 
       :reg->numero_cliente, 
       :reg->evento,
+      :reg->sEventoMac,
       :reg->lFechaEvento,
       :reg->sTarifa;
 
@@ -2374,6 +2690,9 @@ $ClsFP  *reg;
    if(reg->lFechaEvento < lFechaLimiteInferior)
       reg->lFechaEvento = lFechaLimiteInferior;
          
+   alltrim(reg->evento, ' ');
+   alltrim(reg->sEventoMac, ' ');
+   
    return 1;
 }
 
@@ -2382,6 +2701,7 @@ $ClsFP  *reg;
 {
 	rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
    memset(reg->evento, '\0', sizeof(reg->evento));
+   memset(reg->sEventoMac, '\0', sizeof(reg->sEventoMac));
    rsetnull(CLONGTYPE, (char *) &(reg->lFechaEvento));
    memset(reg->sTarifa, '\0', sizeof(reg->sTarifa));
 }
@@ -2405,6 +2725,29 @@ $ClsOperando   *regOpe;
    
 }
 
+void TraspasoFPDeta(regFpDeta, regOpe)
+$ClsFPDeta     regFpDeta;
+$ClsOperando   *regOpe;
+{
+
+   alltrim(regFpDeta.evento, ' ');
+   
+   regOpe->numero_cliente = regFpDeta.numero_cliente;
+   rfmtdate(regFpDeta.lFechaDesdeEvento, "yyyymmdd", regOpe->sFechaInicio); /* long to char */
+   if(!risnull(CLONGTYPE, (char *) &regFpDeta.lFechaHastaEvento)){
+      rfmtdate(regFpDeta.lFechaHastaEvento, "yyyymmdd", regOpe->sFechaFin); /* long to char */
+   }else{
+      strcpy(regOpe->sFechaFin, "99991231");
+   }
+
+   strcpy(regOpe->fecha_vig_tarifa, "20141201");
+   strcpy(regOpe->sOperando, "QCONTADOR");
+
+   strcpy(regOpe->sValor, regFpDeta.evento);
+   strcpy(regOpe->sTarifa, regFpDeta.sTarifa);
+
+}
+
 void  PrintFP(reg, inx)
 ClsOperando reg;
 int         inx;
@@ -2413,12 +2756,46 @@ int         inx;
    
    strcpy(sMarca, "R");
    
-   GeneraKEY(sMarca, pFileFlagFP, reg, inx);
-   GeneraFQUAN(pFileFlagFP, reg, inx);
+   if(inx == 1){
+      GeneraKEY(sMarca, pFileFlagFP, reg, inx);
+      GeneraFQUAN(pFileFlagFP, reg, inx);
+   }
    GeneraVQUAN(pFileFlagFP, reg, inx);
-   GeneraENDE(pFileFlagFP, reg, inx);
+   /*GeneraENDE(pFileFlagFP, reg, inx);*/
 
 }
+
+short LeoFPDeta(reg)
+$ClsFPDeta  *reg;
+{
+
+   InicializaFPDeta(reg);
+
+   $FETCH curFpEve INTO :reg->numero_cliente,
+      :reg->corr_evento, 
+      :reg->evento,
+      :reg->lFechaDesdeEvento,
+      :reg->lFechaHastaEvento;
+
+   if(SQLCODE != 0)
+      return 0;
+         
+   return 1;
+}
+
+void InicializaFPDeta(reg)
+$ClsFPDeta  *reg;
+{
+
+	rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
+   memset(reg->evento, '\0', sizeof(reg->evento));
+   rsetnull(CINTTYPE, (char *) &(reg->corr_evento));
+   rsetnull(CLONGTYPE, (char *) &(reg->lFechaDesdeEvento));
+   rsetnull(CLONGTYPE, (char *) &(reg->lFechaHastaEvento));
+   memset(reg->sTarifa, '\0', sizeof(reg->sTarifa));
+
+} 
+
 
 void  GeneraFQUAN(fp, reg, inx)
 FILE        *fp;
@@ -2430,7 +2807,7 @@ int         inx;
     
 	memset(sLinea, '\0', sizeof(sLinea));
 
-   sprintf(sLinea, "T1%ld-%ld\tF_QUAN\t", reg.numero_cliente, inx);
+   sprintf(sLinea, "T1%ld\tF_QUAN\t", reg.numero_cliente);
    
    /* OPERAND */
    sprintf(sLinea, "%s%s\t", sLinea, reg.sOperando);
@@ -2456,7 +2833,7 @@ int         inx;
 	char	sLinea[1000];
    int   iRcv;
 
-   sprintf(sLinea, "T1%ld-%ld\tV_QUAN\t", reg.numero_cliente, inx);
+   sprintf(sLinea, "T1%ld\tV_QUAN\t", reg.numero_cliente);
 
    /* AB */
    sprintf(sLinea, "%s%s\t", sLinea, reg.sFechaInicio);
@@ -2496,6 +2873,83 @@ $long lNroCliente;
    }
    
    return iRcv;
+}
+
+
+short LeoFPDetaSB(reg)
+$ClsFPDeta  *reg;
+{
+
+   InicializaFPDeta(reg);
+
+   $FETCH curFpEveSB INTO :reg->numero_cliente,
+      :reg->corr_evento, 
+      :reg->evento,
+      :reg->lFechaDesdeEvento,
+      :reg->lFechaHastaEvento;
+
+   if(SQLCODE != 0)
+      return 0;
+         
+   return 1;
+}
+
+void TraspasoFP_SB(regFp, regOpe)
+$ClsFP        regFp;
+$ClsOperando   *regOpe;
+{
+
+   alltrim(regFp.evento, ' ');
+   
+   regOpe->numero_cliente = regFp.numero_cliente;
+   rfmtdate(regFp.lFechaEvento, "yyyymmdd", regOpe->sFechaInicio); /* long to char */
+   strcpy(regOpe->sFechaFin, "99991231");
+   strcpy(regOpe->fecha_vig_tarifa, "20141201");
+   strcpy(regOpe->sOperando, "FLAGSTBY");
+
+   strcpy(regOpe->sValor, regFp.evento);
+   strcpy(regOpe->sTarifa, regFp.sTarifa);
+   
+}
+
+void TraspasoFPDeta_SB(regFpDeta, regOpe)
+$ClsFPDeta     regFpDeta;
+$ClsOperando   *regOpe;
+{
+
+   alltrim(regFpDeta.evento, ' ');
+   
+   regOpe->numero_cliente = regFpDeta.numero_cliente;
+   rfmtdate(regFpDeta.lFechaDesdeEvento, "yyyymmdd", regOpe->sFechaInicio); /* long to char */
+   if(!risnull(CLONGTYPE, (char *) &regFpDeta.lFechaHastaEvento)){
+      rfmtdate(regFpDeta.lFechaHastaEvento, "yyyymmdd", regOpe->sFechaFin); /* long to char */
+   }else{
+      strcpy(regOpe->sFechaFin, "99991231");
+   }
+
+   strcpy(regOpe->fecha_vig_tarifa, "20141201");
+   strcpy(regOpe->sOperando, "FLAGSTBY");
+
+   strcpy(regOpe->sValor, regFpDeta.evento);
+   strcpy(regOpe->sTarifa, regFpDeta.sTarifa);
+
+}
+
+void  PrintFP_SB(reg, inx)
+ClsOperando reg;
+int         inx;
+{
+   char  sMarca[2];
+   
+   strcpy(sMarca, "R");
+   
+   if(inx == 1){
+      GeneraKEY(sMarca, pFileFlagFP_SB, reg, inx);
+      GeneraFFlag(sMarca, pFileFlagFP_SB, reg, inx);
+   }
+   GeneraVFlag(sMarca, pFileFlagFP_SB, reg, inx);
+   /*GeneraENDE(pFileFlagFP_SB, reg, inx);*/
+
 }
 
 

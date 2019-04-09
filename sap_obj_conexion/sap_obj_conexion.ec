@@ -350,11 +350,12 @@ char	* argv[];
 
 void MensajeParametros(void){
 		printf("Error en Parametros.\n");
-		printf("    <Base> = synergia.\n");
-		printf("    <Archivos Generados> 0=Todos; 1=Obj.Conex; 2=Pto.Suministro; 3=Ubic.Aparatos.\n");
-		printf("    <Estado Cliente> = 0 Activo - 1 No Activo 2 - Todos.\n");
-		printf("    <Tipo Generación> G = Generación, R = Regeneración.\n");
-		printf("    <Nro.Cliente> Opcional.\n");
+		printf("\t<Base> = synergia.\n");
+		printf("\t<Archivos Generados> 0=Todos; 1=Obj.Conex; 2=Pto.Suministro; 3=Ubic.Aparatos.\n");
+		printf("\t<Estado Cliente> = 0 Activo - 1 No Activo 2 - Todos.\n");
+		printf("\t<Tipo Generación> G = Generación, R = Regeneración.\n");
+      printf("\t<Tipo Corrida> 0=General  1=Reducida\n");
+		printf("\t<Nro.Cliente> Opcional.\n");
 }
 
 short AbreArchivos()
@@ -704,14 +705,16 @@ $char sAux[1000];
 	strcat(sql, "c.tipo_sum, ");
 	strcat(sql, "co.cod_sap, "); /* Sucursal SAP */
 	strcat(sql, "c.info_adic_lectura, ");
-	strcat(sql, "c.obs_dir[1,40] ");
-	strcat(sql, "FROM cliente c, sap_transforma co, sap_transforma sp, sap_transforma sp1, OUTER (postal p, sap_transforma sp2 ) ");
+	strcat(sql, "c.obs_dir[1,40], ");
+   strcat(sql, "TRIM(t1.comuna) ");
+	strcat(sql, "FROM cliente c, sap_transforma co, sap_transforma sp, sap_transforma sp1 ");
+   strcat(sql, ", OUTER (postal p, sap_transforma sp2 ), OUTER t21_tabla10_comunas t1 ");
 
    if(giTipoCorrida==1)
       strcat(sql, ", migra_activos ma ");
 	
 if(giEstadoCliente!=0){
-	strcat(sql, ", sap_inactivos si ");
+	strcat(sql, ", sap_inactivos si, medid md ");
 }
 
 	if(glNroCliente > 0){
@@ -727,6 +730,8 @@ if(giEstadoCliente!=0){
 	}
 	if(giEstadoCliente!=0){
 		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+      strcat(sql, "AND md.numero_cliente = c.numero_cliente ");
+      strcat(sql, "AND md.estado = 'I' ");
 	}
 
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
@@ -743,6 +748,8 @@ if(giEstadoCliente!=0){
 	strcat(sql, "AND sp1.cod_mac = c.provincia ");
 	strcat(sql, "AND sp2.clave = 'REGION' ");
 	strcat(sql, "AND sp2.cod_mac = p.dp_provincia ");
+   
+	strcat(sql, "AND t1.numero_cliente = c.numero_cliente ");   
 
    if(giTipoCorrida==1)
       strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
@@ -931,7 +938,8 @@ $ClsCliente *regCli;
 		:regCli->tipo_sum,
 		:regCli->sucursal,
 		:regCli->info_adic_lectura,
-		:regCli->descrip_info_adic;
+		:regCli->descrip_info_adic,
+      :regCli->comuna_caba;
 
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -944,6 +952,7 @@ $ClsCliente *regCli;
     
     
 /****/
+   alltrim(regCli->provincia, ' ');
 	if(strcmp(regCli->provincia, "00")==0){
 		if(regCli->cod_postal > 1499 || regCli->cod_postal < 1000 || risnull(CINTTYPE, (char *) &(regCli->cod_postal))){
 			regCli->cod_postal = 1076;
@@ -963,6 +972,7 @@ $ClsCliente *regCli;
 	alltrim(regCli->nombre, ' ');
 	alltrim(regCli->obs_dir, ' ');
 	alltrim(regCli->info_adic_lectura, ' ');
+   alltrim(regCli->comuna_caba, ' ');
 	
 	/* Reemp Comillas */
 
@@ -1009,6 +1019,7 @@ $ClsCliente	*regCli;
 	memset(regCli->sucursal, '\0', sizeof(regCli->sucursal));
 	memset(regCli->info_adic_lectura, '\0', sizeof(regCli->info_adic_lectura));
 	memset(regCli->descrip_info_adic, '\0', sizeof(regCli->descrip_info_adic));
+   memset(regCli->comuna_caba, '\0', sizeof(regCli->comuna_caba));
 	
 }
 
@@ -1296,9 +1307,11 @@ ClsCliente	regCliente;
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.sucursal);
    /* COUNC  */
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.partido);
-	/*
-	sprintf(sLinea, "%sARG", sLinea);
-	*/
+	/* REGIOGROUP */
+   if(strlen(regCliente.comuna_caba)>0){
+      sprintf(sLinea, "%s%s", sLinea, regCliente.comuna_caba);
+   }
+
 	strcat(sLinea, "\n");
 	
 	iRcv=fprintf(fp, sLinea);
@@ -1395,14 +1408,14 @@ ClsCliente	regCliente;
 	sprintf(sLinea, "T1%ld\tEVBSD\t", regCliente.numero_cliente);
    /* HAUS */
 	sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
+   /* LGZUSATZ */
+	sprintf(sLinea, "%s%s\t", sLinea, regCliente.info_adic_lectura);
    /* VBSTART + BEGRU */
    strcat(sLinea, "0007\tT1\t");
    /* FLOOR */
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.piso_dir);
    /* ROOMNUMBER */
-	sprintf(sLinea, "%s%s\t", sLinea, regCliente.depto_dir);
-   /* LAGETEXT */
-	sprintf(sLinea, "%s%s", sLinea, regCliente.info_adic_lectura);
+	sprintf(sLinea, "%s%s", sLinea, regCliente.depto_dir);
 
 	strcat(sLinea, "\n");
 	

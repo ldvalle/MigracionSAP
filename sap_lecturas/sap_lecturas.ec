@@ -79,10 +79,14 @@ $long lFechaValTarifa;
 $long lFechaMoveIn;
 $long lFechaPivote;
 $long lFechaMoveInMenos1;
-int      iVuelta;
+int   iVuelta;
 long  lFechaAux;
 char  sFechaIniAnterior[9];
 $long lCantLectuClie;
+char  sMedidorAnterior[20];
+char  sMedidorActual[20];
+int   iMedidor;
+long  lCantLecturas;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -129,9 +133,6 @@ $long lCantLectuClie;
       strcpy(sSucursal, "");
       dtcurrent(&gtInicioCorrida);
       
-		if(!AbreArchivos(sSucursal)){
-			exit(1);	
-		}
 		
 		if(glNroCliente > 0){
 			$OPEN curClientes using :glNroCliente, :sSucursal;
@@ -140,16 +141,26 @@ $long lCantLectuClie;
          $OPEN curClientes;
 		}
 		
-		printf("Procesando Todas las Sucursales%s......\n", sSucursal);
+      lCantLecturas=0;
+      lIndiceArchivo=1;
+		if(!AbreArchivos(lIndiceArchivo)){
+			exit(1);	
+		}
+
+      
+		printf("Procesando Lecturas.....\n");
 			
 		while(LeoClientes(&lNroCliente, &lCorrFactu)){
          lCantLectuClie=0;
+         memset(sMedidorAnterior, '\0', sizeof(sMedidorAnterior));
+         memset(sMedidorActual, '\0', sizeof(sMedidorActual));
+         iMedidor=1;         
 			/*$BEGIN WORK;*/
 			if(lCorrFactu > 0){
 				/*if(! ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaValTarifa, &lFechaMoveIn)){*/
             if(! ClienteYaMigrado(lNroCliente, &iFlagMigra, &lFechaPivote, &lFechaMoveIn)){
                iVuelta=1;
-					lIndiceArchivo=1;
+					
 					/*lCorrFactu=getCorrFactu(lNroCliente);*/
                /*
 					lCorrFactu=lCorrFactu - iCorrelativos;
@@ -179,8 +190,14 @@ $long lCantLectuClie;
                   
 												
 						while(LeoLecturasActivas(lNroCliente, &regLecturas)){
+                     sprintf(sMedidorActual, "%ld%s%s", regLecturas.numero_medidor, regLecturas.marca_medidor, regLecturas.modelo_medidor);
+                     alltrim(sMedidorActual, ' ');
+                  
                      if(iVuelta==1){
-/********/                     
+/********/
+                        strcpy(sMedidorAnterior, sMedidorActual);
+                        alltrim(sMedidorAnterior, ' ');
+                                             
             				rdefmtdate(&lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /*char a long*/
             				lFechaAux=lFechaAux+1;
             				rfmtdate(lFechaAux, "yyyymmdd", regLecturas.fecha_lectura); /* long to char*/
@@ -188,15 +205,19 @@ $long lCantLectuClie;
                         strcpy(sFechaIniAnterior, regLecturas.fechaIniVentana);
                      }else{
                         if(strcmp(sFechaIniAnterior, regLecturas.fechaIniVentana)==0 || strcmp(regLecturas.fechaIniVentana,"")==0){
-                           printf("Lectura comparte ventana Cliente %ld Portion %s UL %s F.Lectura %ld\n", regLecturas.numero_cliente, regLecturas.porcion, regLecturas.UL, regLecturas.lFechaLectura);
+                           /*printf("Lectura comparte ventana Cliente %ld Portion %s UL %s F.Lectura %ld\n", regLecturas.numero_cliente, regLecturas.porcion, regLecturas.UL, regLecturas.lFechaLectura);*/
                            if(!getNvaVentana(&regLecturas)){
                               printf("\tNo se pudo encontar siguiente ventana\n");
                            }
                         }
+                        if(strcmp(sMedidorActual, sMedidorAnterior)!=0){
+                           GeneraENDE2(pFileLecturasUnx, lNroCliente, iMedidor);
+                           iMedidor++;   
+                        }                        
                      }
                      
 				         if((iVuelta ==1 && regLecturas.tipo_lectura != 8) || (iVuelta > 1)){
-    							if (!GenerarPlano("A", pFileLecturasUnx, regLecturas, lFechaMoveIn, lFechaPivote)){
+    							if (!GenerarPlano("A", pFileLecturasUnx, regLecturas, lFechaMoveIn, lFechaPivote, iMedidor)){
     								/*$ROLLBACK WORK;*/
     								exit(1);	
     							}
@@ -214,30 +235,35 @@ $long lCantLectuClie;
 /***********/                                 
                               }
                               strcpy(regLecturas.fechaIniVentana, regLectuAux.fechaIniVentana);
-    									if (!GenerarPlano("R", pFileLecturasUnx, regLecturas, lFechaMoveIn, lFechaPivote)){
+    									if (!GenerarPlano("R", pFileLecturasUnx, regLecturas, lFechaMoveIn, lFechaPivote, iMedidor)){
     										/*$ROLLBACK WORK;*/
     										exit(1);	
     									}					
     								}else{
-    									if (!GenerarPlano("R", pFileLecturasUnx, regLectuAux, lFechaMoveIn, lFechaPivote)){
+    									if (!GenerarPlano("R", pFileLecturasUnx, regLectuAux, lFechaMoveIn, lFechaPivote, iMedidor)){
     										/*$ROLLBACK WORK;*/
     										exit(1);	
     									}
     								}
     							}
+/*                        
                         if(!risnull(CLONGTYPE, (char *) &regLecturas.numero_cliente)){
-                           GeneraENDE(pFileLecturasUnx, regLecturas);
+                           GeneraENDE(pFileLecturasUnx, regLecturas, iMedidor);
                         }else{
-                           GeneraENDE(pFileLecturasUnx, regLectuAux);
+                           GeneraENDE(pFileLecturasUnx, regLectuAux, iMedidor);
                         }
+*/                        
                         lCantLectuClie++;
                      }
                      
                      iVuelta++;
+                     lCantLecturas++;
 						}/* Cursor Lecturas Activas */
 						
 						$CLOSE curLectuActi;
-						
+                  if(lCantLectuClie > 0)
+			            GeneraENDE2(pFileLecturasUnx, lNroCliente, iMedidor);
+                  			
 						/* Proceso FP_Lectu  */
 /*               
 						if(getFPLectu(lNroCliente, &regFPLectu)){
@@ -315,13 +341,30 @@ $long lCantLectuClie;
 					cantPreexistente++;
 				}/* Cliente Migrado*/
 			}
+         
+         if(lCantLecturas > 3000000){
+            CerrarArchivos();
+
+            MoverArchivo();
+                        
+            lIndiceArchivo++;
+      		if(!AbreArchivos(lIndiceArchivo)){
+      			exit(1);	
+      		}
+            lCantLecturas=0;
+         }
+         
 			/*$COMMIT WORK;*/	
 		}/* Cursor Clientes */
 		$CLOSE curClientes;
 		
 		CerrarArchivos();
-		
+      MoverArchivo();
+      
+/*		
 		FormateaArchivos();
+*/      
+      
 /*		
 	}// cursor sucursal 
 */
@@ -430,8 +473,8 @@ void MensajeParametros(void){
 		printf("	<Fecha Inicio> dd/mm/aaaa (Opcional)\n");
 }
 
-short AbreArchivos(sSucur)
-char	sSucur[5];
+short AbreArchivos(inx)
+long  inx;
 {
 	
 	memset(sArchLecturasUnx,'\0',sizeof(sArchLecturasUnx));
@@ -453,8 +496,8 @@ char	sSucur[5];
 	sprintf( sArchLecturasUnx  , "%sLecturas_T1_%s_%d.unx", sPathSalida, FechaGeneracion, lCorrelativo );
 	sprintf( sSoloArchivoLecturas, "Lecturas_T1_%s_%d.txt", FechaGeneracion, lCorrelativo );
 */
-	sprintf( sArchLecturasUnx  , "%sT1MTREAD_%s.unx", sPathSalida, sSucur );
-	sprintf( sSoloArchivoLecturas, "T1MTREAD_%s.unx", sSucur );
+	sprintf( sArchLecturasUnx  , "%sT1MTREAD_%ld.unx", sPathSalida, inx );
+	sprintf( sSoloArchivoLecturas, "T1MTREAD_%ld.unx", inx );
 	
 	pFileLecturasUnx=fopen( sArchLecturasUnx, "w" );
 	if( !pFileLecturasUnx ){
@@ -508,6 +551,36 @@ char 	sPathCp[100];
 */	
 
 }
+
+void MoverArchivo(void)
+{
+
+char	sCommand[1000];
+int		iRcv, i;
+char 	sPathCp[100];
+	
+	memset(sCommand, '\0', sizeof(sCommand));
+	memset(sPathCp, '\0', sizeof(sPathCp));
+
+	sprintf(sCommand, "chmod 755 %s", sArchLecturasUnx);
+	iRcv=system(sCommand);
+	
+	if(giEstadoCliente==0){
+      sprintf(sPathCp, "%sActivos/Lecturas/", sPathCopia);
+	}else{
+      sprintf(sPathCp, "%sInactivos/", sPathCopia);
+	}
+	
+	sprintf(sCommand, "cp %s %s", sArchLecturasUnx, sPathCp);
+	iRcv=system(sCommand);
+   
+   if(iRcv == 0){
+	  sprintf(sCommand, "rm -f %s", sArchLecturasUnx);
+	  iRcv=system(sCommand);
+   }
+
+}
+
 
 void CreaPrepare1(void){
 $char sql[10000];
@@ -677,9 +750,14 @@ $char sAux[1000];
 	strcat(sql, "h2.indica_refact, ");
 	strcat(sql, "h1.numero_medidor, ");
 	strcat(sql, "h1.marca_medidor, ");
+/*   
+	strcat(sql, "md.modelo_medidor, ");
+	strcat(sql, "NVL(md.tipo_medidor, 'A'), "); 
+*/   
+   
 	strcat(sql, "med.mod_codigo, ");
 	strcat(sql, "NVL(m.tipo_medidor, 'A'), ");
-/*   
+/*  
 	strcat(sql, "CASE ");
 	strcat(sql, "	WHEN a.fecha_generacion > h1.fecha_lectura then TO_CHAR(h1.fecha_lectura, '%Y%m%d') "); 
 	strcat(sql, "  ELSE TO_CHAR(NVL(a.fecha_generacion, h1.fecha_lectura), '%Y%m%d') "); 
@@ -690,7 +768,11 @@ $char sAux[1000];
    strcat(sql, "TRIM(sc.cod_ul_sap || lpad(h2.sector , 2, 0) ||  lpad(h2.zona,5,0)) unidad_lectura, "); 
    strcat(sql, "'000T1'|| lpad(h2.sector,2,0) || sc.cod_ul_sap porcion, ");
    strcat(sql, "h1.fecha_lectura ");
+
+   /*strcat(sql, "FROM hislec h1, hisfac h2, medid md, sap_transforma t1, sucur_centro_op sc ");*/ 
+
    strcat(sql, "FROM hislec h1, hisfac h2, medidor med, modelo m, sap_transforma t1, sucur_centro_op sc ");
+
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
    strcat(sql, "AND h1.fecha_lectura >= ? ");
 /*   
@@ -698,14 +780,20 @@ $char sAux[1000];
 */   
 	strcat(sql, "AND h1.tipo_lectura NOT IN (5, 6, 7) ");
 	strcat(sql, "AND h2.numero_cliente = h1.numero_cliente ");
-	strcat(sql, "AND h2.corr_facturacion = h1.corr_facturacion "); 
+	strcat(sql, "AND h2.corr_facturacion = h1.corr_facturacion ");
+/*
+	strcat(sql, "AND md.numero_cliente = h1.numero_cliente ");
+	strcat(sql, "AND md.numero_medidor = h1.numero_medidor ");
+	strcat(sql, "AND md.marca_medidor = h1.marca_medidor ");
+*/   
+    
 	strcat(sql, "AND med.med_numero = h1.numero_medidor ");
 	strcat(sql, "AND med.mar_codigo = h1.marca_medidor ");
    strcat(sql, "AND med.numero_cliente = h1.numero_cliente ");
 	strcat(sql, "AND (med.cli_tarifa != 'T2' OR med.cli_tarifa IS NULL) ");
-	/*strcat(sql, "AND med.cli_tarifa = 'T1' ");*/
 	strcat(sql, "AND m.mar_codigo = h1.marca_medidor ");
 	strcat(sql, "AND m.mod_codigo = med.mod_codigo ");
+   
 	strcat(sql, "AND t1.clave = 'TIPOLECTU' ");
 	strcat(sql, "AND t1.cod_mac = h1.tipo_lectura ");
 	strcat(sql, "AND sc.cod_centro_op = h2.sucursal ");
@@ -941,7 +1029,7 @@ $char sAux[1000];
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
 	strcat(sql, "numero_cliente, lecturas, cant_lecturas ");
-	strcat(sql, ")VALUES(?, 'S') ");
+	strcat(sql, ")VALUES(?, 'S', ?) ");
 	
 	$PREPARE insClientesMigra FROM $sql;
 	
@@ -983,6 +1071,12 @@ $char sAux[1000];
       AND ul = ?
       AND inicio_ventana > ? ";
       
+      
+   /********* Verifica Reactiva**********/
+   $PREPARE selReacti FROM "SELECT COUNT(*) FROM hislec_reac
+      WHERE numero_cliente = ?
+      AND corr_facturacion = ?";
+               
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -1135,6 +1229,13 @@ $ClsLecturas *regLectu;
 		}
     }
 
+   /* Valida Reactiva */
+   if(regLectu->tipo_medidor[0]=='R'){
+      if(!TieneLectuReactiva(regLectu)){
+         strcpy(regLectu->tipo_medidor, "A");
+      }
+   }
+   
    /* Busca inicio Ventana */
    lFechaAux = regLectu->lFechaLectura; 
    alltrim(regLectu->UL, ' ');
@@ -1244,23 +1345,25 @@ $long    *lMoveIn;
 }
 
 
-short GenerarPlano(sTabla, fp, regLectu, lFechaMv, lFechaPivote)
+short GenerarPlano(sTabla, fp, regLectu, lFechaMv, lFechaPivote, inx)
 char				sTabla[2];
 FILE 				*fp;
 $ClsLecturas		regLectu;
 long           lFechaMv;
 long           lFechaPivote;
+int            inx;
 {
 
 	/* IEABLU */	
-	GeneraIEABLU(sTabla, fp, regLectu, lFechaMv, lFechaPivote);	
+	GeneraIEABLU(sTabla, fp, regLectu, lFechaMv, lFechaPivote, inx);	
 	
 	return 1;
 }
 
-void GeneraENDE(fp, regLectu)
+void GeneraENDE(fp, regLectu, inx)
 FILE *fp;
 $ClsLecturas	regLectu;
+int   inx;
 {
 	char	sLinea[1000];	
    int   iRcv;
@@ -1278,6 +1381,29 @@ $ClsLecturas	regLectu;
    }	
 	
 }
+
+void GeneraENDE2(fp, nroCliente, inx)
+FILE *fp;
+long  nroCliente;
+int   inx;
+{
+	char	sLinea[1000];	
+   int   iRcv;
+   
+	memset(sLinea, '\0', sizeof(sLinea));
+
+	sprintf(sLinea, "T1%ld-%ld\t&ENDE", nroCliente, inx);
+
+	strcat(sLinea, "\n");
+	
+	iRcv=fprintf(fp, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ENDE\n");
+      exit(1);
+   }	
+	
+}
+
 
 short RegistraArchivo(void)
 {
@@ -1301,12 +1427,13 @@ int		iFlagMigra;
 }
 
 
-void GeneraIEABLU(sTabla, fp, regLectu, lFechaMv, lFechaPivote)
+void GeneraIEABLU(sTabla, fp, regLectu, lFechaMv, lFechaPivote, inx)
 char			sTabla[2];
 FILE 			*fp;
 ClsLecturas		regLectu;
 long        lFechaMv;
 long        lFechaPivote;
+int         inx;
 {
 	char	   sLinea[1000];	
 	int		iNumerador;
@@ -1327,7 +1454,7 @@ long        lFechaPivote;
 	/**** Real Bimestral ****/	
 	if(regLectu.tipo_lectura!=8 && regLectu.tipo_lectura!=0){
 
-		sprintf(sLinea, "T1%ld-%ld\tIEABLU\t", regLectu.numero_cliente, regLectu.corr_facturacion);
+		sprintf(sLinea, "T1%ld-%ld\tIEABLU\t", regLectu.numero_cliente, inx);
       /* EQUNR */
 		sprintf(sLinea, "%sT1%ld%s%s\t", sLinea, regLectu.numero_medidor, regLectu.marca_medidor, regLectu.modelo_medidor);
 		
@@ -1391,7 +1518,7 @@ long        lFechaPivote;
 		
 		fprintf(fp, sLinea);
 */	
-		lIndiceArchivo++;
+
 		
 	}
 
@@ -1399,7 +1526,7 @@ long        lFechaPivote;
 	/****** Ficticia Tramo 1 o 2 *****/
    memset(sLinea, '\0', sizeof(sLinea));
    
-	sprintf(sLinea, "T1%ld-%ld\tIEABLU\t", regLectu.numero_cliente, regLectu.corr_facturacion);
+	sprintf(sLinea, "T1%ld-%ld\tIEABLU\t", regLectu.numero_cliente, inx);
    /* EQUNR */
 	sprintf(sLinea, "%sT1%ld%s%s\t", sLinea, regLectu.numero_medidor, regLectu.marca_medidor, regLectu.modelo_medidor);
 	
@@ -1427,7 +1554,11 @@ long        lFechaPivote;
    }
 	
 	/* ZWSTAND */
-	sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.consumo);
+   if(lFechaLectura == lFechaMv){
+      strcat(sLinea, "0\t"); 
+   }else{
+	   sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.consumo);
+   }
    
    /* ISTABLART */
 /*   
@@ -1467,7 +1598,7 @@ long        lFechaPivote;
 	
 	fprintf(fp, sLinea);
 */
-	lIndiceArchivo++;
+
 
 }
 
@@ -1819,6 +1950,23 @@ $ClsLecturas *reg;
    return 1;
 }
 
+short TieneLectuReactiva(reg)
+$ClsLecturas *reg;
+{
+   $integer iValor;
+   
+   $EXECUTE selReacti INTO :iValor
+         USING :reg->numero_cliente, :reg->corr_facturacion;
+         
+   if(SQLCODE != 0){
+      return 0;
+   }
+   
+   if(iValor >0 )
+      return 1;
+               
+   return 0;
+}
 
 /****************************
 		GENERALES

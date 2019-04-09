@@ -54,7 +54,7 @@ $typedef struct{
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
 void	MensajeParametros(void);
-short	AbreArchivos(char *);
+short	AbreArchivos(long);
 void  	CreaPrepare(void);
 void	CreaPrepare1(void);
 void	CreaPrepare2(void);
@@ -75,9 +75,11 @@ long	getCorrFactu(long);
 short	getTramoFactu(long, long);
 short   LeoLecturasActivas(long, ClsLecturas *);
 void	InicializaLecturas(ClsLecturas*);
-short	GenerarPlano(char*, FILE *, ClsLecturas, long, long);
-void	GeneraIEABLU(char*, FILE *, ClsLecturas, long, long);
-void	GeneraENDE(FILE *, ClsLecturas);
+short	GenerarPlano(char*, FILE *, ClsLecturas, long, long, int);
+void	GeneraIEABLU(char*, FILE *, ClsLecturas, long, long, int);
+void	GeneraENDE(FILE *, ClsLecturas, int);
+void	GeneraENDE2(FILE *, long, int);
+
 short   getFPLectu(long, ClsFPLectu *);
 void	InicializoFPLectu(ClsFPLectu *);
 void    CargoLectuFP(char *, ClsFPLectu, ClsLecturas *);
@@ -87,5 +89,8 @@ void	DuplicaRegistro(ClsLecturas, ClsLecturas *);
 short	ExisteFactura(long, long);
 short	LeoSucursal(char *);
 short getNvaVentana(ClsLecturas *);
+
+short TieneLectuReactiva(ClsLecturas *);
+void  MoverArchivo(void);
 
 $endif;

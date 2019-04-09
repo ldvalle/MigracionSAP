@@ -208,7 +208,8 @@ $long    lCantMonta;
  				}
             
             if(giMovimientos!=1 && iNx==0){
-					if(LeoUltInstalacion(lNroCliente, lFechaMoveIn, &regLectu)){	
+					if(LeoUltInstalacion(lNroCliente, lFechaMoveIn, &regLectu)){
+                  strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);	
 						GenerarPlanos(regLectu);
 						cantMontajes++;
                   iNx=1;
@@ -222,11 +223,14 @@ $long    lCantMonta;
                /*$OPEN curLecturas using :lNroCliente, :lFechaMoveIn;*/
                $OPEN curLecturas using :lNroCliente, :lFechaMoveInMenos1;
    				while(LeoLecturas(&regLectu) ){
-                  strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
-                  if(regLectu.fecha_lectura < lFechaMoveIn){
-                     regLectu.fecha_lectura = lFechaMoveIn;
-                     rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu.sFechaLectura);
-                  }
+                  if(iNx==1 && regLectu.tipo_lectura==7){
+                     /* Se supone que la informé forzada antes*/
+                  }else{
+                     strcpy(regLectu.sTarifaInstalacion, sTarifaInstal);
+                     if(regLectu.fecha_lectura < lFechaMoveIn){
+                        regLectu.fecha_lectura = lFechaMoveIn;
+                        rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu.sFechaLectura);
+                     }
 /*                  
 if(iNroIndex==1){
 // Aca le truche esto por la prueba facturacion masiva    
@@ -236,17 +240,17 @@ rfmtdate(lFechaPivote, "yyyymmdd", regLectu.sFechaLectura);
 }
 */                  
                   /*if(!EsMedidorVigente(lNroMedidorActual, sMarcaMedidorActual, sModeloMedidorActual, regLectu)){*/
-      					if (!GenerarPlanos(regLectu)){
-      						/*$ROLLBACK WORK;*/
-      						exit(2);
-      					}
-                     
-                     if(regLectu.tipo_lectura==6 || regLectu.tipo_lectura==7){
-                        lCantMonta++;
-                     }			
-      					iNroIndex++;
-      					iNx++;
-                  /*}*/
+         					if (!GenerarPlanos(regLectu)){
+         						/*$ROLLBACK WORK;*/
+         						exit(2);
+         					}
+                        
+                        if(regLectu.tipo_lectura==6 || regLectu.tipo_lectura==7){
+                           lCantMonta++;
+                        }			
+         					iNroIndex++;
+         					iNx++;
+                  }
    				}
    				$CLOSE curLecturas;
             }
@@ -598,7 +602,7 @@ $char sAux[1000];
    }
 
    if(giEstadoCliente!=0){
-   	strcat(sql, ", sap_inactivos si ");
+   	strcat(sql, ", sap_inactivos si, medid md ");
    }
 
 	if(glNroCliente != -1){
@@ -609,16 +613,15 @@ $char sAux[1000];
 			strcat(sql,"AND c.tipo_sum != 5 ");
 		}else if(giEstadoCliente==1){
 			strcat(sql, "WHERE c.estado_cliente != 0 ");
-			strcat(sql,"AND c.tipo_sum != 5 ");
+			strcat(sql, "AND c.tipo_sum != 5 ");
+         strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+         strcat(sql, "AND md.numero_cliente = c.numero_cliente ");
+         strcat(sql, "AND md.estado = 'I' ");
 		}else{
 			strcat(sql,"WHERE c.tipo_sum != 5 ");	
 		}
 	}
 
-	if(giEstadoCliente!=0){
-		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
-	}
-	
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND cm.fecha_activacion < TODAY ");
@@ -634,7 +637,7 @@ $char sAux[1000];
    if(giTipoCorrida==1){
       strcat(sql, "AND mg.numero_cliente = c.numero_cliente ");
    }
-   
+
 	$PREPARE selClientes FROM $sql;
 	
 	$DECLARE curClientes CURSOR WITH HOLD FOR selClientes;
@@ -752,7 +755,8 @@ $char sAux[1000];
    strcat(sql, "la.consumo, ");
 	strcat(sql, "la.fecha_lectura, ");
 	strcat(sql, "TO_CHAR(la.fecha_lectura, '%Y%m%d'), ");
-	strcat(sql, "la.tipo_lectura, ");
+	/*strcat(sql, "la.tipo_lectura, ");*/
+   strcat(sql, "1, "); /* Tipo Lectura */
 	strcat(sql, "m.modelo_medidor, ");
 
 	strcat(sql, "CASE ");
@@ -773,10 +777,10 @@ $char sAux[1000];
 	strcat(sql, "FROM hislec la, cliente c, hisfac h, medid m, OUTER sap_transforma t1, medidor me ");
 	strcat(sql, "WHERE la.numero_cliente = ? ");
 
-	strcat(sql, "AND la.fecha_lectura = (	SELECT MAX(h2.fecha_lectura) FROM hislec h2 ");
+	strcat(sql, "AND la.fecha_lectura = (	SELECT MIN(h2.fecha_lectura) FROM hislec h2 ");
 	strcat(sql, "   WHERE h2.numero_cliente = la.numero_cliente ");
-	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4) "); 
-	strcat(sql, "   AND h2.fecha_lectura < ?) ");
+	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4,5, 8) "); 
+	strcat(sql, "   AND h2.fecha_lectura > ?) ");
 
 /*
 	strcat(sql, "AND la.fecha_lectura = (	SELECT MIN(h2.fecha_lectura) FROM hislec h2 ");
@@ -787,14 +791,16 @@ $char sAux[1000];
 /*
    strcat(sql, "AND la.fecha_lectura = ? ");
 */
-	strcat(sql, "AND la.tipo_lectura IN (1,2,3,4) ");
+	strcat(sql, "AND la.tipo_lectura IN (1,2,3,4,5,8) ");
 	strcat(sql, "AND c.numero_cliente = la.numero_cliente ");
 	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND h.corr_facturacion = la.corr_facturacion ");
 	strcat(sql, "AND m.numero_cliente = la.numero_cliente ");
 	strcat(sql, "AND m.numero_medidor = la.numero_medidor ");
 	strcat(sql, "AND m.marca_medidor = la.marca_medidor ");
-
+   if(giEstadoCliente!=0){
+      strcat(sql, "AND m.estado = 'I' ");
+   }
 	strcat(sql, "AND (m.fecha_prim_insta = (SELECT MAX(m2.fecha_prim_insta) ");
 	strcat(sql, "	FROM medid m2 ");
 	strcat(sql, " 	WHERE m2.numero_cliente = m.numero_cliente ");
@@ -822,6 +828,66 @@ $char sAux[1000];
 	
 	$DECLARE curPrimLectu CURSOR FOR selPrimLectu;
 	
+   /************ Segunda Lectura Instalacion ******************/
+	strcpy(sql, "SELECT la.numero_cliente, ");
+	strcat(sql, "la.corr_facturacion, ");
+	strcat(sql, "la.numero_medidor, ");
+	strcat(sql, "la.marca_medidor, ");
+	strcat(sql, "la.lectura_facturac, ");
+	strcat(sql, "la.lectura_terreno, ");
+   strcat(sql, "la.consumo, ");
+	strcat(sql, "la.fecha_lectura, ");
+	strcat(sql, "TO_CHAR(la.fecha_lectura, '%Y%m%d'), ");
+   strcat(sql, "1, "); /* Tipo Lectura */
+	strcat(sql, "m.modelo_medidor, ");
+   strcat(sql, "CASE ");
+   strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");   
+	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+	strcat(sql, "	ELSE t1.acronimo_sap ");
+	strcat(sql, "END, ");
+	strcat(sql, "'N', ");
+	strcat(sql, "NVL(m.tipo_medidor, 'A'), ");
+	strcat(sql, "me.med_factor, ");
+	strcat(sql, "m.enteros, ");
+	strcat(sql, "m.decimales ");
+	strcat(sql, "FROM hislec la, cliente c, hisfac h, medid m, OUTER sap_transforma t1, medidor me ");
+	strcat(sql, "WHERE la.numero_cliente = ? ");
+	strcat(sql, "AND la.fecha_lectura = (	SELECT MAX(h2.fecha_lectura) FROM hislec h2 ");
+	strcat(sql, "   WHERE h2.numero_cliente = la.numero_cliente ");
+	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4,5, 8) "); 
+	strcat(sql, "   AND h2.fecha_lectura < ?) ");
+	strcat(sql, "AND la.tipo_lectura IN (1,2,3,4,5,8) ");
+	strcat(sql, "AND c.numero_cliente = la.numero_cliente ");
+	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND h.corr_facturacion = la.corr_facturacion ");
+	strcat(sql, "AND m.numero_cliente = la.numero_cliente ");
+	strcat(sql, "AND m.numero_medidor = la.numero_medidor ");
+	strcat(sql, "AND m.marca_medidor = la.marca_medidor ");
+   if(giEstadoCliente!=0){
+      strcat(sql, "AND m.estado = 'I' ");
+   }
+	strcat(sql, "AND (m.fecha_prim_insta = (SELECT MAX(m2.fecha_prim_insta) ");
+	strcat(sql, "	FROM medid m2 ");
+	strcat(sql, " 	WHERE m2.numero_cliente = m.numero_cliente ");
+	strcat(sql, "   AND m2.numero_medidor = m.numero_medidor ");
+	strcat(sql, "   AND m2.marca_medidor = m.marca_medidor) ");
+	strcat(sql, "  OR m.fecha_prim_insta IS NULL) ");
+	strcat(sql, "AND (m.fecha_ult_insta = (SELECT MAX(m3.fecha_ult_insta) ");
+	strcat(sql, "	FROM medid m3 ");
+	strcat(sql, " 	WHERE m3.numero_cliente = m.numero_cliente ");
+	strcat(sql, "   AND m3.numero_medidor = m.numero_medidor ");
+	strcat(sql, "   AND m3.marca_medidor = m.marca_medidor) ");
+	strcat(sql, "  OR m.fecha_ult_insta IS NULL) ");	
+	strcat(sql, "AND me.mar_codigo = la.marca_medidor ");
+	strcat(sql, "AND me.mod_codigo = m.modelo_medidor ");
+	strcat(sql, "AND me.med_numero = la.numero_medidor ");
+	strcat(sql, "AND t1.clave = 'TARIFTYP' ");
+	strcat(sql, "AND t1.cod_mac = h.tarifa ");
+
+	$PREPARE selSecondLectu FROM $sql;	
+	
+	$DECLARE curSecondLectu CURSOR FOR selSecondLectu;
+   
 	/*********** Cambio sin factura *************/
 	strcpy(sql, "SELECT la.numero_cliente, ");
 	strcat(sql, "la.corr_facturacion, ");
@@ -1533,7 +1599,7 @@ $ClsLecturas *regLectu;
 	memset(sFechaInstal, '\0', sizeof(sFechaInstal));
 	
 	InicializaLecturas(regLectu);
-	
+
 	$OPEN curPrimLectu 	using :lNroCliente,
 		  					  :lFechaMoveIn;
 
@@ -1559,7 +1625,34 @@ $ClsLecturas *regLectu;
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
     		$CLOSE curPrimLectu;
-			return 0;
+         
+      	$OPEN curSecondLectu 	using :lNroCliente,
+      		  				               :lFechaMoveIn;
+
+      	$FETCH curSecondLectu into 
+      		:regLectu->numero_cliente,
+      		:regLectu->corr_facturacion,
+      		:regLectu->numero_medidor,
+      		:regLectu->marca_medidor,
+      		:regLectu->lectura_facturac,
+      		:regLectu->lectura_terreno,
+            :regLectu->consumo,
+      		:regLectu->fecha_lectura,
+      		:regLectu->sFechaLectura,
+      		:regLectu->tipo_lectura,
+      		:regLectu->modelo_medidor,
+      		:regLectu->tarifa,
+      		:regLectu->indica_refact,
+      		:regLectu->tipo_medidor,
+      		:regLectu->factor_potencia,
+      		:regLectu->enteros,
+      		:regLectu->decimales;
+
+         if ( SQLCODE != 0 ){
+            $CLOSE curSecondLectu;
+   			return 0;
+         }
+         $CLOSE curSecondLectu;   
 		}else{
 			$CLOSE curPrimLectu;
 			printf("Error al leer Primera de Lectura !!!\nProceso Abortado.\n");
@@ -1572,6 +1665,7 @@ $ClsLecturas *regLectu;
     alltrim(regLectu->tarifa, ' ');
     regLectu->fecha_lectura = lFechaMoveIn;
     rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu->sFechaLectura);
+
     
 /*    
 // Aca le truche esto por la prueba facturacion masiva    
@@ -2017,6 +2111,7 @@ ClsLecturas	regLectu;
          strcat(sLinea, "ENERGIA\t");
       }
 */
+      alltrim(regLectu.sTarifaInstalacion, ' ');
       if(strcmp(regLectu.sTarifaInstalacion, "T1-GEN-MED")==0){
          strcat(sLinea, "T1-GENMED\t");
       }else if(strcmp(regLectu.sTarifaInstalacion, "T1-AP")==0){
@@ -2029,7 +2124,11 @@ ClsLecturas	regLectu;
       strcat(sLinea, "\t");
       
       /* ZWSTANDCE */
-      sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.lectura_facturac);
+      if(iNum==2 || iNum==4){
+         strcat(sLinea, "0\t");
+      }else{
+         sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.lectura_facturac);
+      }
             
       /* ZWNABR */
       if(regLectu.tipo_medidor[0]=='R'){

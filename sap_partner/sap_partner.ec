@@ -140,18 +140,28 @@ long  lCantInFiles;
 	    sprintf( sArchDos  , "%sPartnerIC_T1_Activos_%s_%d.txt", sPathSalida, FechaGeneracion, lCorrelativo );
 		sprintf( sSoloArchivo, "PartnerIC_T1_Activos_%s_%d.txt", FechaGeneracion, lCorrelativo );
 		*/
-	   sprintf( sArchUnx  , "%sT1PARTNER_Activos.unx", sPathSalida);
-		strcpy( sSoloArchivo, "T1PARTNER_Activos.unx");
-			
+      if(giTipoCorrida !=3 ){
+   	   sprintf( sArchUnx  , "%sT1PARTNER_Activos.unx", sPathSalida);
+	  	   strcpy( sSoloArchivo, "T1PARTNER_Activos.unx");
+		}else{
+   	   sprintf( sArchUnx  , "%sT1PARTNERCHA_Activos.unx", sPathSalida);
+	  	   strcpy( sSoloArchivo, "T1PARTNERCHA_Activos.unx");
+      }
+      
 		pFileUnx=fopen( sArchUnx, "w" );
 		if( !pFileUnx ){
 			printf("ERROR al abrir archivo %s.\n", sArchUnx );
 			exit(1);
 		}
 
-	   sprintf( sArchCorpoUnx  , "%sT1PARTNER_CORPO_Activos.unx", sPathSalida);
-		strcpy( sSoloArchivoCorpo, "T1PARTNER_CORPO_Activos.unx");
-			
+      if(giTipoCorrida !=3 ){
+   	   sprintf( sArchCorpoUnx  , "%sT1PARTNER_CORPO_Activos.unx", sPathSalida);
+   		strcpy( sSoloArchivoCorpo, "T1PARTNER_CORPO_Activos.unx");
+      }else{
+   	   sprintf( sArchCorpoUnx  , "%sT1PARTNERCHA_CORPO_Activos.unx", sPathSalida);
+   		strcpy( sSoloArchivoCorpo, "T1PARTNERCHA_CORPO_Activos.unx");
+      }
+      			
 		pFileCorpoUnx=fopen( sArchCorpoUnx, "w" );
 		if( !pFileCorpoUnx ){
 			printf("ERROR al abrir archivo %s.\n", sArchCorpoUnx );
@@ -211,6 +221,7 @@ long  lCantInFiles;
    lCantInFiles=0;
 	iEsCorpo=0;
 	while(LeoClientes(&regCliente, &regFP)){
+   
       /*$BEGIN WORK;*/
 		if(regCliente.estado_cliente[0]=='0'){
 			iFlagMigra=0;
@@ -248,6 +259,7 @@ long  lCantInFiles;
 							exit(1);	
 						}
                   $COMMIT WORK;
+                  
 						cantProcesada++;
 						cantActivos++;
 					}else{
@@ -329,6 +341,7 @@ long  lCantInFiles;
 			iFlagMigra=0;
 			if(! ClienteYaMigrado(regCliente.numero_cliente, 1, &iFlagMigra)){
 				iEsCorpo=0;
+            
 				/* Cargar Telefonos */
 				iCantTelefonos=0;
 				if(! CargaTelefonos(regCliente, &(regTelefonos), &iCantTelefonos)){
@@ -341,38 +354,40 @@ long  lCantInFiles;
 					exit(1);
 				}		
 
-            /* Carga ID Sales Forces */
-/*            
-            if(! CargaIdSF(&regCliente)){
-					$ROLLBACK WORK;
-					exit(1);
-            }
-*/				
+
 				/* Generar Plano */
 				if (!GenerarPlano(pFileUnx, regCliente, regFP, regTelefonos, regEmail, iCantTelefonos, iCantEmail, iEsCorpo)){
 					printf("Error al generar archivo\n");
 					exit(1);	
 				}
+            
 				lCantInFiles++;
 				/* Registrar Control Cliente */
+/*            
             $BEGIN WORK;
 				if(!RegistraCliente(regCliente.numero_cliente, iFlagMigra)){
 					$ROLLBACK WORK;
 					exit(1);	
 				}
             $COMMIT WORK;
+*/            
 				cantNoActivos++;
 				cantProcesada++;
+            
 			}
+         
 		}/* Verif Estado Cliente */
       /*$COMMIT WORK;*/
 		
+      fflush(stdout);
 	}/* Fin While */
 
 	$CLOSE curClientes;
 	
 	fclose(pFileUnx);
+   
 	fclose(pFileCorpoUnx);
+   
 	fclose(pFileLog);
 	
 	/* Registrar Control Plano */
@@ -576,6 +591,10 @@ $char sAux[1000];
 	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2, OUTER sap_transforma t3, ");
 	strcat(sql, "OUTER forma_pago f, OUTER (postal p, sap_transforma t4) ");
    
+   if(giEstadoCliente != 0){
+      strcat(sql, ", sap_inactivos si ");
+   }
+      
    if(giTipoCorrida == 1)
       strcat(sql, ", migra_activos ma ");	
 
@@ -619,6 +638,10 @@ $char sAux[1000];
       strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
    if(giTipoCorrida == 3)   
       strcat(sql, "AND sf.numero_cliente = c.numero_cliente ");
+
+   if(giEstadoCliente != 0)
+      strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+
 
 /*	
 	strcat(sql, "ORDER BY c.numero_cliente ");
@@ -971,6 +994,7 @@ $ClsFormaPago *regFP;
     	if(SQLCODE == 100){
 			return 0;
 		}else{
+      
 			printf("Error al leer Cursor de Clientes !!!\nProceso Abortado.\n");
 			exit(1);	
 		}
@@ -983,6 +1007,7 @@ $ClsFormaPago *regFP;
 	if(risnull(CFLOATTYPE,(char *) &(regCli->nro_doc))){
 		regCli->nro_doc=0;	
 	}
+   
 	alltrim(regCli->telefono, ' ');
 		
 	alltrim(regCli->nombre, ' ');
@@ -1011,7 +1036,6 @@ $ClsFormaPago *regFP;
 		
 	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "'", " "));
 	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "Ñ"));
-			
       
    if(regCli->tipo_fpago[0]=='D'){   
       $EXECUTE selFPago INTO :iValor USING :regCli->numero_cliente;
@@ -1026,7 +1050,6 @@ $ClsFormaPago *regFP;
          }
       }
    }
-      
 	return 1;	
 }
 
@@ -1363,14 +1386,24 @@ $ClsCliente	regCliente;
    /* MASTER_KUN */
    strcat(sLinea, "CALL\t");
    
+   /* BU_TYPE */
 	sprintf(sLinea, "%s%d\t", sLinea, iTipoPersona);
 	
-	sprintf(sLinea, "%sZEMG\t", sLinea);
+   /* BU_GRUP */
+   if(giTipoCorrida != 3){
+	  sprintf(sLinea, "%sZEMG\t", sLinea);
+   }else{
+      strcat(sLinea, "\t");
+   }     
 	/*sprintf(sLinea, "%sZT1\t", sLinea);*/
 	
+   /* BPKIND */
 	sprintf(sLinea, "%s%s\t", sLinea, sAux);
 
+   /* BPEXT */
 	sprintf(sLinea, "%s%ld\t", sLinea, regCliente.numero_cliente);
+   
+   /* ROLE1 */
 	sprintf(sLinea, "%sMKK",sLinea);
 	strcat(sLinea, "\n");
 	
@@ -1458,7 +1491,11 @@ $ClsCliente	regCliente;
 	memset(sLinea, '\0', sizeof(sLinea));
 	alltrim(regCliente.tip_doc, ' ');
 
-	sprintf(sLinea, "T1%ld\tBUT0ID\tI\t\t", regCliente.numero_cliente);
+   if(giTipoCorrida != 3 ){
+	  sprintf(sLinea, "T1%ld\tBUT0ID\tI\t\t", regCliente.numero_cliente);
+   }else{
+	  sprintf(sLinea, "T1%ld\tBUT0ID\tM\t\t", regCliente.numero_cliente);
+   }
 	sprintf(sLinea, "%s%.0f\t", sLinea, regCliente.nro_doc);
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.tip_doc);
 	sprintf(sLinea, "%s\t\t", sLinea);
@@ -1503,8 +1540,9 @@ int			iCantMail;
 			s=1;
 		}
 
+      /* LLAVE + ICOM_CHIND_TEL */
 		sprintf(sLinea, "T1%ld\tBUTCOM\tI\t", regCliente.numero_cliente);
-
+      /* ICOM_TEL_NUMBER */
 		sprintf(sLinea, "%s%s%s%s\t", sLinea, regTelefonos[i].cod_area_te, regTelefonos[i].prefijo_te, regTelefonos[i].numero_te);
 
 		sprintf(sLinea, "%s\t\t\t", sLinea);
@@ -1522,8 +1560,9 @@ int			iCantMail;
 	if(s==0 && strcmp(regCliente.telefono, "")!=0){
 		memset(sLinea, '\0', sizeof(sLinea));
 		
+      /* LLAVE + ICOM_CHIND_TEL */
 		sprintf(sLinea, "T1%ld\tBUTCOM\tI\t", regCliente.numero_cliente);
-
+      /* ICOM_TEL_NUMBER */
 		sprintf(sLinea, "%s%s\t", sLinea, regCliente.telefono);
 
 		sprintf(sLinea, "%s\t\t\t", sLinea);
@@ -1547,7 +1586,7 @@ int			iCantMail;
 		
 		if(strcmp(regEmail.email1,"")!=0){
 			memset(sLinea, '\0', sizeof(sLinea));
-		
+		   /* LLAVE + ICOM_CHIND_SMTP + ICOM_SMTP_ADDR */
 			sprintf(sLinea, "T1%ld\tBUTCOM\t\t\t\t\tI\t%s\n", regCliente.numero_cliente, regEmail.email1);
       	iRcv=fprintf(fp, sLinea);
          if(iRcv < 0){
@@ -1558,7 +1597,7 @@ int			iCantMail;
 		}
 		if(strcmp(regEmail.email2,"")!=0){
 			memset(sLinea, '\0', sizeof(sLinea));
-		
+		   /* LLAVE + ICOM_CHIND_SMTP + ICOM_SMTP_ADDR */
 			sprintf(sLinea, "T1%ld\tBUTCOM\t\t\t\t\tI\t%s\n", regCliente.numero_cliente, regEmail.email2);
       	iRcv=fprintf(fp, sLinea);
          if(iRcv < 0){
@@ -1569,7 +1608,7 @@ int			iCantMail;
 		}
 		if(strcmp(regEmail.email3,"")!=0){
 			memset(sLinea, '\0', sizeof(sLinea));
-		
+		   /* LLAVE + ICOM_CHIND_SMTP + ICOM_SMTP_ADDR */
 			sprintf(sLinea, "T1%ld\tBUTCOM\t\t\t\t\tI\t%s\n", regCliente.numero_cliente, regEmail.email3);
       	iRcv=fprintf(fp, sLinea);
          if(iRcv < 0){
@@ -1628,7 +1667,11 @@ int		iEsCorpo;
    sprintf(sLinea, "%s%s\t", sLinea, regCliente.cod_calle);
    
    /* CHIND_ADDR*/
-   strcat(sLinea, "I\t");
+   if(giTipoCorrida !=3 ){
+      strcat(sLinea, "I\t");
+   }else{
+      strcat(sLinea, "M\t");
+   }
   
    /* XDFADR */
 	strcat(sLinea, "\t");
@@ -1731,7 +1774,11 @@ $ClsFormaPago	regFpago;
 	alltrim(regFpago.fp_cbu, ' ');
 	
    /* Llave + BKVID + CHIND BANKS + BANKS */
-	sprintf(sLinea, "T1%ld\tBUT0BK\t0001\tI\tAR\t", regCliente.numero_cliente);
+   if(giTipoCorrida != 3){
+	  sprintf(sLinea, "T1%ld\tBUT0BK\t0001\tI\tAR\t", regCliente.numero_cliente);
+   }else{
+	  sprintf(sLinea, "T1%ld\tBUT0BK\t0001\tM\tAR\t", regCliente.numero_cliente);
+   }
    /* BANKL */
 	sprintf(sLinea, "%s%s\t", sLinea, regFpago.fp_banco);
    /* BANKN */
@@ -1776,7 +1823,12 @@ $ClsFormaPago	regFpago;
    /* LLAVE + CCARD_ID */
 	sprintf(sLinea, "T1%ld\tBUT0CC\t000001\t", regCliente.numero_cliente);
 	/* CHIND_CCARD */
-	sprintf(sLinea, "%sI\t", sLinea);
+   if(giTipoCorrida != 3){
+	  sprintf(sLinea, "%sI\t", sLinea);
+   }else{
+	  sprintf(sLinea, "%sM\t", sLinea);
+   }
+   
    /* CCINS */
 	sprintf(sLinea, "%s%s\t", sLinea, regFpago.cod_tarjeta);
    /* CCNUM */
@@ -1831,7 +1883,11 @@ $ClsCliente	regCliente;
    sprintf(sLinea, "%s%s\t", sLinea, sAux);
    
    /* CHIND_TAX */
-   strcat(sLinea, "I\t");
+   if(giTipoCorrida != 3){
+      strcat(sLinea, "I\t");
+   }else{
+      strcat(sLinea, "M\t");
+   }
    
    /* TAXNUM*/
    sprintf(sLinea, "%s%s\t", sLinea, regCliente.rut);

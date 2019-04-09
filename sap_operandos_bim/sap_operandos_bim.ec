@@ -298,17 +298,17 @@ $long       cantLectuActi;
                
                $CLOSE curFactura;
                
-               
+/*               
                $OPEN curAhorro USING :regCliente.numero_cliente;                
                
                while(LeoAhorro(&regAhorro)){
                   if(lFechaLectuAnterior==0 || (lFechaLectuAnterior!=0 && lFechaLectuAnterior != regAhorro.lFechaInicio)){
-                     /* Hago el de consumos bimestrales */
+                     // Hago el de consumos bimestrales 
                      TraspasoDatos(1, regCliente, lFechaLecturaPrima, regAhorro, &regFact);
                      fpUnx=fpQConsBimes;
                      GenerarPlanos(fpUnx, 1, regFact);
                      
-                     /* Hago el de Dias del periodo bimestral */
+                     // Hago el de Dias del periodo bimestral 
                      TraspasoDatos(2, regCliente, lFechaLecturaPrima, regAhorro, &regFact);
                      fpUnx=fpFacDiasPC;
                      GenerarPlanos(fpUnx, 2, regFact);
@@ -319,6 +319,7 @@ $long       cantLectuActi;
                }
                
                $CLOSE curAhorro;
+*/
                
                lContador++;
                if(lContador >= 350000){
@@ -383,7 +384,11 @@ $long       cantLectuActi;
 	/* ********************************************
 				FIN AREA DE PROCESO
 	********************************************* */
+   
    MueveArchivos();
+   
+   
+   
 /*   
    FormateaArchivos(sSucursal, iIndice);
 */   
@@ -800,6 +805,7 @@ $char sAux[1000];
    strcat(sql, " 	AND l3.corr_facturacion < h.corr_facturacion ");
    strcat(sql, "  AND l3.tipo_lectura IN (1,2,3,4,7)) ");
    strcat(sql, "AND l2.fecha_lectura >= ? ");
+   strcat(sql, "AND l2.tipo_lectura IN (1,2,3,4,7) ");   
    strcat(sql, "AND m.numero_medidor = l1.numero_medidor ");
    strcat(sql, "AND m.marca_medidor = l1.marca_medidor ");
    strcat(sql, "AND sc.cod_centro_op = h.sucursal ");
@@ -895,7 +901,7 @@ $char sAux[1000];
 
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, facts_bim, gconsbimes, facdiaspc, qconbfpact ");
+	strcat(sql, "numero_cliente, facts_bim, qconsbimes, facdiaspc, qconbfpact ");
 	strcat(sql, ")VALUES(?, 'S', ?, ?, ?) ");
 	
 	$PREPARE insClientesMigra FROM $sql;
@@ -903,7 +909,7 @@ $char sAux[1000];
 	/************ Update Clientes Migra **************/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
 	strcat(sql, "facts_bim = 'S', ");
-	strcat(sql, "gconsbimes = ?, ");
+	strcat(sql, "qconsbimes = ?, ");
 	strcat(sql, "facdiaspc = ?, ");
 	strcat(sql, "qconbfpact = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
@@ -1286,7 +1292,7 @@ ClsFacts       *regFact;
 
 
    regFact->numero_cliente = regFactu.numero_cliente;
-   if(iMarca == 2){
+   if(iMarca == 2 ){
       regFact->corr_facturacion = regFactu.corr_facturacion + 1;
    }else{
       regFact->corr_facturacion = regFactu.corr_facturacion;

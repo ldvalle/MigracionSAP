@@ -33,7 +33,7 @@ $typedef struct{
 	char	nom_partido[26];
 	char	comuna[4];
 	char	nom_comuna[26];
-	int		cod_postal;
+	int	cod_postal;
 	char	obs_dir[61];
 	
 	char	telefono[10];
@@ -47,6 +47,8 @@ $typedef struct{
 	char	sucursal[5];
 	char	info_adic_lectura[25];
 	char	descrip_info_adic[41];
+   
+   char  comuna_caba[101];
 }ClsCliente;
 
 

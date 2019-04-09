@@ -125,36 +125,37 @@ long     lCantInFiles;
 	/*********************************************
 				      AREA CORPO T1
 	**********************************************/
+   if(giEstadoCliente == 0){   
    
-   $OPEN curCorpoT1;
+      $OPEN curCorpoT1;
+      
+   	while(LeoCorpoT1(&regCliente)){
    
-	while(LeoCorpoT1(&regCliente)){
-
-		if(regCliente.estado_cliente[0]=='0'){
-
-			iFlagMigra=0;
-			if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra)){
-
-				if (!GenerarPlanoT1(pFileCtaCorpoT1Unx, regCliente, 1)){
-					exit(1);	
-				}
-            
-            /*if(giTipoCorrida==0){*/
-               $BEGIN WORK;
-   				if(!RegistraCliente(regCliente, "T1", iFlagMigra)){
-   					$ROLLBACK WORK;
+   		if(regCliente.estado_cliente[0]=='0'){
+   
+   			iFlagMigra=0;
+   			if(! ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra)){
+   
+   				if (!GenerarPlanoT1(pFileCtaCorpoT1Unx, regCliente, 1)){
    					exit(1);	
    				}
-               $COMMIT WORK;
-            }
-				cantCorpoT1++;
-			/*}*/
-		}
-   }
-   
-   $CLOSE curCorpoT1;
-   fclose(pFileCtaCorpoT1Unx);
-   
+               
+               /*if(giTipoCorrida==0){*/
+                  $BEGIN WORK;
+      				if(!RegistraCliente(regCliente, "T1", iFlagMigra)){
+      					$ROLLBACK WORK;
+      					exit(1);	
+      				}
+                  $COMMIT WORK;
+               }
+   				cantCorpoT1++;
+   			/*}*/
+   		}
+      }
+      
+      $CLOSE curCorpoT1;
+      fclose(pFileCtaCorpoT1Unx);
+   }   
 	/*********************************************
 				AREA CURSOR PPAL
 	**********************************************/
@@ -191,7 +192,6 @@ long     lCantInFiles;
                   $COMMIT WORK;
                /*}*/
 					cantActivoProcesada++;
-					
 				}else{
 					/* Hijo de Corporativo de T23 */	
 					/* Generar Plano */
@@ -229,12 +229,14 @@ long     lCantInFiles;
             lCantInFiles++;
 				/* Registrar Control Cliente */
             /*if(giTipoCorrida==0){*/
+/*
                $BEGIN WORK;            
    				if(!RegistraCliente(regCliente, "T1", iFlagMigra)){
    					$ROLLBACK WORK;
    					exit(1);	
    				}
                $COMMIT WORK;
+*/               
             /*}*/
 				cantNoActivoProcesada++;
 			}
@@ -441,6 +443,10 @@ $char sAux[1000];
 	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2,  OUTER sap_transforma t4, OUTER sap_transforma t5, sap_transforma t6, ");
 	strcat(sql, "OUTER(postal p, sap_transforma t3), sap_transforma t7, OUTER clientes_digital cd, OUTER sap_transforma t8, sap_transforma t9 ");
    
+if(giEstadoCliente!=0){
+   strcat(sql, ", sap_inactivos si ");
+}
+   
 if(giTipoCorrida == 1)
    strcat(sql, ", migra_activos ma ");   
 if(giTipoCorrida == 3)
@@ -465,7 +471,10 @@ if(giEstadoCliente!=0){
 			strcat(sql, "WHERE c.tipo_sum != 5 ");
 		}
 	}
-	
+
+if(giEstadoCliente!=0){
+   strcat(sql, "AND c.numero_cliente = si.numero_cliente ");
+}	
 /*	
 	if(giEstadoCliente!=0){
 		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
@@ -603,15 +612,23 @@ if(giTipoCorrida == 3)
 	
 	/*********Update Clientes extraidos **********/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
-	strcat(sql, "cuenta_contrato = 'S' ");
+	strcat(sql, "cuenta_contrato = 'S', ");
 	strcat(sql, "cc_padre = ?, ");
 	strcat(sql, "cdc = ? ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE updClientesMigra FROM $sql;
 
+  	strcpy(sql, "UPDATE sap_regi_cliente SET ");
+	strcat(sql, "cuenta_contrato = 'S', ");
+	strcat(sql, "cdc = ? ");
+	strcat(sql, "WHERE numero_cliente = ? ");
+	
+	$PREPARE updClientesMigra2 FROM $sql;
+
+
 	/********* Electrodependientes *********/
-	strcpy(sql, "SELECT COUNT(*) FROM clientes_vip v, tabla t ");
+	strcpy(sql, "SELECT TRIM(t2.cod_sap) FROM clientes_vip v, tabla t, sap_transforma t2 ");
 	strcat(sql, "WHERE v.numero_cliente = ? ");
 	strcat(sql, "AND v.fecha_activacion <= TODAY ");
 	strcat(sql, "AND (v.fecha_desactivac IS NULL OR v.fecha_desactivac > TODAY) ");
@@ -621,6 +638,8 @@ if(giTipoCorrida == 3)
 	strcat(sql, "AND t.sucursal = '0000' ");
 	strcat(sql, "AND t.fecha_activacion <= TODAY "); 
 	strcat(sql, "AND ( t.fecha_desactivac >= TODAY OR t.fecha_desactivac IS NULL ) ");    
+	strcat(sql, "AND t2.clave = 'ELECTRODEPE' ");
+	strcat(sql, "AND t2.cod_mac = v.motivo ");
 
    $PREPARE selElectro FROM $sql;
    
@@ -767,18 +786,19 @@ $ClsCliente *regCli;
    }
 	
    iRcv=0;
-   $EXECUTE selElectro INTO :iRcv USING :regCli->numero_cliente;
+   $EXECUTE selElectro INTO :regCli->sCodElectro USING :regCli->numero_cliente;
    
    if(SQLCODE != 0){
-		printf("Error al verificar si cliente %ld es Electro !!!\nProceso Abortado.\n", regCli->numero_cliente);
-		exit(1);	
-   }
-   
-   if(iRcv > 0){
-      strcpy(regCli->sElectrodependiente, "S");
+      if(SQLCODE == 100){
+         strcpy(regCli->sElectrodependiente, "N");
+      }else{
+		    printf("Error al verificar si cliente %ld es Electro !!!\nProceso Abortado.\n", regCli->numero_cliente);
+		    exit(1);
+      }	
    }else{
-      strcpy(regCli->sElectrodependiente, "N");
+      strcpy(regCli->sElectrodependiente, "S");
    }
+   alltrim(regCli->sCodElectro, ' ');
 
 
    if(regCli->tipo_fpago[0]=='D'){   
@@ -850,18 +870,20 @@ $ClsCliente *regCli;
    }
 	
    iRcv=0;
-   $EXECUTE selElectro INTO :iRcv USING :regCli->numero_cliente;
+
+   $EXECUTE selElectro INTO :regCli->sCodElectro USING :regCli->numero_cliente;
    
    if(SQLCODE != 0){
-		printf("Error al verificar si cliente %ld es Electro !!!\nProceso Abortado.\n", regCli->numero_cliente);
-		exit(1);	
-   }
-   
-   if(iRcv > 0){
-      strcpy(regCli->sElectrodependiente, "S");
+      if(SQLCODE == 100){
+         strcpy(regCli->sElectrodependiente, "N");
+      }else{
+		    printf("Error al verificar si cliente %ld es Electro !!!\nProceso Abortado.\n", regCli->numero_cliente);
+		    exit(1);
+      }	
    }else{
-      strcpy(regCli->sElectrodependiente, "N");
+      strcpy(regCli->sElectrodependiente, "S");
    }
+   alltrim(regCli->sCodElectro, ' ');
 
 
    if(regCli->tipo_fpago[0]=='D'){   
@@ -911,6 +933,7 @@ $ClsCliente	*regCli;
    
    memset(regCli->sCodSucurSap, '\0', sizeof(regCli->sCodSucurSap));
    memset(regCli->sElectrodependiente, '\0', sizeof(regCli->sElectrodependiente));
+   memset(regCli->sCodElectro, '\0', sizeof(regCli->sCodElectro));
  
 }
 
@@ -973,17 +996,20 @@ $ClsExencion   regExen;
 
    if(regCliente.tiene_corte_rest[0]=='S'){
    	/* VKLOCK */
-   	GeneraVKLOCK(fp, regCliente, "T1", iTipo, "R");
+      if(giTipoCorrida!=3)
+   	  GeneraVKLOCK(fp, regCliente, "T1", iTipo, "R");
    }
 
    if(regCliente.tiene_cobro_int[0]=='N'){
    	/* VKLOCK */
-   	GeneraVKLOCK(fp, regCliente, "T1", iTipo, "I");
+      if(giTipoCorrida!=3)
+   	  GeneraVKLOCK(fp, regCliente, "T1", iTipo, "I");
    }
 
    if(regCliente.sElectrodependiente[0]=='S'){
    	/* VKLOCK */
-   	GeneraVKLOCK(fp, regCliente, "T1", iTipo, "E");
+      if(giTipoCorrida!=3)
+   	  GeneraVKLOCK(fp, regCliente, "T1", iTipo, "E");
    }
 
  /* exenciones impositivas */
@@ -1292,7 +1318,11 @@ int iTipo;
    strcat(sLinea, "Z1\t");
    
    /* MAHNV  */
-   strcat(sLinea, "1N\t");
+   if(regCliente.sElectrodependiente[0]=='S'){
+      sprintf(sLinea, "%s%s\t", sLinea,  regCliente.sCodElectro);
+   }else{
+      strcat(sLinea, "1N\t");
+   }
    
 	/* MANSP */
 	if(strcmp(sTarifa, "T1")==0){
@@ -1690,10 +1720,17 @@ int		iFlagMigra;
 		}
 	}
 
+   alltrim(sPadre, ' ');
+   
 	if(iFlagMigra==1){
 		$EXECUTE insClientesMigra using :reg.numero_cliente, :sPadre, :reg.tipo_cliente;
 	}else{
-		$EXECUTE updClientesMigra using :sPadre, :reg.tipo_cliente, :reg.numero_cliente;
+      if(strcmp(sPadre, "")==0){
+         $EXECUTE updClientesMigra2 using :reg.tipo_cliente, :reg.numero_cliente;
+      }else{
+         $EXECUTE updClientesMigra using :sPadre, :reg.tipo_cliente, :reg.numero_cliente;
+      }
+		
 	}
 
 	return 1;
@@ -1785,9 +1822,13 @@ short AbreArchivos(){
 		case 0: /* Activos */
 
 			/*lCorrelativoActivo = getCorrelativo("CTACONTRA_ACTIVA");*/
-
-		   sprintf( sArchCtaActivaUnx  , "%sT1ACCOUNT_ACTIVA.unx", sPathSalida );
-			strcpy( sSoloArchivoCtaActiva, "T1ACCOUNT_ACTIVA.unx" );
+         if(giTipoCorrida!= 3){
+   		   sprintf( sArchCtaActivaUnx  , "%sT1ACCOUNT_ACTIVA.unx", sPathSalida );
+   			strcpy( sSoloArchivoCtaActiva, "T1ACCOUNT_ACTIVA.unx" );
+         }else{
+   		   sprintf( sArchCtaActivaUnx  , "%sT1ACCOUNTCHA_ACTIVA.unx", sPathSalida );
+   			strcpy( sSoloArchivoCtaActiva, "T1ACCOUNTCHA_ACTIVA.unx" );
+         }
 
 			pFileCtaActivaUnx=fopen( sArchCtaActivaUnx, "w" );
 			if( !pFileCtaActivaUnx ){
@@ -1796,10 +1837,13 @@ short AbreArchivos(){
 			}
 
          /* Corpo T1 */
-         
-		   sprintf( sArchCtaCorpoT1Unx  , "%sT1ACCOUNT_CORPOT1.unx", sPathSalida );
-			strcpy( sSoloArchivoCtaCorpoT1, "T1ACCOUNT_CORPOT1.unx" );
-
+         if(giTipoCorrida!= 3){
+   		   sprintf( sArchCtaCorpoT1Unx  , "%sT1ACCOUNT_CORPOT1.unx", sPathSalida );
+   			strcpy( sSoloArchivoCtaCorpoT1, "T1ACCOUNT_CORPOT1.unx" );
+         }else{
+   		   sprintf( sArchCtaCorpoT1Unx  , "%sT1ACCOUNTCHA_CORPOT1.unx", sPathSalida );
+   			strcpy( sSoloArchivoCtaCorpoT1, "T1ACCOUNTCHA_CORPOT1.unx" );
+         }
 			pFileCtaCorpoT1Unx=fopen( sArchCtaCorpoT1Unx, "w" );
 			if( !pFileCtaCorpoT1Unx ){
 				printf("ERROR al abrir archivo %s.\n", sArchCtaCorpoT1Unx );

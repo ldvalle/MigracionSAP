@@ -39,6 +39,7 @@ $typedef struct{
    char  sTipoEntidadDebito[2];
    char  sCodSucurSap[5];
    char  sElectrodependiente[2];
+   char  sCodElectro[3];
 }ClsCliente;
 
 $typedef struct{

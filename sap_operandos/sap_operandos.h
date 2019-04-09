@@ -66,10 +66,21 @@ $typedef struct{
 
 $typedef struct{
    long  numero_cliente; 
-   char  evento[6];
+   char  evento[11];
    long  lFechaEvento;
    char  sTarifa[11];
+   char  sEventoMac[6];
 }ClsFP;
+
+$typedef struct{
+   long  numero_cliente; 
+   int   corr_evento;
+   char  evento[11];
+   long  lFechaDesdeEvento;
+   long  lFechaHastaEvento;
+   char  sTarifa[11];
+}ClsFPDeta;
+
 
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
@@ -98,6 +109,7 @@ void	GeneraKEY(char *, FILE *, ClsOperando, long);
 void	GeneraFFlag(char *, FILE *, ClsOperando, long);
 void	GeneraVFlag(char *, FILE *, ClsOperando, long);
 void	GeneraENDE(FILE *, ClsOperando, long);
+void	GeneraENDE2(FILE *, long, long);
 
 short LeoTasa(ClsTasa *);
 void  InicializaTasa(ClsTasa *);
@@ -124,9 +136,19 @@ void  PrintEBP(ClsOperando, int);
 short LeoFP(ClsFP *);
 void  InicializaFP(ClsFP *);
 void  TraspasoFP(ClsFP, ClsOperando *);
+
+short LeoFPDeta(ClsFPDeta *);
+void  InicializaFPDeta(ClsFPDeta *);
+void  TraspasoFPDeta(ClsFPDeta, ClsOperando *);
+
 void  PrintFP(ClsOperando, int);
 void  GeneraFQUAN(FILE *, ClsOperando, int);
 void  GeneraVQUAN(FILE *, ClsOperando, int);
+
+short LeoFPDetaSB(ClsFPDeta *);
+void  TraspasoFP_SB(ClsFP, ClsOperando *);
+void  TraspasoFPDeta_SB(ClsFPDeta, ClsOperando *);
+void  PrintFP_SB(ClsOperando, int);
 
 
 short	RegistraArchivo(void);
