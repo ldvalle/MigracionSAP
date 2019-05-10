@@ -196,7 +196,8 @@ int      iFila;
                         strcpy(tipoCargoTarifa, getTipoCargoTarifa(regFactuDeta.codigo_cargo));
                         
                         if(tipoCargoTarifa[0]!= '9'){
-                           $OPEN curDetVal USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa;
+                           $OPEN curDetVal USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa,
+                                                :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa;
                            iFila=1;
                            while(LeoDetVal(&regFactuDeta, iFila)){
                               GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, 1, iNx);
@@ -515,7 +516,6 @@ $char sAux[1000];
    strcat(sql, "hf.tarifa, ");
    strcat(sql, "hf.subtarifa, ");
    strcat(sql, "hf.indica_refact, ");
-   strcat(sql, "hf.corr_facturacion, ");
    strcat(sql, "hf.clase_servicio, ");
    strcat(sql, "TRIM(t4.acronimo_sap) cdc, ");
    
@@ -557,6 +557,7 @@ $char sAux[1000];
 	strcat(sql, "WHERE numero_cliente = ? "); 
 	strcat(sql, "AND corr_facturacion = ? ");
 	strcat(sql, "AND tipo_lectura IN (1,2,3,4,7,8) ");
+   strcat(sql, "GROUP BY fecha_lectura ");
    
    $PREPARE selLecturaAnt FROM $sql;
 
@@ -580,8 +581,8 @@ $char sAux[1000];
 	strcat(sql, "AND t1.cod_mac = r.resp_iva ");
 	strcat(sql, "AND t2.clave = 'TARIFTYP' ");
 	strcat(sql, "AND t2.cod_mac = r.tarifa ");
-   strcat(sql, "AND t4.clave = 'TIPCLI' ");
-   strcat(sql, "AND t4.cod_mac = hf.clase_servicio ");
+   strcat(sql, "AND t3.clave = 'TIPCLI' ");
+   strcat(sql, "AND t3.cod_mac = r.clase_servicio ");
    
    $PREPARE selRefac FROM $sql;
 
@@ -933,6 +934,7 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
    $PREPARE selVigTarifa FROM $sql;
 
    /*************** Cuenta y Agrupa ****************/
+/*   
 	strcpy(sql, "SELECT codigo_cargo, codigo_cuenta, agrupacion, descripcion "); 
 	strcat(sql, "FROM sap_conce_ctaagrupa ");
 	strcat(sql, "ORDER BY codigo_cargo ");
@@ -940,7 +942,7 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
    $PREPARE selCtaAgrupa FROM $sql;
    
    $DECLARE curCtaAgrupa CURSOR FOR selCtaAgrupa;
-   
+*/   
    /******** Detalle Trafo *******/
    $PREPARE selDetaTrafo FROM "SELECT descripcion,
       vonzone,
@@ -952,26 +954,26 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
       massbill,
       preis,
       zonennr,
-      eint01,
+      ein01,
       tvorg
       FROM sap_trafo_billdoc
       WHERE cod_cargo_mac = ?
       AND ? BETWEEN vonzone AND biszone ";
       
    /******** Busca Inicio Ventana  (Adatsoll) *********/
-   $PREPARE selIniVentana1 FROM "SELECT anio_periodo || '/' || periodo, MIN(inicio_ventana) FROM sap_agenda
+   $PREPARE selIniVentana1 FROM "SELECT first 1 anio_periodo || '/' || periodo, MIN(inicio_ventana) FROM sap_agenda
       WHERE porcion = ?
       AND ul = ?
       AND ? BETWEEN inicio_ventana AND fin_ventana 
       GROUP BY 1 ";
 		
-   $PREPARE selIniVentana2 FROM "SELECT anio_periodo || '/' || periodo, MAX(inicio_ventana) FROM sap_agenda
+   $PREPARE selIniVentana2 FROM "SELECT first 1 anio_periodo || '/' || periodo, MAX(inicio_ventana) FROM sap_agenda
       WHERE porcion = ?
       AND ul = ?
       AND inicio_ventana <= ?
       GROUP BY 1 ";
 
-   $PREPARE selIniVentana3 FROM "SELECT anio_periodo || '/' || periodo, MIN(inicio_ventana) FROM sap_agenda
+   $PREPARE selIniVentana3 FROM "SELECT first 1 anio_periodo || '/' || periodo, MIN(inicio_ventana) FROM sap_agenda
       WHERE porcion = ?
       AND ul = ?
       AND inicio_ventana > ?
