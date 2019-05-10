@@ -140,6 +140,7 @@ int   iIndice;
       }
 					
 		cantInstalados++;
+/*      
       lContador++;
       if(lContador >= 900000){
          fclose(pFileMedInstalUnx);
@@ -151,6 +152,7 @@ int   iIndice;
             exit(1);
          }   
       }
+*/      
 	}
    	
 	$CLOSE curInstal;

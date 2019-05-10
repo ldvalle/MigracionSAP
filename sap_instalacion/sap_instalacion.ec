@@ -494,7 +494,7 @@ strcat(sql, "END unidad_lectura, ");
 strcat(sql, ", sap_sin_fecha m ");
 */
 	if(giEstadoCliente!=0){
-		strcat(sql, ", sap_inactivos si ");
+		strcat(sql, ", sap_inactivos si, medid md ");
 	}
 	
 	if(glNroCliente > 0 ){
@@ -507,14 +507,14 @@ strcat(sql, ", sap_sin_fecha m ");
 		}else if(giEstadoCliente == 1){
 			strcat(sql, "WHERE c.estado_cliente != 0 ");
 			strcat(sql, "AND c.tipo_sum != 5 ");
+         strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+         strcat(sql, "AND md.numero_cliente = c.numero_cliente ");
+         strcat(sql, "AND md.estado = 'I' ");
 		}else{
 			strcat(sql, "WHERE c.tipo_sum != 5 ");
 		}		
 	}
 
-	if(giEstadoCliente!=0){
-		strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
-	}
 
 	strcat(sql, "AND NOT EXISTS (SELECT 1 FROM clientes_ctrol_med cm ");
 	strcat(sql, "WHERE cm.numero_cliente = c.numero_cliente ");

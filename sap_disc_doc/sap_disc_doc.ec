@@ -26,6 +26,7 @@ $long	glNroCliente;
 $int	giEstadoCliente;
 $char	gsTipoGenera[2];
 int   giTipoCorrida;
+$long glFechaParametro;
 
 FILE	*pFileUnx;
 char	sArchUnx[100];
@@ -73,6 +74,9 @@ $char       sFechaCorte[17];
    memset(sFechaCorte, '\0', sizeof(sFechaCorte));
    
 	$EXECUTE selFechaPivote into :lFechaPivote;
+   
+   if(giTipoCorrida==3 && glFechaParametro > 0)
+      lFechaPivote=glFechaParametro;
 		
 	rfmtdate(lFechaPivote, "yyyy-mm-dd 00:00", sFechaCorte);
    	
@@ -138,18 +142,32 @@ short AnalizarParametros(argc, argv)
 int		argc;
 char	* argv[];
 {
+char  sFechaPar[11];
+   
+   memset(sFechaPar, '\0', sizeof(sFechaPar));
 
-	if(argc != 2){
+	if(argc < 3 || argc > 4){
 		MensajeParametros();
 		return 0;
 	}
 	
+   giTipoCorrida = atoi(argv[3]);
+   
+   if(giTipoCorrida==3 && argc==4 ){
+      strcpy(sFechaPar, argv[5]);
+      rdefmtdate(&glFechaParametro, "dd/mm/yyyy", sFechaPar); /*char to long*/
+   }else{
+      glFechaParametro=-1;
+   }
+   
 	return 1;
 }
 
 void MensajeParametros(void){
 		printf("Error en Parametros.\n");
-		printf("	<Base> = synergia.\n");
+		printf("\t<Base> = synergia.\n");
+      printf("\t<Tipo Corrida> 0=gral. 1=reducida. 3=Delta\n");
+      printf("\t<Fecha Desde> dd/mm/aaaa (opcional)\n");
 }
 
 short AbreArchivos()
@@ -239,9 +257,16 @@ $char sAux[1000];
 	strcat(sql, "TO_CHAR(c.fecha_ini_evento, '%Y%m%d'), "); 
 	strcat(sql, "c.sit_encon ");
 	strcat(sql, "FROM correp c ");
+   if(giTipoCorrida==1){
+      strcat(sql, ", migra_activos ma ");
+   }
 	strcat(sql, "WHERE c.fecha_reposicion is null ");
 	strcat(sql, "AND c.fecha_corte >= ? ");
 
+   if(giTipoCorrida==1){
+      strcat(sql, "AND ma.numero_cliente = c.numero_cliente ");
+   }
+   
 	$PREPARE selCortes FROM $sql;
 	
 	$DECLARE curCortes CURSOR FOR selCortes;
@@ -339,7 +364,7 @@ $ClsCorte		reg;
 	GeneraHEADER(fp, reg);
 
 	/* FKKMAZ */	
-	GeneraFKKMAZ(fp, reg);
+	/*GeneraFKKMAZ(fp, reg);*/
 		
 	/* ENDE */
 	GeneraENDE(fp, reg);
@@ -380,16 +405,18 @@ ClsCorte	reg;
 	sprintf(sLinea, "T1%ld\tHEADER\t", reg.numero_cliente);
    
    /* DISCREASON */
-   sprintf(sLinea, "%s%s\t", sLinea, reg.motivo_corte);
+   /*sprintf(sLinea, "%s%s\t", sLinea, reg.motivo_corte);*/
+   strcat(sLinea, "03\t");
    
    /* REFOBJTYPE */
    strcat(sLinea, "ISUACCOUNT\t");
   
    /* REFOBJKEY */
-	sprintf(sLinea, "%s%012ld%012ld\t", sLinea, reg.numero_cliente, reg.numero_cliente);
+	/*sprintf(sLinea, "%s%012ld%012ld\t", sLinea, reg.numero_cliente, reg.numero_cliente);*/
+   strcat(sLinea, "\t");
       
    /* ANLAGE */
-   sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
+   /*sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);*/
    
    /* VKONTO */
    sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
@@ -398,7 +425,11 @@ ClsCorte	reg;
    sprintf(sLinea, "%s%s\t", sLinea, reg.fecha_corte);
    
    /* AB_TIME */
-   strcat(sLinea, "");
+   /*strcat(sLinea, "");*/
+   
+   /* ORDERCODE */
+   strcat(sLinea, "\t");
+   /* ORDERWERK */
    
 	
 	strcat(sLinea, "\n");

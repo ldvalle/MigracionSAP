@@ -42,6 +42,9 @@ $typedef struct{
    char     leyendaPhi[6];
    long     lFechaEvento;
    char     sFechaEvento[9];
+   
+   double   consumo_sum2;
+   long     lectura_activa;
 }ClsFactura;
 
 $typedef struct{
@@ -97,11 +100,12 @@ short getIniVentanaAgenda(ClsFactura *);
 short getLeyenda(ClsFactura *, long);
 
 
-void  GenerarPlanos(FILE*, int, ClsFacts);
+void  GenerarPlanos(FILE*, int, ClsFacts, int);
 void  GeneraKey(FILE*, int, ClsFacts);
 void  GeneraCuerpo(FILE*, int, ClsFacts);
 void  GeneraPie(FILE*, int, ClsFacts);
 void  GeneraENDE(FILE*, int, ClsFacts);
+void  GeneraENDE2(FILE*, int, long);
 
 short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);

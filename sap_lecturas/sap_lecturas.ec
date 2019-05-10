@@ -212,6 +212,7 @@ long  lCantLecturas;
                         }
                         if(strcmp(sMedidorActual, sMedidorAnterior)!=0){
                            GeneraENDE2(pFileLecturasUnx, lNroCliente, iMedidor);
+                           strcpy(sMedidorAnterior, sMedidorActual);
                            iMedidor++;   
                         }                        
                      }
@@ -771,7 +772,7 @@ $char sAux[1000];
 
    /*strcat(sql, "FROM hislec h1, hisfac h2, medid md, sap_transforma t1, sucur_centro_op sc ");*/ 
 
-   strcat(sql, "FROM hislec h1, hisfac h2, medidor med, modelo m, sap_transforma t1, sucur_centro_op sc ");
+   strcat(sql, "FROM hislec h1, hisfac h2, medidor med, OUTER modelo m, sap_transforma t1, sucur_centro_op sc ");
 
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
    strcat(sql, "AND h1.fecha_lectura >= ? ");
@@ -789,7 +790,7 @@ $char sAux[1000];
     
 	strcat(sql, "AND med.med_numero = h1.numero_medidor ");
 	strcat(sql, "AND med.mar_codigo = h1.marca_medidor ");
-   strcat(sql, "AND med.numero_cliente = h1.numero_cliente ");
+   /*strcat(sql, "AND med.numero_cliente = h1.numero_cliente ");*/
 	strcat(sql, "AND (med.cli_tarifa != 'T2' OR med.cli_tarifa IS NULL) ");
 	strcat(sql, "AND m.mar_codigo = h1.marca_medidor ");
 	strcat(sql, "AND m.mod_codigo = med.mod_codigo ");
@@ -1071,6 +1072,11 @@ $char sAux[1000];
       AND ul = ?
       AND inicio_ventana > ? ";
       
+   $PREPARE selUlAnterior FROM "SELECT TRIM(sc.cod_ul_sap) || h.sector || lpad(h.zona,5,0)
+      FROM hisfac h, sucur_centro_op sc
+      WHERE h.numero_cliente = ?
+      AND h.corr_facturacion = ?
+      AND sc.cod_centro_op = h.sucursal";
       
    /********* Verifica Reactiva**********/
    $PREPARE selReacti FROM "SELECT COUNT(*) FROM hislec_reac
@@ -1199,6 +1205,8 @@ $ClsLecturas *regLectu;
 	$double dLectuRectif=0.0;
 	$double dConsuRectif=0.0;
 	$long   lFechaAux;
+   $char   sUlAux[9];
+   $long    lCorrFactuAnterior;
    
 	InicializaLecturas(regLectu);
 
@@ -1251,7 +1259,27 @@ $ClsLecturas *regLectu;
          :lFechaAux;
 
       if(SQLCODE != 0 || strcmp(regLectu->fechaIniVentana,"")==0){
-         printf("No se encontró fecha ini ventana para cliente %ld Porcion %s UL %s Fecha Lectura %ld intento 2\n", regLectu->numero_cliente, regLectu->porcion, regLectu->UL, lFechaAux);
+         memset(sUlAux, '\0', sizeof(sUlAux));
+         lCorrFactuAnterior = regLectu->corr_facturacion-1;
+         
+         $EXECUTE selUlAnterior INTO :sUlAux USING
+               :regLectu->numero_cliente,
+               :lCorrFactuAnterior;
+               
+         if(SQLCODE != 0){
+            printf("No se encontró fecha ini ventana para cliente %ld Porcion %s UL %s Fecha Lectura %ld intento 2\n", regLectu->numero_cliente, regLectu->porcion, regLectu->UL, lFechaAux);
+         }else{
+            alltrim(sUlAux, ' ');
+            
+            $EXECUTE selIniVentana INTO :regLectu->fechaIniVentana USING
+               :regLectu->porcion,
+               :sUlAux,
+               :lFechaAux;
+         
+            if(SQLCODE != 0){
+               printf("No se encontró fecha ini ventana para cliente %ld Porcion %s UL %s Fecha Lectura %ld intento 3\n\tCon Factura anterior\n", regLectu->numero_cliente, regLectu->porcion, regLectu->UL, lFechaAux);            
+            }
+         }
       }      
    }      
 

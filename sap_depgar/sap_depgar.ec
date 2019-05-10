@@ -405,11 +405,12 @@ $char sAux[1000];
 	strcat(sql, "	AND cm.fecha_activacion < TODAY ");
 	strcat(sql, "	AND (cm.fecha_desactiva IS NULL OR cm.fecha_desactiva > TODAY)) ");
 	strcat(sql, "AND d.numero_cliente = c.numero_cliente ");
+	strcat(sql, "AND d.estado_dg NOT IN ('D','A','E') ");
+	strcat(sql, "AND d.estado NOT IN (1,2) ");
+   strcat(sql, "AND d.fecha_aplica_cap IS NULL ");
 
    if(giTipoCorrida==1)	
       strcat(sql, "AND m.numero_cliente = c.numero_cliente ");
-	
-
 
 	$PREPARE selDepgar FROM $sql;
 	
@@ -752,7 +753,7 @@ $ClsDepgar	regDep;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 	
-	sprintf(sLinea, "T1%ld\t&ENDE", regDep.numero_cliente);
+	sprintf(sLinea, "T1%ld-%ld\t&ENDE", regDep.numero_cliente, regDep.numero_dg);
 
 	strcat(sLinea, "\n");
 	
@@ -812,16 +813,16 @@ ClsDepgar	regDep;
    
 	memset(sLinea, '\0', sizeof(sLinea));
 
-	sprintf(sLinea, "T1%ld\tSECD\t", regDep.numero_cliente);
+	sprintf(sLinea, "T1%ld-%ld\tSECD\t", regDep.numero_cliente, regDep.numero_dg);
 	
 /* APPLK */
    strcat(sLinea, "R\t");
    
 /* NON-CASH */
 	if(risnull(CLONGTYPE, (char *) &regDep.garante)){
-      strcat(sLinea, "X\t");
-   }else{
       strcat(sLinea, "\t");
+   }else{
+      strcat(sLinea, "X\t");
    }
    
 /* VKONT */
@@ -837,8 +838,9 @@ ClsDepgar	regDep;
    sprintf(sLinea, "%s%s\t", sLinea, regDep.sFechaDeposito);
 
 /* SEC_RETURN */
+/*
    sprintf(sLinea, "%s%s\t", sLinea, regDep.sFechaReintegro);
-
+*/
 /* NC_STATUS ????*/
    strcat(sLinea, "00\t");
 
@@ -849,7 +851,7 @@ ClsDepgar	regDep;
    strcat(sLinea, "\t");
    
 /* SEC_EXPIRE */
-   strcat(sLinea, "\t");
+   /*strcat(sLinea, "\t");*/
 
 /* GPART_GUARANTOR */
    if(!risnull(CLONGTYPE, (char *) &regDep.garante)){
@@ -887,7 +889,7 @@ ClsDepgar	regDep;
 	int  iRcv;
 	memset(sLinea, '\0', sizeof(sLinea));
 
-	sprintf(sLinea, "T1%ld\tSECC\t", regDep.numero_cliente);
+	sprintf(sLinea, "T1%ld-%ld\tSECC\t", regDep.numero_cliente, regDep.numero_dg);
 	
 /* VTREF ????*/
    strcat(sLinea, "\t");

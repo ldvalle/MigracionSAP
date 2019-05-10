@@ -19,6 +19,9 @@ int  giTipoCorrida;
 
 $dtime_t gtInicioCorrida;
 $char  sLstParametros[100];
+long  lCantLineas;
+int   iIndexFile;
+int   iNvoArchivo;
 
 void main(int iVargs, char **vVargs)
 {
@@ -42,6 +45,7 @@ void main(int iVargs, char **vVargs)
     hora = time(&hora);
     printf("\nHora de comienzo del proceso    : %s\n", ctime(&hora));
 
+    iIndexFile=1;
     if (!IniciaAmbiente())
         exit(1);
 
@@ -56,24 +60,28 @@ void main(int iVargs, char **vVargs)
    }
    
    $COMMIT WORK;
-
-
    
    lCantClie=0;
    lStartPoint=0;
+   lCantLineas=0;
+   iNvoArchivo=1;
+   
     /*EXEC SQL BEGIN WORK;*/
     $OPEN curClientes;
     
     while (FetchClientes(&RegCliente))
     {
     
-         if(lCantClie!=0){
+         /*if(lCantClie!=0){*/
+         if(iNvoArchivo==0){
             iRcv = fgetpos(fArchivo, &lStartPoint);
+         }else{
+            iNvoArchivo=0;
          }
 
          $BEGIN WORK;
          
-         if(!setIndexFile(RegCliente.numeroCliente, lStartPoint)){
+         if(!setIndexFile(RegCliente.numeroCliente, lStartPoint, iIndexFile)){
             printf("Error al grabar el indice para cliente %ld\n", RegCliente.numeroCliente);
             $ROLLBACK WORK;
             exit(1);
@@ -228,6 +236,20 @@ for (i=0; i<rSsal.cantSaldosImpuestos; i++)
 */        
 
         lCantClie++;
+        
+        if(lCantLineas > 60000000){
+            fclose(fArchivo);
+            iIndexFile++;
+            
+            /* Abro archivo */
+            if(!AbreOtroArchivo()){
+               printf("No pudo habrir un nuevo archivo.\nProceso Abortado.\n");
+               exit(1);
+            }
+            lStartPoint=0;
+            lCantLineas=0;
+            iNvoArchivo=1;
+        }
     }
 
     EXEC SQL CLOSE curClientes;
@@ -298,10 +320,11 @@ int IniciaAmbiente(void)
     
     sprintf(sPath, "/fs/migracion/generacion/SAP/");
     if(giTipoCliente==0){
-      sprintf(sArchivo, "%ssap_ageing.txt", sPath);
+      sprintf(sArchivo, "%ssap_ageing_%d.txt", sPath, iIndexFile);
     }else{
-      sprintf(sArchivo, "%ssap_ageing_inactivos.txt", sPath);
+      sprintf(sArchivo, "%ssap_ageing_inactivos_%d.txt", sPath, iIndexFile);
     }
+    
     if (!AbreArchivo(sArchivo, &fArchivo, "w"))
         return (ERROR);
     
@@ -330,6 +353,20 @@ int AbreArchivo(char *filename, FILE **arch, char *modo)
     return (OK);
 }
 
+short AbreOtroArchivo(){
+
+    sprintf(sPath, "/fs/migracion/generacion/SAP/");
+    if(giTipoCliente==0){
+      sprintf(sArchivo, "%ssap_ageing_%d.txt", sPath, iIndexFile);
+    }else{
+      sprintf(sArchivo, "%ssap_ageing_inactivos_%d.txt", sPath, iIndexFile);
+    }
+    
+    if (!AbreArchivo(sArchivo, &fArchivo, "w"))
+        return (ERROR);
+    
+    return (OK);
+}
 
 void PreparaQuerys (void)
 {
@@ -421,10 +458,8 @@ if(giTipoCorrida==1){
    
    $PREPARE delIndexAgeInActi FROM "DELETE FROM sap_inx_age WHERE estado_cliente = 1 ";
    
-   $PREPARE insIndexAge FROM "INSERT INTO sap_inx_age (numero_cliente, start_point, estado_cliente
-         )VALUES( ?, ?, ?) ";
-         
-               
+   $PREPARE insIndexAge FROM "INSERT INTO sap_inx_age (numero_cliente, start_point, estado_cliente, index_file
+         )VALUES( ?, ?, ?, ?) ";
           
 }
 
@@ -531,7 +566,7 @@ $char *sTipo;
          printf("Error al grabar archivo cliente %ld\n %s\n", nroCliente, sLinea);
          exit(1);
        }
-
+       lCantLineas++;
                                        
    }
    
@@ -562,7 +597,7 @@ $char *sTipo;
          printf("Error al grabar archivo cliente %ld\n %s\n", nroCliente, sLinea);
          exit(1);
        }
-                                
+       lCantLineas++;                         
    }
    
    if(!risnull(CDOUBLETYPE, (char *) &rSaldos.saldoImpNoSujI)){
@@ -638,7 +673,7 @@ $char *sTipo;
             printf("Error al grabar archivo cliente %ld\n %s\n", nroCliente, sLinea);
             exit(1);
           }
-       
+          lCantLineas++;
         }
     }
     
@@ -669,7 +704,7 @@ $char *sTipo;
          printf("Error al grabar archivo cliente %ld\n %s\n", nroCliente, sLinea);
          exit(1);
        }
-
+       lCantLineas++;
                                 
    }
     /****************/
@@ -710,7 +745,7 @@ $char *sTipo;
          printf("Error al grabar archivo cliente %ld\n %s\n", nroCliente, sLinea);
          exit(1);
        }
-                                
+       lCantLineas++;                             
    }
    
    SqlErrorClearIgnore();
@@ -761,7 +796,7 @@ $char *sTipo;
          printf("Error al grabar archivo cliente %ld\n %s\n", nroCliente, sLinea);
          exit(1);
        }
-   
+       lCantLineas++;
        strcpy(sCodigo, "SA5"); /* Int.Acumulados */
 /*       
        $EXECUTE insAgeing USING :nroCliente,
@@ -783,7 +818,7 @@ $char *sTipo;
          printf("Error al grabar archivo cliente %ld\n %s\n", nroCliente, sLinea);
          exit(1);
        }
-       
+       lCantLineas++;
 
        strcpy(sCodigo, "SA8"); /* Impuestos No Suj.Intereses */
 /*       
@@ -861,7 +896,7 @@ rSaldosCnr[i].saldoImpNoSujI);
             printf("Error al grabar archivo cliente %ld\n %s\n", nroCliente, sLinea);
             exit(1);
           }
-         
+          lCantLineas++;
       
 /*      
 printf("  %s  %.2lf\n",
@@ -986,9 +1021,10 @@ short delIndexFile()
    return 1;
 }
 
-short setIndexFile(lNroCliente, lPos)
+short setIndexFile(lNroCliente, lPos, iFile)
 $long    lNroCliente;
 $fpos_t  lPos;
+$int     iFile;
 {
    $long lMiPos=lPos;
    $int  iEstadoCliente;
@@ -999,7 +1035,7 @@ $fpos_t  lPos;
       iEstadoCliente=1;   
    }
    
-   $EXECUTE insIndexAge USING :lNroCliente, :lMiPos, :iEstadoCliente;
+   $EXECUTE insIndexAge USING :lNroCliente, :lMiPos, :iEstadoCliente, :iFile;
    
    if(SQLCODE != 0)
       return 0;

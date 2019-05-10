@@ -117,15 +117,20 @@ long     iCantCalculos=0;
       iFlagExiste=0;
       InicializaEstados(&regSts);
 		if(! ClienteYaMigrado(regAltas.numero_cliente, &iFlagMigra, &iFlagExiste, &regSts)){
-
+/*
          if(iFlagExiste == 1){
             CargaCalculados(&regAltas, regSts);
          }else{
             CalculoDatos(&regAltas);
             iCantCalculos++;         
          }
+*/         
+
+         CalculoDatos(&regAltas);
+         UpdMoveIn(regAltas);
          
-         /*strcpy(regAltas.fecha_alta, getUltiLectu(regAltas));*/
+         if(regAltas.corr_facturacion > 1)
+            strcpy(regAltas.fecha_alta, getUltiLectu(regAltas));
                   
 			if (!GenerarPlanoAltas(pFileAltas, regAltas)){
 				$ROLLBACK WORK;
@@ -316,7 +321,10 @@ $char sAux[1000];
 	$PREPARE selFechaActual FROM $sql;	
 	
    /******** Fecha Pivote  ****************/
-   strcpy(sql, "SELECT TODAY - 420 FROM dual");
+   /*strcpy(sql, "SELECT DATE(TODAY-16 units month) FROM dual");*/
+
+   strcpy(sql, "SELECT fecha_pivote - 30 FROM sap_regi_cliente ");
+	strcat(sql, "WHERE numero_cliente = 0 ");
    
    $PREPARE selFechaPivote FROM $sql;
    
@@ -576,10 +584,19 @@ $char sAux[1000];
    $PREPARE selMotiAlta FROM $sql;
    
    /* Ultima lectura */
-   $PREPARE selUltiLectu FROM "SELECT TO_CHAR(h.fecha_lectura + 1, '%Y%d%m') FROM hisfac h
+   $PREPARE selUltiLectu FROM "SELECT TO_CHAR(h.fecha_lectura + 1, '%Y%m%d') FROM hisfac h
       WHERE numero_cliente = ?
       AND corr_facturacion = ? ";
       
+   /* Actualiza Fecha Pivote */
+   $PREPARE updPivote FROM "UPDATE sap_regi_cliente SET
+      fecha_pivote = ?
+      WHERE numero_cliente = ? ";
+   
+   /* Actualiza Fecha move_in */
+   $PREPARE updMoveIn FROM "UPDATE sap_regi_cliente SET
+      fecha_move_in = ?
+      WHERE numero_cliente = ? ";
    
    /************* Buscar ID Sales Forces ************/
 /*   
@@ -993,8 +1010,8 @@ $ClsAltas		regAlta;
    */
    
    /* EINZDAT*/
-   /*sprintf(sLinea, "%s%s\t", sLinea, regAlta.fecha_alta);*/
-   sprintf(sLinea, "%s%s\t", sLinea, regAlta.sUltimaLectura);
+   sprintf(sLinea, "%s%s\t", sLinea, regAlta.fecha_alta);
+   /*sprintf(sLinea, "%s%s\t", sLinea, regAlta.sUltimaLectura);*/
 	
    /* MAHNV */
 	strcat(sLinea, "\t");
@@ -1149,20 +1166,44 @@ $ClsAltas   reg;
 {
    $long lFLectu;
    $char sFLectu[9];
+   $long lCorrFactuAux;
    
    memset(sFLectu, '\0', sizeof(sFLectu));
+   lCorrFactuAux=reg.corr_facturacion - 1;
    
-   $EXECUTE selUltiLectu INTO :lFLectu USING :reg.numero_cliente,
-                                             :reg.corr_facturacion;
+   $EXECUTE selUltiLectu INTO :sFLectu USING :reg.numero_cliente,
+                                             :lCorrFactuAux;
                                              
    if(SQLCODE != 0){
       printf("Error al buscar ultima lectura para el cliente %ld correlativo %d\n", reg.numero_cliente, reg.corr_facturacion);
-      strcpy(sFLectu, reg.fecha_alta);
+      return;
    }else{
-      rfmtdate(lFLectu, "yyyymmdd", sFLectu);
+      rdefmtdate(&lFLectu, "yyyymmdd", sFLectu); /*char to long*/
+      /*rfmtdate(lFLectu, "yyyymmdd", sFLectu);*/
    }
+
+   $BEGIN WORK;
+   
+   $EXECUTE updPivote USING :lFLectu, :reg.numero_cliente;
+   
+   $COMMIT WORK;
    
    return sFLectu;
+}
+
+void UpdMoveIn(reg)
+$ClsAltas   reg;
+{
+   $long lFLectu;
+   
+   rdefmtdate(&lFLectu, "yyyymmdd", reg.fecha_alta); /*char to long*/
+   
+   $BEGIN WORK;
+   
+   $EXECUTE updMoveIn USING :lFLectu, :reg.numero_cliente;
+   
+   $COMMIT WORK;
+
 }
 
 /****************************

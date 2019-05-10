@@ -77,7 +77,10 @@ int            iCantCtas;
 int      iIndexFile;
 long     lCliFile;
 int      iNumFactuClie;
-long     iTopeFile=300000;
+long     iTopeFile=100000;
+int      iCantCuadros;
+$char    tipoCargoTarifa[2];
+int      iFila;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -97,15 +100,15 @@ long     iTopeFile=300000;
 	
 	CreaPrepare();
 
-/*
+
 	$EXECUTE selFechaLimInf into :lFechaLimiteInferior;
-		
+/*		
 	$EXECUTE selCorrelativos into :iCorrelativos;
-*/
+
    $EXECUTE selFechaRti INTO :lFechaRti;
-   
+*/   
    if(SQLCODE != 0){
-      printf("No se logró recuperar fecha RTI\n");
+      printf("No se logró recuperar fecha Limite Inferior\n");
       exit(2);
    }
    	
@@ -123,12 +126,12 @@ long     iTopeFile=300000;
 	cantProcesada=0;
 	cantPreexistente=0;
    iCantCtas=0;
-   
+/*   
    if(!CargarCtas(&(regCtas), &iCantCtas)){
       printf("Aborto Proceso por no poder cargar las cuentas y agrupaciones\n");
       exit(2);
    }
-
+*/
 	/*********************************************
 				AREA CURSOR PPAL
 	**********************************************/
@@ -166,27 +169,50 @@ long     iTopeFile=300000;
                sprintf(regCliente.cod_agrupa, "T1%ld", regCliente.numero_cliente);
                               
              if(regCliente.corr_facturacion > 0){
-                $OPEN curHisfac USING :regCliente.numero_cliente, :lFechaRti;
+                $OPEN curHisfac USING :regCliente.numero_cliente, :lFechaLimiteInferior;
                 iNumFactuClie=1;
                 while(LeoFacturasCabe(&regFactuCabe, iNumFactuClie)){
+                   iCantCuadros=0;
                    Calculos(&regFactuCabe);
                 
                    /* Generacion de plano cabecera */
                    GenerarCabecera(regCliente, regFactuCabe);
                    
                    if(regFactuCabe.indica_refact[0]=='S'){
-                      $OPEN curCarfacAux USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :regFactuCabe.consumo_sum;
+                      $OPEN curCarfacAux USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :regFactuCabe.lFechaLectura, :regFactuCabe.consumo_sum, :regFactuCabe.sTarifType;
                       iFlagRefacturada=1;            
                    }else{
-                      $OPEN curCarfac USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :regFactuCabe.consumo_sum;
+                      $OPEN curCarfac USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :regFactuCabe.lFechaLectura, :regFactuCabe.consumo_sum, :regFactuCabe.sTarifType;
                       iFlagRefacturada=0;
                    }
                    iNx=1;    
                    while(LeoFacturasDeta(regFactuCabe, &regFactuDeta, iFlagRefacturada)){
                       /* Generacion de plano Detalle  */
+                      iCantCuadros=getCantCuadros(regFactuCabe);
+                      if(iCantCuadros==1 || regFactuCabe.indica_refact[0]=='S'){
+                        GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, 0, iNx);
+                      }else{
+                        memset(tipoCargoTarifa, '\0', sizeof(tipoCargoTarifa));
+                        strcpy(tipoCargoTarifa, getTipoCargoTarifa(regFactuDeta.codigo_cargo));
+                        
+                        if(tipoCargoTarifa[0]!= '9'){
+                           $OPEN curDetVal USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa;
+                           iFila=1;
+                           while(LeoDetVal(&regFactuDeta, iFila)){
+                              GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, 1, iNx);
+                              iFila++;
+                           }
+                           
+                           $CLOSE curDetVal;
+                        }else{
+                           GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, 0, iNx);
+                        }
+                      }
+/*                      
                      if(BuscaCuenta(regCliente, regFactuCabe, regCtas, iCantCtas, &regFactuDeta)){
                         GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, iNx);
-                     }                
+                     }
+*/                                     
                    }
                    GeneraENDE(regFactuCabe, regFactuDeta, iNx);
                    
@@ -213,7 +239,7 @@ long     iTopeFile=300000;
              $COMMIT WORK;
 */            
    
-             if(iCliFile > iTopeFile){
+             if(lCliFile > iTopeFile){
                CerrarArchivos();
                FormateaArchivos(iIndexFile);
                iIndexFile++;
@@ -221,7 +247,7 @@ long     iTopeFile=300000;
          			exit(1);	
          		}
                
-               iCliFile=1
+               lCliFile=1;
              }          
              cantProcesada++;
          }else{
@@ -327,7 +353,7 @@ void MensajeParametros(void){
 
 short AbreArchivos(sSucur, indFile)
 char  sSucur[5];
-int   indFile
+int   indFile;
 {
 	
 	memset(sArchDocuCalcuUnx,'\0',sizeof(sArchDocuCalcuUnx));
@@ -362,7 +388,7 @@ void CerrarArchivos(void)
 }
 
 void FormateaArchivos(indFile)
-int   indFile
+int   indFile;
 {
 char	sCommand[1000];
 int		iRcv, i;
@@ -387,8 +413,10 @@ char	sPathCp[100];
 	sprintf(sCommand, "cp %s %s", sArchDocuCalcuUnx, sPathCp);
 	iRcv=system(sCommand);		
 
-   sprintf(sCommand, "rm %s", sArchDocuCalcuUnx);
-   iRcv=system(sCommand);
+   if(iRcv==0){
+      sprintf(sCommand, "rm %s", sArchDocuCalcuUnx);
+      iRcv=system(sCommand);
+   }
 }
 
 void CreaPrepare(void){
@@ -494,7 +522,9 @@ $char sAux[1000];
    strcat(sql, "hf.fecha_lectura, ");
    strcat(sql, "TRIM(sc.cod_ul_sap || lpad(hf.sector , 2, 0) ||  lpad(hf.zona,5,0)) unidad_lectura, "); 
    strcat(sql, "'000T1'|| lpad(hf.sector,2,0) || sc.cod_ul_sap porcion, ");
-   strcat(sql, "hl.tipo_lectura ");
+   strcat(sql, "hl.tipo_lectura, ");
+   strcat(sql, "t2.cod_sap, "); /* Tariftype */
+   strcat(sql, "hf.total_a_pagar ");
       
    strcat(sql, "FROM hislec hl, hisfac hf, sucur_centro_op sc ");
    strcat(sql, ", OUTER sap_transforma t2 ");
@@ -522,7 +552,7 @@ $char sAux[1000];
 	$DECLARE curHisfac CURSOR WITH HOLD FOR selHisfac;	
 
    /********** Fecha Lectura Anterior **********/
-	strcpy(sql, "SELECT TO_CHAR(MAX(fecha_lectura) + 1, '%Y%m%d') "); 
+	strcpy(sql, "SELECT TO_CHAR(MAX(fecha_lectura) + 1, '%Y%m%d'), fecha_lectura "); 
 	strcat(sql, "FROM hislec ");
 	strcat(sql, "WHERE numero_cliente = ? "); 
 	strcat(sql, "AND corr_facturacion = ? ");
@@ -555,6 +585,11 @@ $char sAux[1000];
    
    $PREPARE selRefac FROM $sql;
 
+   /*********** Total Factura ajustada **********/
+   $PREPARE selNvoTotal FROM "SELECT SUM(valor_cargo) FROM carfac_aux
+      WHERE numero_cliente = ? 
+      AND corr_facturacion = ? ";
+
    /************* Detalle Carfac ***************/
 /*   
 	strcpy(sql, "SELECT ca.codigo_cargo, ");
@@ -576,6 +611,39 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
 	strcat(sql, "ORDER BY 1 ASC ");
 
    $PREPARE selCarfac FROM $sql;
+
+   $PREPARE selCarfac FROM "SELECT ca.codigo_cargo,
+      ca.valor_cargo,
+      co.unidad,
+      TRIM(t.descripcion),
+      t.vonzone,
+      t.biszone,
+      TRIM(t.tariftyp),
+      TRIM(t.tarifnr),
+      TRIM(t.belzart),
+      t.preistip,
+      TRIM(t.massbill),
+      TRIM(t.preis),
+      t.zonennr,
+      TRIM(t.ein01),
+      TRIM(t.tvorg),
+      TRIM(t.gegen_tvorg),
+      TRIM(t.sno),
+      
+      t.preisbtr,
+      t.mngbasis,
+      TRIM(t.hvorg),
+      TRIM(t.operntrada),
+      TRIM(t.opersalida)
+      FROM carfac ca, codca co, sap_trafo_billdoc t 
+      WHERE ca.numero_cliente = ? 
+      AND ca.corr_facturacion = ? 
+      AND co.codigo_cargo = ca.codigo_cargo 
+      AND t.cod_cargo_mac = ca.codigo_cargo
+      AND ? BETWEEN t.fecha_desde AND t.fecha_hasta 
+      AND ? BETWEEN t.vonzone AND t.biszone
+      AND t.tariftyp = ?
+      ORDER BY 1 ASC";
 */
 
    $PREPARE selCarfac FROM "SELECT ca.codigo_cargo,
@@ -587,22 +655,27 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
       TRIM(t.tariftyp),
       TRIM(t.tarifnr),
       TRIM(t.belzart),
-      t.preistyp,
-      TRIM(t.massbill),
-      TRIM(t.preis),
+      t.preistip,
+      t.massbill,
+      t.preis,
       t.zonennr,
-      TRIM(t.ein01),
-      TRIM(t.tvorg),
-      TRIM(t.gegen_tvorg),
-      TRIM(t.sno)
+      t.ein01,
+      t.tvorg,
+      t.sno,
+      t.preisbtr,
+      t.mngbasis,
+      TRIM(t.hvorg),
+      TRIM(t.operentrada),
+      TRIM(t.opersalida)
       FROM carfac ca, codca co, sap_trafo_billdoc t 
       WHERE ca.numero_cliente = ? 
       AND ca.corr_facturacion = ? 
-      AND ca.codigo_cargo = '020' 
       AND co.codigo_cargo = ca.codigo_cargo 
-      AND t.cod_cargo_mac = ca.codigo_cargo 
+      AND t.cod_cargo_mac = ca.codigo_cargo
+      AND ? BETWEEN t.fecha_desde AND t.fecha_hasta 
       AND ? BETWEEN t.vonzone AND t.biszone
-      ORDER BY 1 ASC";
+      AND t.tariftyp = ?
+      ORDER BY 1 ASC ";
    
    $DECLARE curCarfac CURSOR FOR selCarfac; 
 
@@ -627,7 +700,6 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
 	strcat(sql, "ORDER BY 1 ASC ");
 
    $PREPARE selCarfacAux FROM $sql;
-*/
 
    $PREPARE selCarfacAux FROM "SELECT ca.codigo_cargo,
       ca.valor_cargo,
@@ -645,18 +717,107 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
       TRIM(t.ein01),
       TRIM(t.tvorg),
       TRIM(t.gegen_tvorg),
-      TRIM(t.sno)
+      TRIM(t.sno),
+
+      t.preisbtr,
+      t.mngbasis,
+      TRIM(t.hvorg),
+      TRIM(t.operntrada),
+      TRIM(t.opersalida)
+      
       FROM carfac_aux ca, codca co, sap_trafo_billdoc t 
       WHERE ca.numero_cliente = ? 
       AND ca.corr_facturacion = ? 
-      AND ca.codigo_cargo = '020' 
       AND co.codigo_cargo = ca.codigo_cargo 
       AND t.cod_cargo_mac = ca.codigo_cargo 
+      AND ? BETWEEN t.fecha_desde AND t.fecha_hasta 
       AND ? BETWEEN t.vonzone AND t.biszone
+      AND t.tariftyp = ?
+      
       ORDER BY 1 ASC";
+*/
+   $PREPARE selCarfacAux FROM "SELECT ca.codigo_cargo,
+      ca.valor_cargo,
+      co.unidad,
+      TRIM(t.descripcion),
+      t.vonzone,
+      t.biszone,
+      TRIM(t.tariftyp),
+      TRIM(t.tarifnr),
+      TRIM(t.belzart),
+      t.preistip,
+      t.massbill,
+      t.preis,
+      t.zonennr,
+      t.ein01,
+      t.tvorg,
+      t.sno,
+      t.preisbtr,
+      t.mngbasis,
+      TRIM(t.hvorg),
+      TRIM(t.operentrada),
+      TRIM(t.opersalida)
+      FROM carfac_aux ca, codca co, sap_trafo_billdoc t 
+      WHERE ca.numero_cliente = ? 
+      AND ca.corr_facturacion = ? 
+      AND co.codigo_cargo = ca.codigo_cargo 
+      AND t.cod_cargo_mac = ca.codigo_cargo
+      AND ? BETWEEN t.fecha_desde AND t.fecha_hasta 
+      AND ? BETWEEN t.vonzone AND t.biszone
+      AND t.tariftyp = ?
+      ORDER BY 1 ASC ";
       
    $DECLARE curCarfacAux CURSOR FOR selCarfacAux; 
 
+   /***** Cant Cuadros ******/
+   $PREPARE selCantCuadros FROM "SELECT COUNT(*)
+      FROM tacar t1, tramos t2
+      WHERE t1.codigo_cargo = '020'
+      AND t1.tarifa = ?
+      AND t2.codigo_valor=t1.codigo_valor
+      AND t2.nro_tramo=1
+      AND t2.fecha_aplicacion between
+      (SELECT MAX(t3.fecha_aplicacion) FROM tramos t3
+      WHERE t3.codigo_valor='020'
+      AND t3.fecha_aplicacion < ? 
+      AND t3.nro_tramo=1)
+      AND
+      (SELECT MIN(t4.fecha_aplicacion) FROM tramos t4
+      WHERE t4.codigo_valor='020'
+      AND t4.fecha_aplicacion > ?
+      AND t4.nro_tramo=1) ";
+
+   
+   /***** Desdoble tarifario *****/
+   $PREPARE selDetVal FROM "SELECT dt1.corr_precio, 
+      dt1.duracion_periodo, 
+      dt1.precio_unitario, 
+      dt1.precio_ponderado, 
+      dt1.tipo_cuadro, 
+      dt1.fecha_desde, 
+      dt1.fecha_hasta, 
+      dt1.consumo
+      FROM det_val_tarifas dt1
+      WHERE dt1.numero_cliente = ?
+      AND dt1.corr_facturacion = ?
+      AND dt1.tipo_cargo_tarifa = ?
+      UNION
+      SELECT dt2.corr_precio, 
+      dt2.duracion_periodo, 
+      dt2.precio_unitario, 
+      dt2.precio_ponderado, 
+      dt2.tipo_cuadro, 
+      dt2.fecha_desde, 
+      dt2.fecha_hasta, 
+      dt2.consumo
+      FROM det_val_tarifas_hist dt2
+      WHERE dt2.numero_cliente = ?
+      AND dt2.corr_facturacion = ?
+      AND dt2.tipo_cargo_tarifa = ?
+      ORDER BY 1 ASC ";
+   
+   $DECLARE curDetVal CURSOR FOR selDetVal;
+      
 	/********* Select Corporativo T23 **********/
 	strcpy(sql, "SELECT NVL(cod_corporativo, '000') FROM mg_corpor_t23 ");
 	strcat(sql, "WHERE numero_cliente = ? ");
@@ -748,6 +909,9 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
 	strcat(sql, "AND t.fecha_activacion <= TODAY ");
 	strcat(sql, "AND (t.fecha_desactivac IS NULL OR t.fecha_desactivac > TODAY) ");
 		
+	strcpy(sql, "SELECT fecha_pivote FROM sap_regi_cliente ");
+	strcat(sql, "WHERE numero_cliente = 0 ");
+      
 	$PREPARE selFechaLimInf FROM $sql;
 
 	/*********** Correlativos Hacia Atras ***********/		
@@ -795,20 +959,23 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
       AND ? BETWEEN vonzone AND biszone ";
       
    /******** Busca Inicio Ventana  (Adatsoll) *********/
-   $PREPARE selIniVentana1 FROM "SELECT MIN(inicio_ventana) FROM sap_agenda
+   $PREPARE selIniVentana1 FROM "SELECT anio_periodo || '/' || periodo, MIN(inicio_ventana) FROM sap_agenda
       WHERE porcion = ?
       AND ul = ?
-      AND ? BETWEEN inicio_ventana AND fin_ventana ";
+      AND ? BETWEEN inicio_ventana AND fin_ventana 
+      GROUP BY 1 ";
 		
-   $PREPARE selIniVentana2 FROM "SELECT MAX(inicio_ventana) FROM sap_agenda
+   $PREPARE selIniVentana2 FROM "SELECT anio_periodo || '/' || periodo, MAX(inicio_ventana) FROM sap_agenda
       WHERE porcion = ?
       AND ul = ?
-      AND inicio_ventana <= ? ";
+      AND inicio_ventana <= ?
+      GROUP BY 1 ";
 
-   $PREPARE selIniVentana3 FROM "SELECT MIN(inicio_ventana) FROM sap_agenda
+   $PREPARE selIniVentana3 FROM "SELECT anio_periodo || '/' || periodo, MIN(inicio_ventana) FROM sap_agenda
       WHERE porcion = ?
       AND ul = ?
-      AND inicio_ventana > ? ";
+      AND inicio_ventana > ?
+      GROUP BY 1 ";
    
       
 }
@@ -956,7 +1123,9 @@ int         iFactu;
       :regFactu->lFechaLectura,
       :regFactu->cod_ul,
       :regFactu->cod_porcion,
-      :regFactu->iTipoLectura;
+      :regFactu->iTipoLectura,
+      :regFactu->sTarifType,
+      :regFactu->totalAPagar;
       
 
    if(SQLCODE != 0){
@@ -968,29 +1137,29 @@ int         iFactu;
    alltrim(regFactu->cod_ul, ' ');
    alltrim(regFactu->cod_porcion, ' ');
    
-   if(iTipoLectura == 8 && iFactu != 1){
-      $EXECUTE selIniVentana3 INTO :regFactu->lFechaIniVentana USING
+   if(regFactu->iTipoLectura == 8 && iFactu != 1){
+      $EXECUTE selIniVentana3 INTO :regFactu->sPeriodo, :regFactu->lFechaIniVentana USING
             :regFactu->cod_porcion,
             :regFactu->cod_ul,
             :lFechaAux;
          
-      if(SQLCODE != 0 || strcmp(regFactu->lFechaIniVentana,"")==0){
+      if(SQLCODE != 0 || risnull(CLONGTYPE, (char *) &regFactu->lFechaIniVentana)){
          printf("No se encontró fecha ini ventana para cliente %ld Porcion %s UL %s Fecha Lectura %ld lectura tipo 8\n", regFactu->numero_cliente, regFactu->cod_porcion, regFactu->cod_ul, lFechaAux);
       }      
    
    }else{
-      $EXECUTE selIniVentana1 INTO :regFactu->lFechaIniVentana USING
+      $EXECUTE selIniVentana1 INTO :regFactu->sPeriodo, :regFactu->lFechaIniVentana USING
             :regFactu->cod_porcion,
             :regFactu->cod_ul,
             :lFechaAux;
          
-      if(SQLCODE != 0 || strcmp(regFactu->lFechaIniVentana,"")==0){
-         $EXECUTE selIniVentana2 INTO :regFactu->lFechaIniVentana USING
+      if(SQLCODE != 0 || risnull(CLONGTYPE, (char *) &regFactu->lFechaIniVentana)){
+         $EXECUTE selIniVentana2 INTO :regFactu->sPeriodo, :regFactu->lFechaIniVentana USING
             :regFactu->cod_porcion,
             :regFactu->cod_ul,
             :lFechaAux;
    
-         if(SQLCODE != 0 || strcmp(regFactu->lFechaIniVentana,"")==0){
+         if(SQLCODE != 0 || risnull(CLONGTYPE, (char *) &regFactu->lFechaIniVentana)){
             printf("No se encontró fecha ini ventana para cliente %ld Porcion %s UL %s Fecha Lectura %ld intento 2\n", regFactu->numero_cliente, regFactu->cod_porcion, regFactu->cod_ul, lFechaAux);
          }      
       }      
@@ -1006,12 +1175,33 @@ int         iFactu;
          printf("Error al buscar refacturada para cliente %ld Correlativo %d\n", regFactu->numero_cliente, regFactu->corr_facturacion);
          return 0;
       }
+      
+      if(!TraeNvoTotal(regFactu)){
+         printf("Error al buscar Total de factura refacturada para cliente %ld Correlativo %d\n", regFactu->numero_cliente, regFactu->corr_facturacion);
+         return 0;
+      }
    }
+  
   
    alltrim(regFactu->tipo_tarifa, ' ');
    alltrim(regFactu->tipo_iva, ' ');
    alltrim(regFactu->cdc, ' ');
+   alltrim(regFactu->sTarifType, ' ');
    
+   return 1;
+}
+
+short TraeNvoTotal(reg)
+$ClsHisfac *reg;
+{
+   $EXECUTE selNvoTotal INTO :reg->totalAPagar
+      USING :reg->numero_cliente,
+            :reg->corr_facturacion;
+            
+   if(SQLCODE != 0){
+      return 0;
+   }
+
    return 1;
 }
 
@@ -1042,11 +1232,14 @@ $ClsHisfac  *regFactu;
   memset(regFactu->clase_servicio, '\0', sizeof(regFactu->clase_servicio));
   memset(regFactu->cdc, '\0', sizeof(regFactu->cdc));
 
-  rsetnull(CDOUBLETYPE, (char *) &(regFactu->lFechaLectura));
+  rsetnull(CLONGTYPE, (char *) &(regFactu->lFechaLectura));
   memset(regFactu->cod_ul, '\0', sizeof(regFactu->cod_ul));
   memset(regFactu->cod_porcion, '\0', sizeof(regFactu->cod_porcion));
-  rsetnull(CDOUBLETYPE, (char *) &(regFactu->lFechaIniVentana));
-  
+  rsetnull(CLONGTYPE, (char *) &(regFactu->lFechaIniVentana));
+  memset(regFactu->sTarifType, '\0', sizeof(regFactu->sTarifType));
+  memset(regFactu->sPeriodo, '\0', sizeof(regFactu->sPeriodo));
+  rsetnull(CDOUBLETYPE, (char *) &(regFactu->totalAPagar));
+  rsetnull(CLONGTYPE, (char *) &(regFactu->lFechaLecturaAnterior));  
 }
 
 short getFechaLectuAnterior(regFactu)
@@ -1056,7 +1249,7 @@ $ClsHisfac  *regFactu;
    
    iCorrFactuAnterior = regFactu->corr_facturacion - 1;
 
-   $EXECUTE selLecturaAnt INTO :regFactu->fecha_lectura_anterior
+   $EXECUTE selLecturaAnt INTO :regFactu->fecha_lectura_anterior, :regFactu->lFechaLecturaAnterior
       USING :regFactu->numero_cliente,
             :regFactu->corr_facturacion;
             
@@ -1135,8 +1328,12 @@ int         iFlagR;
         :regDeta->zonennr,
         :regDeta->ein01,
         :regDeta->tvorg,
-        :regDeta->gegen_tvorg,
-        :regDeta->sno;
+        :regDeta->sno,
+        :regDeta->preisbtr,
+        :regDeta->mngbasis,
+        :regDeta->hvorg,
+        :regDeta->operentrada,
+        :regDeta->opersalida;
 
    }else{
       $FETCH curCarfacAux INTO
@@ -1155,19 +1352,23 @@ int         iFlagR;
         :regDeta->zonennr,
         :regDeta->ein01,
         :regDeta->tvorg,
-        :regDeta->gegen_tvorg,
-        :regDeta->sno;
+        :regDeta->sno,
+        :regDeta->preisbtr,
+        :regDeta->mngbasis,
+        :regDeta->hvorg,
+        :regDeta->operentrada,
+        :regDeta->opersalida;
 
    }
 
    if(SQLCODE != 0){
       return 0;
    }
-   
+/*   
    if(!getPrecioUnitario(regFactu, regDeta)){
       return 0;
    }
-
+*/
    alltrim(regDeta->codigo_cargo, ' ');
    alltrim(regDeta->unidad, ' ');
    alltrim(regDeta->descripcion, ' ');
@@ -1180,6 +1381,10 @@ int         iFlagR;
    alltrim(regDeta->tvorg, ' ');
    alltrim(regDeta->gegen_tvorg, ' ');
    alltrim(regDeta->sno, ' ');
+   
+   alltrim(regDeta->hvorg, ' ');
+   alltrim(regDeta->operentrada, ' ');
+   alltrim(regDeta->opersalida, ' ');
 
    
    return 1;
@@ -1226,7 +1431,13 @@ $ClsDetalle *regDeta;
    memset(regDeta->tvorg, '\0', sizeof(regDeta->tvorg));   
 
    memset(regDeta->gegen_tvorg, '\0', sizeof(regDeta->gegen_tvorg));
-   memset(regDeta->sno, '\0', sizeof(regDeta->sno));   
+   memset(regDeta->sno, '\0', sizeof(regDeta->sno));
+   
+   rsetnull(CDOUBLETYPE, (char *) &(regDeta->preisbtr));
+   rsetnull(CINTTYPE, (char *) &(regDeta->mngbasis));
+   memset(regDeta->hvorg, '\0', sizeof(regDeta->hvorg));   
+   memset(regDeta->operentrada, '\0', sizeof(regDeta->operentrada));
+   memset(regDeta->opersalida, '\0', sizeof(regDeta->opersalida));
 
 }
 
@@ -1305,7 +1516,7 @@ ClsHisfac      regFactu;
    memset(sTipoFpago, '\0', sizeof(sTipoFpago));
    memset(sADATSOLL, '\0', sizeof(sADATSOLL));
 
-   rfmtdate(regFactu.lFechaIniVentana, "yyyymmdd", sADATSOLL)
+   rfmtdate(regFactu.lFechaIniVentana, "yyyymmdd", sADATSOLL);
    
    /* Armo el ID de la factura */   
    if(strcmp(regFactu.tipo_iva, "RIN")==0 || strcmp(regFactu.tipo_iva, "RM")==0 ){
@@ -1335,7 +1546,12 @@ ClsHisfac      regFactu;
 
   strcat(sLinea, "\n");
 
-  fprintf(pFileUnx, sLinea);
+  iRcv=fprintf(pFileUnx, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir HEAD\n");
+      exit(1);
+   }	
+
   
   /* el ENDE*/
 /*  
@@ -1356,10 +1572,10 @@ ClsHisfac      regFactu;
   sprintf(sLinea, "T1%ld-%ldERCH\t", regClie.numero_cliente, regFactu.corr_facturacion);
 
   /* VERTRAG */
-  sprintf(sLinea, "%sT1%ld\t", sLinea, regClie.numero_cliente);
+  /*sprintf(sLinea, "%sT1%ld\t", sLinea, regClie.numero_cliente);*/
 
   /* BELNR nuevo */
-  strcat(sLinea, "\t");
+  /*strcat(sLinea, "\t");*/
   
   /* BUKRS */
   strcat(sLinea, "EDES\t");
@@ -1457,9 +1673,11 @@ ClsHisfac      regFactu;
   }
 
   /* BILLING_PERIOD nuevo */
-  strcat(sLinea, "\t");
+  sprintf(sLinea, "%s%s\t", sLinea, regFactu.sPeriodo);
+
   
   /* ZZTOTAL_AMNT nuevo */
+  sprintf(sLinea, "%s%.02f", sLinea, regFactu.totalAPagar);  
   strcat(sLinea, "");
   
   
@@ -1472,7 +1690,12 @@ ClsHisfac      regFactu;
   /* ----------------- */ 
   strcat(sLinea, "\n");
 
-  fprintf(pFileUnx, sLinea);
+  iRcv=fprintf(pFileUnx, sLinea);
+   if(iRcv < 0){
+      printf("Error al escribir ERCH\n");
+      exit(1);
+   }	
+  
   
   /* el ENDE*/
   memset(sLinea, '\0', sizeof(sLinea));
@@ -1484,21 +1707,23 @@ ClsHisfac      regFactu;
   iRcv=fprintf(pFileUnx, sLinea);
   
    if(iRcv < 0){
-      printf("Error al escribir Cabecera\n");
+      printf("Error al escribir ERCH\n");
       exit(1);
    }	
 
 }
 
-void GenerarDetalle(regClie, regFactu, regDeta, inx)
+void GenerarDetalle(regClie, regFactu, regDeta, iModo, inx)
 ClsCliente     regClie;
 ClsHisfac      regFactu;
 ClsDetalle     regDeta;
+int            iModo;
 int            inx;
 {
    char  sLinea[1000];
    int   iMarca;
-   
+   int   iRcv;
+      
    memset(sLinea, '\0', sizeof(sLinea));
    iMarca=0;
       
@@ -1523,16 +1748,25 @@ int            inx;
    sprintf(sLinea, "%s%s\t", sLinea, regDeta.tvorg);
 
    /* AB (????)*/
-   sprintf(sLinea, "%s%s\t", sLinea, regFactu.fecha_lectura_anterior);
+   if(iModo==0){
+      sprintf(sLinea, "%s%s\t", sLinea, regFactu.fecha_lectura_anterior);
+   }else{
+      sprintf(sLinea, "%s%s\t", sLinea, regDeta.sFechaDesde);   
+   }
 
    /* BIS (????)*/
-   sprintf(sLinea, "%s%s\t", sLinea, regFactu.fecha_lectura);
+   if(iModo==0){
+      sprintf(sLinea, "%s%s\t", sLinea, regFactu.fecha_lectura);
+   }else{
+      sprintf(sLinea, "%s%s\t", sLinea, regDeta.sFechaHasta);   
+   }
 
    /* SNO (????)*/
    sprintf(sLinea, "%s%s\t", sLinea, regDeta.sno);
    
    /* MASSBILL */
-   sprintf(sLinea, "%s%s\t", sLinea, regDeta.unidad);
+   /*sprintf(sLinea, "%s%s\t", sLinea, regDeta.unidad);*/
+   sprintf(sLinea, "%s%s\t", sLinea, regDeta.massbill);
 
    /* TARIFTYP */
    sprintf(sLinea, "%s%s\t", sLinea, regDeta.tariftyp);
@@ -1564,7 +1798,7 @@ int            inx;
    sprintf(sLinea, "%s%d\t", sLinea, regDeta.zonennr);
 
    /* PREISBTR */
-   sprintf(sLinea, "%s%.2f\t", sLinea, regDeta.precio_unitario);
+   sprintf(sLinea, "%s%.2f\t", sLinea, regDeta.preisbtr);
 
    /* I_ZWSTAND */
    strcat(sLinea, "0\t");
@@ -1617,18 +1851,20 @@ ClsHisfac   regFactu;
 ClsDetalle  regDeta;
 int         inx;
 {
-	char	sLinea[1000];	
+	char	sLinea[1000];
+   int   iRcv;	
 
 	memset(sLinea, '\0', sizeof(sLinea));
 	
-   sprintf(sLinea, "T1%ld-%ld-%s-%&ENDE", regFactu.numero_cliente, regFactu.corr_facturacion, regDeta.clase_pos_doc, inx);
+   /*sprintf(sLinea, "T1%ld-%ld-%s-%d&ENDE", regFactu.numero_cliente, regFactu.corr_facturacion, regDeta.clase_pos_doc, inx);*/
+   sprintf(sLinea, "T1%ld-%ld-%d&ENDE", regFactu.numero_cliente, regFactu.corr_facturacion, inx);
    
 	strcat(sLinea, "\n");
 	
 	iRcv = fprintf(pFileUnx, sLinea);
    
    if(iRcv < 0){
-      printf("Error al escribir Detalle\n");
+      printf("Error al escribir ENDE de Detalle\n");
       exit(1);
    }	
    	
@@ -1785,7 +2021,7 @@ ClsDetalle  *regDeta;
    
    strcat(sCta, sCtaAux);
 
-   strcpy(regDeta->ctaContable, sCta);
+   /*strcpy(regDeta->ctaContable, sCta);*/
       
    return 1;
 }
@@ -1906,6 +2142,94 @@ char  sFechaVto[9];
    }
 
    return exige;
+}
+
+int getCantCuadros(reg)
+$ClsHisfac reg;
+{
+   $int iRcv;
+   
+   $EXECUTE selCantCuadros INTO :iRcv
+      USING :reg.tarifa, :reg.lFechaLecturaAnterior, :reg.lFechaLecturaAnterior;
+      
+   if(SQLCODE != 0){
+      return 1;
+   }else{
+      return iRcv;
+   } 
+
+   return 1;
+}
+
+char *getTipoCargoTarifa(cargo)
+char  cargo[4];
+{
+   char  sValor[2];
+   
+   memset(sValor, '\0', sizeof(sValor));
+   
+   if(strcmp(cargo, "020")==0){
+      strcpy(sValor,"A");
+   }else if(strcmp(cargo, "030")==0){
+      strcpy(sValor,"B");
+   }else{
+      strcpy(sValor,"9");
+   }
+
+   return sValor;
+}
+
+short LeoDetVal(regDeta, i)
+ClsDetalle  *regDeta;
+int         i;
+{
+$ClsDetVal reg;
+
+   InicializaDetVal(&reg);
+     
+   $FETCH curDetVal INTO
+      :reg.corr_precio,
+      :reg.duracion_periodo, 
+      :reg.precio_unitario,
+      :reg.precio_ponderado, 
+      :reg.tipo_cuadro, 
+      :reg.fecha_desde, 
+      :reg.fecha_hasta, 
+      :reg.consumo;
+
+   if(SQLCODE != 0){
+      return 0;
+   }
+      
+   memset(regDeta->sFechaDesde, '\0', sizeof(regDeta->sFechaDesde));
+   memset(regDeta->sFechaHasta, '\0', sizeof(regDeta->sFechaHasta));
+   
+   if(i==1){
+      reg.fecha_hasta=reg.fecha_hasta+1;
+   }
+   
+   rfmtdate(reg.fecha_desde, "yyyymmdd", regDeta->sFechaDesde); /* long to char */ 
+   rfmtdate(reg.fecha_hasta, "yyyymmdd", regDeta->sFechaHasta); /* long to char */
+   regDeta->valor_cargo = reg.precio_ponderado;
+   regDeta->preisbtr = reg.precio_unitario;
+   
+   return 1;
+}
+
+
+void InicializaDetVal(reg)
+ClsDetVal   *reg;
+{
+
+   rsetnull(CINTTYPE, (char *) &(reg->corr_precio));
+   rsetnull(CINTTYPE, (char *) &(reg->duracion_periodo));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->precio_unitario));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->precio_ponderado));
+   rsetnull(CINTTYPE, (char *) &(reg->tipo_cuadro));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_desde));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_hasta));
+   rsetnull(CLONGTYPE, (char *) &(reg->consumo));
+
 }
 
 /****************************

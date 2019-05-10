@@ -627,8 +627,13 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 */
 
 	strcpy(sql, "SELECT h.corr_facturacion, ");
+/*   
 	strcat(sql, "h2.fecha_lectura - 1, ");
 	strcat(sql, "TO_CHAR(h2.fecha_lectura - 1, '%Y%m%d'), ");
+*/
+	strcat(sql, "h2.fecha_lectura + 1, ");
+	strcat(sql, "TO_CHAR(h2.fecha_lectura + 1, '%Y%m%d'), ");
+   
 	strcat(sql, "CASE ");
    strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
@@ -706,7 +711,7 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 
 	/*********Insert Clientes extraidos **********/
 	strcpy(sql, "INSERT INTO sap_regi_cliente ( ");
-	strcat(sql, "numero_cliente, modif ");
+	strcat(sql, "numero_cliente, modif, cant_cha ");
 	strcat(sql, ")VALUES(?, 'S', ?) ");
 	
 	$PREPARE insClientesMigra FROM $sql;

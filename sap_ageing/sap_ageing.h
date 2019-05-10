@@ -61,6 +61,7 @@ double LeeSaldoTasa( long );
 void   LlenaArrSaldosImpuestos(TDsaldosImpuestos *, double *, double *);
 
 short delIndexFile(void);
-short setIndexFile(long, fpos_t);
+short setIndexFile(long, fpos_t, int);
+short AbreOtroArchivo(void);
 
 EXEC SQL endif;

@@ -67,6 +67,7 @@ typedef struct{
    char  BUDAT[11];
    char  OPTXT[61];
    char  FAEDN[11];
+   char  STUDT[11];   
    char  BETRW[20];
    char  SBETW[20];
    char  AUGRS[2];
@@ -136,7 +137,7 @@ $typedef struct{
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
 void	MensajeParametros(void);
-short	AbreArchivos(char*);
+short	AbreArchivos(int);
 void  CreaPrepare(void);
 void 	FechaGeneracionFormateada( char *);
 void 	RutaArchivos( char*, char * );
@@ -180,6 +181,10 @@ void  GeneraENDE(FILE *, ClsCliente, int);
 void CopiaClienteToOp(ClsCliente, ClsOP *);
 void CopiaClienteToOpk(ClsCliente, double, ClsOPK *);
 void CopiaImpuToOp(ClsCliente, ClsImpuesto, ClsOP *);
+
+void  MueveGral(void);
+short AbreGral(int);
+short AbroAgeing(int);
 
 short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);

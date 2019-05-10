@@ -777,10 +777,10 @@ $char sAux[1000];
 	strcat(sql, "FROM hislec la, cliente c, hisfac h, medid m, OUTER sap_transforma t1, medidor me ");
 	strcat(sql, "WHERE la.numero_cliente = ? ");
 
-	strcat(sql, "AND la.fecha_lectura = (	SELECT MIN(h2.fecha_lectura) FROM hislec h2 ");
+	strcat(sql, "AND la.fecha_lectura = (	SELECT MAX(h2.fecha_lectura) FROM hislec h2 ");
 	strcat(sql, "   WHERE h2.numero_cliente = la.numero_cliente ");
-	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4,5, 8) "); 
-	strcat(sql, "   AND h2.fecha_lectura > ?) ");
+	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4,5) "); 
+	strcat(sql, "   AND h2.fecha_lectura < ?) ");
 
 /*
 	strcat(sql, "AND la.fecha_lectura = (	SELECT MIN(h2.fecha_lectura) FROM hislec h2 ");
@@ -791,7 +791,7 @@ $char sAux[1000];
 /*
    strcat(sql, "AND la.fecha_lectura = ? ");
 */
-	strcat(sql, "AND la.tipo_lectura IN (1,2,3,4,5,8) ");
+	strcat(sql, "AND la.tipo_lectura IN (1,2,3,4,5) ");
 	strcat(sql, "AND c.numero_cliente = la.numero_cliente ");
 	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND h.corr_facturacion = la.corr_facturacion ");

@@ -56,7 +56,10 @@ $typedef struct{
    char     cod_porcion[9];
    long     lFechaIniVentana;
    int      iTipoLectura;
-   
+   char     sTarifType[11];
+   char     sPeriodo[8];
+   double   totalAPagar;
+   long     lFechaLecturaAnterior;
 }ClsHisfac;
 
 $typedef struct{
@@ -78,6 +81,8 @@ $typedef struct{
   char     gegen_tvorg[5];
   char     mngbasis[2];
 */
+   char     tipo_cargo_tarifa[2];
+
   char      descripcion[51];
   long      vonzone;
   long      biszone;
@@ -92,6 +97,15 @@ $typedef struct{
   char      tvorg[6];
   char      gegen_tvorg[11];
   char      sno[11];
+  
+  double    preisbtr;
+  int       mngbasis;
+  char      hvorg[6];
+  char      operentrada[20];
+  char      opersalida[10];
+  
+  char      sFechaDesde[9];
+  char      sFechaHasta[9];
 }ClsDetalle;
 
 $typedef struct{
@@ -100,6 +114,17 @@ $typedef struct{
    char  agrupacion[4];
    char  descripcion[31];
 }ClsCtaAgrupa;
+
+$typedef struct{
+   int   corr_precio;
+   int   duracion_periodo; 
+   double   precio_unitario; 
+   double   precio_ponderado; 
+   int   tipo_cuadro; 
+   long  fecha_desde; 
+   long  fecha_hasta; 
+   long  consumo;
+}ClsDetVal;
 
 
 /* Prototipos de Funciones */
@@ -131,12 +156,18 @@ void  InicializaFacturasCabe(ClsHisfac *);
 short getFechaLectuAnterior(ClsHisfac *);
 void  Calculos(ClsHisfac *);
 short TraeRefacturada(ClsHisfac *);
+short TraeNvoTotal(ClsHisfac *);
 short LeoFacturasDeta(ClsHisfac, ClsDetalle *, int);
 void  InicializaDetalle(ClsDetalle *);
 short getPrecioUnitario(ClsHisfac, ClsDetalle *);
 
+int   getCantCuadros(ClsHisfac);
+char  *getTipoCargoTarifa(char *);
+short LeoDetVal(ClsDetalle *, int);
+void  InicializaDetVal(ClsDetVal *);
+
 void  GenerarCabecera(ClsCliente, ClsHisfac);
-void  GenerarDetalle(ClsCliente, ClsHisfac, ClsDetalle, int);
+void  GenerarDetalle(ClsCliente, ClsHisfac, ClsDetalle, int, int);
 void  GeneraENDE(ClsHisfac, ClsDetalle, int);
 
 short	RegistraArchivo(void);
