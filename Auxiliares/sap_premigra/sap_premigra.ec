@@ -109,7 +109,9 @@ long        lFechaValTarifa;
    strcpy(sFechaValTarifa, "01-12-2014");
    rdefmtdate(&lFechaValTarifa, "dd-mm-yyyy", sFechaValTarifa);   
 
-   strcpy(sFechaPivoteAux, "12-08-2017");
+   /*strcpy(sFechaPivoteAux, "12-08-2017");*/
+   /*strcpy(sFechaPivoteAux, "12-02-2018");*/
+   strcpy(sFechaPivoteAux, "12-01-2018");
    rdefmtdate(&lFechaPivote, "dd-mm-yyyy", sFechaPivoteAux);   
    /*$EXECUTE selFechaPivote INTO :lFechaPivote;*/
 
@@ -127,55 +129,64 @@ long        lFechaValTarifa;
 	$OPEN curClientes;
 	
 	while(LeoCliente(&regCliente)){
-      InicializaEstado(&regEstado);
-      
-      regEstado.numero_cliente = regCliente.numero_cliente;
-      regEstado.lFechaPivote = lFechaPivote;
-
-      /* Fecha Alta Real */
-      regEstado.lFechaAlta = getAlta(regCliente);
-      
-      /* Fecha Validez de Tarifa */
-      /* Ahora será una constante
-      regEstado.lFechaValTar = getValTar(regCliente);
-      */
-      regEstado.lFechaValTar = lFechaValTarifa;
-      
-      /* Fecha Move In */
-      regEstado.lFechaMoveIn = getMoveIn(regCliente, regEstado.lFechaAlta);
-      
-      /* Tarifa - UL y Motivo Alta */
-      CargaEstados(regCliente, &regEstado);
-      
-      /* Grabar */
-      $BEGIN WORK;
-      
-      if(!GrabaEstados(regEstado)){
-         printf("No se grabo los estados para cliente %ld\n", regEstado.numero_cliente);
-      }
-       
-      $COMMIT WORK;
-			
-      cantProcesada++;
-      cantBloque++;
-      
-      if(cantBloque == 100000){
-      	hora = time(&hora);
-         printf("\tLlevo %ld Clientes. Hora Actual %s\n", cantProcesada, ctime(&hora));
-         cantBloque=0;
+      if(!ClienteEsta(regCliente.numero_cliente)){
+         InicializaEstado(&regEstado);
+         
+         regEstado.numero_cliente = regCliente.numero_cliente;
+         regEstado.lFechaPivote = lFechaPivote;
+   
+         /* Fecha Alta Real */
+         regEstado.lFechaAlta = getAlta(regCliente);
+         
+         /* Fecha Validez de Tarifa */
+         /* Ahora será una constante
+         regEstado.lFechaValTar = getValTar(regCliente);
+         */
+         regEstado.lFechaValTar = lFechaValTarifa;
+         
+         /* Fecha Move In */
+         regEstado.lFechaMoveIn = getMoveIn(regCliente, regEstado.lFechaAlta);
+         
+         if(regEstado.lFechaMoveIn <= regEstado.lFechaAlta )
+            regEstado.lFechaAlta = regEstado.lFechaMoveIn - 1;
+         
+         /* Tarifa - UL y Motivo Alta */
+         CargaEstados(regCliente, &regEstado);
+         
+         /* Grabar */
+         $BEGIN WORK;
+         
+         if(!GrabaEstados(regEstado)){
+            printf("No se grabo los estados para cliente %ld\n", regEstado.numero_cliente);
+         }
+          
+         $COMMIT WORK;
+   			
+         cantProcesada++;
+         cantBloque++;
+/*         
+         if(cantBloque == 100000){
+         	hora = time(&hora);
+            printf("\tLlevo %ld Clientes. Hora Actual %s\n", cantProcesada, ctime(&hora));
+            cantBloque=0;
+         }
+*/         
       }
 	}
-   if(giTipoCorrida != 2){   
-      $BEGIN WORK;
-      if(giTipoTabla == 0){   
-         $EXECUTE insParam USING :lFechaPivote, :lFechaLimiteInferior;
-      }else{
-         $EXECUTE insParamAux USING :lFechaPivote, :lFechaLimiteInferior;
+   
+   if(giEstadoCliente==0){
+      if(giTipoCorrida != 2){   
+         $BEGIN WORK;
+         if(giTipoTabla == 0){   
+            $EXECUTE insParam USING :lFechaPivote, :lFechaLimiteInferior;
+         }else{
+            $EXECUTE insParamAux USING :lFechaPivote, :lFechaLimiteInferior;
+         }
+      
+         $COMMIT WORK;
       }
-   
-      $COMMIT WORK;
    }
-   
+      
 	$CLOSE curClientes;
 
 	$CLOSE DATABASE;
@@ -215,18 +226,38 @@ long        lFechaValTarifa;
 	exit(0);
 }	
 
+short ClienteEsta(lNroCliente)
+$long lNroCliente;
+{
+   $int iValor;
+   
+   $EXECUTE selExiste INTO :iValor USING :lNroCliente;
+   
+   if(SQLCODE != 0){
+      printf("Fallo verificación cliente %ld\n", lNroCliente);
+      return 0;
+   }
+   
+   if(iValor > 0)
+      return 1;
+      
+   return 0;
+}
+
+
 short AnalizarParametros(argc, argv)
 int		argc;
 char	* argv[];
 {
 
-	if(argc != 4){
+	if(argc != 5){
 		MensajeParametros();
 		return 0;
 	}
 	
    giTipoCorrida=atoi(argv[2]);
    giTipoTabla=atoi(argv[3]);
+   giEstadoCliente=atoi(argv[4]);
    
 	return 1;
 }
@@ -236,6 +267,7 @@ void MensajeParametros(void){
 		printf("	<Base> = synergia.\n");
       printf("	<Univ.> 0=Total, 1=Reducida, 2=Actualiza \n");
       printf(" <Modo>  0=Normal, 1=Tabla Auxiliar\n");
+      printf(" <Estado Cliente>  0=Activo, 1=Inactivo\n");
 }
 
 
@@ -306,7 +338,15 @@ if(giTipoCorrida == 2){
    strcat(sql, ", sap_actuclie ma ");
 }
 
-	strcat(sql, "WHERE c.estado_cliente = 0 ");
+if(giEstadoCliente == 0){
+	  strcat(sql, "WHERE c.estado_cliente = 0 ");
+}else{
+      strcat(sql, ", sap_inactivos si, medid md ");
+      strcat(sql, "WHERE c.estado_cliente != 0 ");
+      strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
+      strcat(sql, "AND md.numero_cliente = c.numero_cliente ");
+      strcat(sql, "AND md.estado = 'I' ");
+}
 	strcat(sql, "AND c.tipo_sum != 5 ");
 
 if(giTipoCorrida == 1){
@@ -544,6 +584,9 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
       FROM medid
       WHERE numero_cliente = ?
       AND estado = 'I' ";
+   
+   /* Cliente PreExistente */
+   $PREPARE selExiste FROM "SELECT COUNT(*) FROM sap_regi_cliente WHERE numero_cliente = ? ";
    
 }
 

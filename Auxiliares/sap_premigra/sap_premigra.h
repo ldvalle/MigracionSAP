@@ -62,6 +62,8 @@ long  getMoveIn(ClsCliente, long);
 void  CargaEstados(ClsCliente, ClsEstado *);
 short GrabaEstados(ClsEstado);
 char  *getMedidor(long);
+short ClienteEsta(long);
+
 /*
 short   LeoInstalacion(ClsInstalacion *);
 void    InicializaInstalacion(ClsInstalacion *);
