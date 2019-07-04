@@ -110,8 +110,8 @@ long        lFechaValTarifa;
    rdefmtdate(&lFechaValTarifa, "dd-mm-yyyy", sFechaValTarifa);   
 
    /*strcpy(sFechaPivoteAux, "12-08-2017");*/
-   /*strcpy(sFechaPivoteAux, "12-02-2018");*/
-   strcpy(sFechaPivoteAux, "12-01-2018");
+   strcpy(sFechaPivoteAux, "12-02-2018");
+   /*strcpy(sFechaPivoteAux, "12-01-2018");*/
    rdefmtdate(&lFechaPivote, "dd-mm-yyyy", sFechaPivoteAux);   
    /*$EXECUTE selFechaPivote INTO :lFechaPivote;*/
 
@@ -149,7 +149,7 @@ long        lFechaValTarifa;
          
          if(regEstado.lFechaMoveIn <= regEstado.lFechaAlta )
             regEstado.lFechaAlta = regEstado.lFechaMoveIn - 1;
-         
+
          /* Tarifa - UL y Motivo Alta */
          CargaEstados(regCliente, &regEstado);
          
@@ -438,7 +438,7 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
 	strcat(sql, "FROM hislec h1 ");
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
 	strcat(sql, "AND h1.fecha_lectura >= ? ");
-	strcat(sql, "AND tipo_lectura in (6, 7) ");
+	/*strcat(sql, "AND tipo_lectura in (6, 7) ");*/
       
    $PREPARE selMoveIn2 FROM $sql;
                   
@@ -446,7 +446,8 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
 	strcpy(sql, "SELECT first 1 ");
 	strcat(sql, "CASE ");
 	strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
-	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+   strcat(sql, "	WHEN c.tarifa = 'APM' AND c.tipo_sum != 6 THEN 'T1-AP-MED' "); 
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, "); 
 	strcat(sql, "s.cod_ul_sap || "); 
@@ -471,6 +472,7 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
 	strcat(sql, "CASE ");
 	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+   strcat(sql, "	WHEN c.tarifa = 'APM' AND c.tipo_sum != 6 THEN 'T1-AP-MED' ");
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, "); 
 	strcat(sql, "s.cod_ul_sap || "); 
@@ -795,6 +797,12 @@ $ClsEstado  *regEstado;
          }
    }                             
 
+   if(regCliente.sector == 81){
+      strcpy(regEstado->sUL, "Plan81");
+   }else if(regCliente.sector == 82){
+      strcpy(regEstado->sUL, "Plan82");
+   }
+   
    alltrim(regEstado->sTarifa, ' ');
    alltrim(regEstado->sUL, ' ');
 
