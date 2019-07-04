@@ -434,7 +434,8 @@ $char sAux[1000];
 	/*strcat(sql, "sc.cod_ul_sap || lpad(case when c.sector>60 then c.sector -20 else c.sector end, 2, 0)|| ");*/
 	
 strcat(sql, "CASE ");
-strcat(sql, "	WHEN c.sector IN (81,82) THEN 'DUMMY' ");
+strcat(sql, "	WHEN c.sector = 81 THEN 'Plan81' ");
+strcat(sql, "	WHEN c.sector = 82 THEN 'Plan82' ");
 strcat(sql, "	ELSE sc.cod_ul_sap || lpad(c.sector, 2, 0)|| lpad(c.zona,5,0) ");
 strcat(sql, "END unidad_lectura, ");
 	
@@ -951,7 +952,8 @@ strcat(sql, "END unidad_lectura, ");
 	strcpy(sql, "SELECT ");  
 	strcat(sql, "CASE ");
    strcat(sql, "	WHEN h1.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
-	strcat(sql, "	WHEN h1.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+	strcat(sql, "	WHEN h1.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+   strcat(sql, "	WHEN c.tarifa = 'APM' AND c.tipo_sum != 6 THEN 'T1-AP-MED' "); 
 	strcat(sql, "	ELSE t1.cod_sap "); 
 	strcat(sql, "END ");
 	strcat(sql, "FROM cliente c, hisfac h1, sap_transforma t1 ");
@@ -970,7 +972,8 @@ strcat(sql, "END unidad_lectura, ");
 	strcpy(sql, "SELECT first 1 ");
 	strcat(sql, "CASE ");
    strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
-	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+   strcat(sql, "	WHEN c.tarifa = 'APM' AND c.tipo_sum != 6 THEN 'T1-AP-MED' "); 
 	strcat(sql, "	ELSE t1.cod_sap "); 
 	strcat(sql, "END, "); 
 	strcat(sql, "s.cod_ul_sap || "); 
@@ -994,7 +997,8 @@ strcat(sql, "END unidad_lectura, ");
 	strcpy(sql, "SELECT ");
 	strcat(sql, "CASE ");
 	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' "); 
-	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' "); 
+	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+   strcat(sql, "	WHEN c.tarifa = 'APM' AND c.tipo_sum != 6 THEN 'T1-AP-MED' "); 
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, "); 
 	strcat(sql, "s.cod_ul_sap || "); 
@@ -1754,8 +1758,14 @@ ClsInstalacion	regIns;
 	strcat(sLinea, "01\t");
    /* VSTELLE */
 	sprintf(sLinea, "%sT1%ld\t", sLinea, regIns.numero_cliente);
+   
    /* ABLSPERR */
-	strcat(sLinea, "\t");
+   if(strcmp(regIns.cod_ul, "Plan81")==0 || strcmp(regIns.cod_ul, "Plan82")==0){
+      strcat(sLinea, "04\t");
+   }else{
+      strcat(sLinea, "\t");
+   } 
+	
    /* BAPERTYP */
    strcat(sLinea, "\t");
    /* SPEBENE */

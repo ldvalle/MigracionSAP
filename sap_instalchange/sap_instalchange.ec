@@ -519,12 +519,15 @@ $char sAux[1000];
 	strcat(sql, "CASE ");
    strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+   strcat(sql, "	WHEN c.tarifa = 'APM' AND c.tipo_sum != 6 THEN 'T1-AP-MED' ");
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, ");
-	strcat(sql, "NVL(t2.cod_sap, '000'), "); 
-	strcat(sql, "s.cod_ul_sap || ");
-	strcat(sql, "LPAD(CASE WHEN c.sector>60 AND c.sector < 81 THEN c.sector ELSE c.sector END, 2, 0) || "); 
-	strcat(sql, "LPAD(c.zona,5,0) "); 
+	strcat(sql, "NVL(t2.cod_sap, '000'), ");
+   strcat(sql, "CASE ");
+   strcat(sql, "   WHEN c.sector = 81 THEN 'Plan81' ");
+   strcat(sql, "   WHEN c.sector = 82 THEN 'Plan82' "); 
+	strcat(sql, "   ELSE s.cod_ul_sap || LPAD(c.sector, 2, 0) || LPAD(c.zona,5,0) ");
+   strcat(sql, "END ");
 	strcat(sql, "FROM cliente c, sap_transforma t1, OUTER sap_transforma t2, sucur_centro_op s ");
 
    if(giTipoCorrida == 1)
@@ -563,12 +566,14 @@ $char sAux[1000];
 	strcat(sql, "CASE ");
    strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");   
 	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+   strcat(sql, "	WHEN c.tarifa = 'APM' AND c.tipo_sum != 6 THEN 'T1-AP-MED' ");
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, ");
-	strcat(sql, "NVL(t2.cod_sap, '000'), "); 
-	strcat(sql, "s.cod_ul_sap || ");
-	strcat(sql, "LPAD(CASE WHEN c.sector>60 AND c.sector < 81 THEN c.sector ELSE c.sector END, 2, 0) || "); 
-	strcat(sql, "LPAD(c.zona,5,0) "); 
+   strcat(sql, "CASE ");
+   strcat(sql, "   WHEN c.sector = 81 THEN 'Plan81' ");
+   strcat(sql, "   WHEN c.sector = 82 THEN 'Plan82' "); 
+	strcat(sql, "   ELSE s.cod_ul_sap || LPAD(c.sector, 2, 0) || LPAD(c.zona,5,0) ");
+   strcat(sql, "END ");
 	strcat(sql, "FROM cliente c, sap_transforma t1, OUTER sap_transforma t2, sucur_centro_op s ");
    
 strcat(sql, ", sap_inactivos si ");
@@ -631,24 +636,34 @@ strcat(sql, "AND si.numero_cliente = c.numero_cliente ");
 	strcat(sql, "h2.fecha_lectura - 1, ");
 	strcat(sql, "TO_CHAR(h2.fecha_lectura - 1, '%Y%m%d'), ");
 */
+/*
 	strcat(sql, "h2.fecha_lectura + 1, ");
 	strcat(sql, "TO_CHAR(h2.fecha_lectura + 1, '%Y%m%d'), ");
+*/
+	strcat(sql, "h2.fecha_lectura, ");
+	strcat(sql, "TO_CHAR(h2.fecha_lectura, '%Y%m%d'), ");
    
 	strcat(sql, "CASE ");
    strcat(sql, "	WHEN h.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) THEN 'T1-GEN-NOM' ");
 	strcat(sql, "	WHEN h.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP' ");
+   strcat(sql, "	WHEN h.tarifa = 'APM' AND c.tipo_sum != 6 THEN 'T1-AP-MED' ");
 	strcat(sql, "	ELSE t1.cod_sap ");
 	strcat(sql, "END, ");
-	strcat(sql, "s.cod_ul_sap || ");
-	strcat(sql, "LPAD(CASE WHEN h.sector>60 AND h.sector < 81 THEN h.sector ELSE h.sector END, 2, 0) || "); 
-	strcat(sql, "LPAD(h.zona,5,0) "); 
+
+   strcat(sql, "CASE ");
+   strcat(sql, "   WHEN h.sector = 81 THEN 'Plan81' ");
+   strcat(sql, "   WHEN h.sector = 82 THEN 'Plan82' "); 
+	strcat(sql, "   ELSE s.cod_ul_sap || LPAD(h.sector, 2, 0) || LPAD(h.zona,5,0) ");
+   strcat(sql, "END ");
+
 	strcat(sql, "FROM cliente c, hisfac h, sap_transforma t1, sucur_centro_op s, hisfac h2 ");
 	strcat(sql, "WHERE c.numero_cliente = ? ");
 	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND h.fecha_lectura >= ? ");
    
 	strcat(sql, "AND h2.numero_cliente = h.numero_cliente ");
-	strcat(sql, "AND h2.corr_facturacion = h.corr_facturacion - 1 ");
+	/*strcat(sql, "AND h2.corr_facturacion = h.corr_facturacion - 1 ");*/
+   strcat(sql, "AND h2.corr_facturacion = h.corr_facturacion ");
    
 	strcat(sql, "AND t1.clave = 'TARIFTYP' ");
 	strcat(sql, "AND t1.cod_mac = h.tarifa ");

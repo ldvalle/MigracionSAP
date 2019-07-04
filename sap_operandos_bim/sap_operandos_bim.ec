@@ -191,7 +191,7 @@ int         iMoviArchivos;
          
          if(!ClienteYaMigrado(regCliente.numero_cliente, &lFechaInicio, &iFlagMigra)){
             
-            if(regCliente.corr_facturacion > 0){
+            if(regCliente.corr_facturacion > 1){
                lFechaLecturaPrima=0;
                lFechaLectuAnterior=0;
                /*
@@ -218,7 +218,9 @@ int         iMoviArchivos;
                      GenerarPlanos(fpUnx, 2, regFact, iOcurrCliente);
                      
                      cantConsu++;
+/*                     
                      if(regFactu.fhasta >= lFechaLimiteInferior){
+*/                     
                         /* QCONBFPACT*/
                         TraspasoDatosFactu(3, regCliente, regFactu, &regFact);
                         GenerarPlanos(fpQConsActiva, 3, regFact, iOcurrClienteQB);
@@ -236,7 +238,10 @@ int         iMoviArchivos;
                            iOcurrClienteQBreac++;
                         }
                         iOcurrClienteQB++;
+/*                        
                      }
+*/
+                     
                      /*
                      if(regFactu.corr_facturacion == regCliente.corr_facturacion){
                         if(regFactu.tipo_medidor[0]=='R'){
@@ -255,14 +260,17 @@ int         iMoviArchivos;
                      }
                      */  
                   }else{
-                     
+/*                     
                      if(regFactu.fhasta >= lFechaLimiteInferior){
+*/                     
                         if(regFactu.tipo_medidor[0]=='R'){
                            if(!getConsuReactiva(&regFactu)){
                               printf("No se encontró consumo reactiva para cliente %ld correlativo %d\n", regFactu.numero_cliente, regFactu.corr_facturacion);                           
                            }
                         }
+/*                        
                      }
+*/                     
                      /* Actualizar el consumo_sum con los refac */
                      $OPEN curRefac USING :regCliente.numero_cliente, :regFactu.numero_factura, :regFactu.fecha_facturacion;
                      
@@ -283,7 +291,9 @@ int         iMoviArchivos;
                      GenerarPlanos(fpUnx, 2, regFact, iOcurrCliente);
                      
                      cantConsu++;
+/*                     
                      if(regFactu.fhasta >= lFechaLimiteInferior){
+*/                     
                         /* QCONBFPACT*/
                         TraspasoDatosFactu(3, regCliente, regFactu, &regFact);
                         GenerarPlanos(fpQConsActiva, 3, regFact, iOcurrClienteQB);
@@ -297,7 +307,9 @@ int         iMoviArchivos;
                            iOcurrClienteQBreac++;
                         }
                         iOcurrClienteQB++;
+/*                        
                      }
+*/                     
                      /*
                      if(regFactu.corr_facturacion == regCliente.corr_facturacion){
                         if(regFactu.tipo_medidor[0]=='R'){
@@ -943,7 +955,8 @@ $char sAux[1000];
 	/*$PREPARE insGenInstal FROM $sql;*/
 
 	/********* Select Cliente ya migrado **********/
-	strcpy(sql, "SELECT facts_bim, fecha_val_tarifa FROM sap_regi_cliente ");
+	/*strcpy(sql, "SELECT facts_bim, fecha_val_tarifa FROM sap_regi_cliente ");*/
+   strcpy(sql, "SELECT facts_bim, fecha_pivote FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigrado FROM $sql;

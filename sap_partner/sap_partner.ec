@@ -957,7 +957,8 @@ $ClsFormaPago *regFP;
 	
 	$FETCH curClientes into
 		:regCli->numero_cliente,
-		:regCli->nombre,
+		/*:regCli->nombre,*/
+      :regCli->razonSocial,
 		:regCli->tipo_cliente,
 		:regCli->actividad_economic,
 		:regCli->cod_calle,
@@ -1010,32 +1011,40 @@ $ClsFormaPago *regFP;
    
 	alltrim(regCli->telefono, ' ');
 		
-	alltrim(regCli->nombre, ' ');
+   alltrim(regCli->razonSocial, ' ');
+   
 	alltrim(regCli->obs_dir, ' ');
 	
 	/* Reemp Comillas y # */
-	strcpy(regCli->nombre, strReplace(regCli->nombre, "'", " "));
-	strcpy(regCli->nombre, strReplace(regCli->nombre, "#", "Ñ"));
+	strcpy(regCli->razonSocial, strReplace(regCli->razonSocial, "'", " "));
+	strcpy(regCli->razonSocial, strReplace(regCli->razonSocial, "#", "N"));
 	
+   if(!SeparaNombre(regCli)){
+      printf("No se pudo separar el nombre de cliente %ld\n", regCli->numero_cliente);
+   }
+   
+	alltrim(regCli->nombre, ' ');
+   alltrim(regCli->apellido, ' ');
+   
 	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "'", " "));
-	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "#", "Ñ"));
+	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "#", "N"));
 	
 	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "'", " "));
-	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "#", "Ñ"));
+	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "#", "N"));
 	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "*", " "));
 	
 	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "'", " "));
-	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "#", "Ñ"));
+	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "#", "N"));
 	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "*", " "));
 	
 	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "'", " "));
-	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "#", "Ñ"));
+	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "#", "N"));
 
 	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "'", " "));
-	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "#", "Ñ"));
+	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "#", "N"));
 		
 	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "'", " "));
-	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "Ñ"));
+	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "N"));
       
    if(regCli->tipo_fpago[0]=='D'){   
       $EXECUTE selFPago INTO :iValor USING :regCli->numero_cliente;
@@ -1062,6 +1071,7 @@ $ClsFormaPago *regFP;
 	
 	$FETCH curPostalHijos into
 		:regCli->numero_cliente,
+      :regCli->razonSocial,
 		:regCli->nombre,
 		:regCli->tipo_cliente,
 		:regCli->actividad_economic,
@@ -1113,33 +1123,42 @@ $ClsFormaPago *regFP;
 	}
 	alltrim(regCli->telefono, ' ');
 		
+
 	alltrim(regCli->nombre, ' ');
+   alltrim(regCli->apellido, ' ');
+      
 	alltrim(regCli->obs_dir, ' ');
 	alltrim(regCli->tipo_reparto, ' ');
 	
 	/* Reemp Comillas */
-	strcpy(regCli->nombre, strReplace(regCli->nombre, "'", " "));
-	strcpy(regCli->nombre, strReplace(regCli->nombre, "#", "Ñ"));
-	
+	strcpy(regCli->nombre, strReplace(regCli->razonSocial, "'", " "));
+	strcpy(regCli->nombre, strReplace(regCli->razonSocial, "#", "N"));
+
+   alltrim(regCli->razonSocial, ' ');
+   
+   if(!SeparaNombre(regCli)){
+      printf("No se pudo separar el nombre de cliente %ld\n", regCli->numero_cliente);
+   }
+
 	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "'", " "));
-	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "#", "Ñ"));
+	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "#", "N"));
 	
 	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "'", " "));
-	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "#", "Ñ"));
+	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "#", "N"));
 	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "*", " "));
 	
 	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "'", " "));
-	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "#", "Ñ"));
+	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "#", "N"));
 	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "*", " "));
 	
 	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "'", " "));
-	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "#", "Ñ"));
+	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "#", "N"));
 
 	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "'", " "));
-	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "#", "Ñ"));
+	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "#", "N"));
 		
 	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "'", " "));
-	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "Ñ"));
+	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "N"));
 			
 	return 1;	
 }
@@ -1151,6 +1170,8 @@ $ClsFormaPago *regFP;
 
 	rsetnull(CLONGTYPE, (char *) &(regCli->numero_cliente));
 	memset(regCli->nombre, '\0', sizeof(regCli->nombre));
+   memset(regCli->apellido, '\0', sizeof(regCli->apellido));
+   memset(regCli->razonSocial, '\0', sizeof(regCli->razonSocial));
 	memset(regCli->tipo_cliente, '\0', sizeof(regCli->tipo_cliente));
 	memset(regCli->actividad_economic, '\0', sizeof(regCli->actividad_economic));
 	memset(regCli->cod_calle, '\0', sizeof(regCli->cod_calle));
@@ -1431,7 +1452,7 @@ $ClsCliente	regCliente;
 	
 	iTipoPersona=getTipoPersona(regCliente.tipo_cliente);
 	
-	sprintf(sLinea, "T1%ld\tBUT000\t%s\t%s\t0004\t", regCliente.numero_cliente, regCliente.nombre, regCliente.rut);
+	sprintf(sLinea, "T1%ld\tBUT000\t%s\t%s\t0004\t", regCliente.numero_cliente, regCliente.razonSocial, regCliente.rut);
    
 	if(iTipoPersona==1){
 		/* Es persona */
@@ -1444,7 +1465,8 @@ $ClsCliente	regCliente;
 	sprintf(sLinea, "%sT1\t", sLinea);
 	
 	if(iTipoPersona==2){
-		sprintf(sLinea, "%s%s\t", sLinea, regCliente.nombre);	
+      /* Si es empresa*/
+		sprintf(sLinea, "%s%s\t", sLinea, regCliente.razonSocial);	
 	}else{
 		strcat(sLinea, "\t");
 	}
@@ -1460,11 +1482,15 @@ $ClsCliente	regCliente;
 */
 	strcat(sLinea, "\t");
 	
-	sprintf(sLinea, "%s%s\t", sLinea, regCliente.nombre);	
+   /* Apellido */
+	sprintf(sLinea, "%s%s\t", sLinea, regCliente.apellido);
+   /* Nombre */	
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.nombre);	
 	
-	if(iTipoPersona==1){	
-		sprintf(sLinea, "%s%s\t", sLinea, regCliente.nombre);	
+   /* Nombre Completo */
+	if(iTipoPersona==1){
+      /* Si es Persona */	
+		sprintf(sLinea, "%s%s\t", sLinea, regCliente.razonSocial);	
 	}else{
 		strcat(sLinea, "\t");
 	}
@@ -2129,27 +2155,27 @@ $long	lNroCliente;
 	alltrim(regCli->obs_dir, ' ');
 
 	strcpy(regCli->nombre, strReplace(regCli->nombre, "'", " "));
-	strcpy(regCli->nombre, strReplace(regCli->nombre, "#", "Ñ"));
+	strcpy(regCli->nombre, strReplace(regCli->nombre, "#", "N"));
 	
 	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "'", " "));
-	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "#", "Ñ"));
+	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "#", "N"));
 	
 	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "'", " "));
-	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "#", "Ñ"));
+	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "#", "N"));
 	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "*", " "));
 	
 	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "'", " "));
-	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "#", "Ñ"));
+	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "#", "N"));
 	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "*", " "));
 	
 	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "'", " "));
-	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "#", "Ñ"));
+	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "#", "N"));
 
 	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "'", " "));
-	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "#", "Ñ"));
+	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "#", "N"));
 		
 	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "'", " "));
-	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "Ñ"));
+	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "N"));
 	
 	return 1;	
 }
@@ -2346,6 +2372,61 @@ $ClsCliente *reg;
    return 1;
 }
 */
+
+short SeparaNombre(reg)
+$ClsCliente *reg;
+{
+   char  sNombre[50];
+   char  sApellido[50];
+   int   iPos=0;
+   int   iP1, iP2, iP3;
+   int   iLargo;
+   
+   memset(sNombre, '\0', sizeof(sNombre));
+   memset(sApellido, '\0', sizeof(sApellido));
+   
+   iLargo=strlen(reg->razonSocial);
+   iPos=getCharPosition(reg->razonSocial, " ");
+   if(iPos==0)
+      iPos=getCharPosition(reg->razonSocial, ".");
+      
+   if(iPos!=0){
+      iP1=iPos;
+      iP2=iPos+1;
+      iP3=iLargo-iP1;
+      
+      strncpy(sNombre, reg->razonSocial, iP1);
+      strncpy(sApellido, &reg->razonSocial[iP2], iP3);
+      
+      strcpy(reg->nombre, sNombre);
+      strcpy(reg->apellido, sApellido);
+   }else{
+      strcpy(reg->nombre, reg->razonSocial);
+      strcpy(reg->apellido, ".");
+   }
+   
+   return 1;
+}
+
+int getCharPosition(sCadena, cFind)
+char  *sCadena;
+char  cFind[2];
+{
+   int i=0;
+   int iPos=0;
+   int s=0;
+   int iLargo=strlen(sCadena);
+   
+   while(i<iLargo && s==0){
+      if(sCadena[i]==cFind[0]){
+         iPos=i;
+         s=1;
+      }
+      i++;
+   }
+
+   return iPos;
+}
 
 static char *strReplace(sCadena, cFind, cRemp)
 char *sCadena;

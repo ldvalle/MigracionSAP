@@ -653,13 +653,20 @@ if(giTipoCorrida == 3)
 	strcpy(sql, "SELECT DISTINCT e.numero_cliente, ");  
 	strcat(sql, "TO_CHAR(e.fecha_desde, '%Y%d%m'), "); 
 	strcat(sql, "NVL(TO_CHAR(e.fecha_hasta, '%Y%d%m'),'99991231'), "); 
-	strcat(sql, "e.porcentaje_nuevo, ");
+	strcat(sql, "NVL(e.porcentaje_nuevo, 0), ");
 	strcat(sql, "k1.kschl, k1.porc, k2.indicador ");
 	strcat(sql, "FROM exencion_imp e, sap_eximp k1, sap_eximp_z k2 "); 
 	strcat(sql, "WHERE e.numero_cliente = ? ");
-	strcat(sql, "AND e.fecha_desde <= TODAY "); 
+	strcat(sql, "AND e.fecha_desde = (SELECT MIN(e2.fecha_desde) ");
+	strcat(sql, "	FROM exencion_imp e2 ");
+	strcat(sql, "  WHERE e2.numero_cliente = e.numero_cliente ");
+	strcat(sql, "  AND e2.fecha_desde <= TODAY ");
+	strcat(sql, "  AND e2.codigo_cargo = e.codigo_cargo ");
+	strcat(sql, "  AND (e2.fecha_hasta IS NULL OR e2.fecha_hasta > TODAY)) ");
+   
+/*	strcat(sql, "AND e.fecha_desde <= TODAY ");*/ 
 	strcat(sql, "AND (e.fecha_hasta IS NULL OR e.fecha_hasta > TODAY) "); 
-	strcat(sql, "AND e.codigo_cargo NOT IN('721', '796') "); 
+	/*strcat(sql, "AND e.codigo_cargo NOT IN('721', '796') ");*/ 
 	strcat(sql, "AND k1.cod_mac = e.codigo_cargo ");
 	strcat(sql, "AND k2.kschl = k1.kschl ");
    

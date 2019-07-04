@@ -81,6 +81,7 @@ long     iTopeFile=100000;
 int      iCantCuadros;
 $char    tipoCargoTarifa[2];
 int      iFila;
+$long    lFechaMoveIn;
 
 	if(! AnalizarParametros(argc, argv)){
 		exit(0);
@@ -158,7 +159,7 @@ int      iFila;
       
       while(LeoCliente(&regCliente)){
          
-         if(!ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra)){
+         if(!ClienteYaMigrado(regCliente.numero_cliente, &iFlagMigra, &lFechaMoveIn)){
                /*
              if(! CorporativoT23(&regCliente)){
                if(! CorporativoPropio(&regCliente)){
@@ -169,7 +170,8 @@ int      iFila;
                sprintf(regCliente.cod_agrupa, "T1%ld", regCliente.numero_cliente);
                               
              if(regCliente.corr_facturacion > 0){
-                $OPEN curHisfac USING :regCliente.numero_cliente, :lFechaLimiteInferior;
+                /*$OPEN curHisfac USING :regCliente.numero_cliente, :lFechaLimiteInferior;*/
+                $OPEN curHisfac USING :regCliente.numero_cliente, :lFechaMoveIn;
                 iNumFactuClie=1;
                 while(LeoFacturasCabe(&regFactuCabe, iNumFactuClie)){
                    iCantCuadros=0;
@@ -196,15 +198,28 @@ int      iFila;
                         strcpy(tipoCargoTarifa, getTipoCargoTarifa(regFactuDeta.codigo_cargo));
                         
                         if(tipoCargoTarifa[0]!= '9'){
-                           $OPEN curDetVal USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa,
-                                                :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa;
-                           iFila=1;
-                           while(LeoDetVal(&regFactuDeta, iFila)){
-                              GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, 1, iNx);
-                              iFila++;
-                           }
+                           if(regFactuCabe.indica_refact[0]=='N'){
+                              $OPEN curDetVal USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa,
+                                                   :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa;
+                              iFila=1;
+                              while(LeoDetVal(&regFactuDeta, iFila)){
+                                 GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, 1, iNx);
+                                 iFila++;
+                              }
+                              
+                              $CLOSE curDetVal;
+                           }else{
+                              $OPEN curDetValRefac USING :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa,
+                                                   :regFactuCabe.numero_cliente, :regFactuCabe.corr_facturacion, :tipoCargoTarifa;
+                              iFila=1;
+                              while(LeoDetValRefac(&regFactuDeta, iFila)){
+                                 GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, 1, iNx);
+                                 iFila++;
+                              }
+                              
+                              $CLOSE curDetValRefac;
                            
-                           $CLOSE curDetVal;
+                           }
                         }else{
                            GenerarDetalle(regCliente, regFactuCabe, regFactuDeta, 0, iNx);
                         }
@@ -819,6 +834,27 @@ strcat(sql, "AND ca.codigo_cargo = '020' ");
    
    $DECLARE curDetVal CURSOR FOR selDetVal;
       
+   /***** Desdoble tarifario Refacturadas *****/
+   $PREPARE selDetValRefac FROM "SELECT dt1.corr_precio, 
+      dt1.duracion_periodo, 
+      dt1.precio_unitario, 
+      dt1.precio_ponderado, 
+      dt1.tipo_cuadro, 
+      dt1.fecha_desde, 
+      dt1.fecha_hasta, 
+      dt1.consumo
+      FROM det_val_tarifas_refac dt1
+      WHERE dt1.numero_cliente = ?
+      AND dt1.corr_facturacion = ?
+      AND dt1.tipo_cargo_tarifa = ?
+      AND dt1.corr_refact = (SELECT MAX(corr_refact) FROM det_val_tarifas_refac dt2
+      		WHERE dt2.numero_cliente = dt1.numero_cliente
+        	AND dt2.corr_facturacion = dt1.corr_facturacion
+          AND dt2.tipo_cargo_tarifa = dt1.tipo_cargo_tarifa)
+      ORDER BY 1 ";
+   
+   $DECLARE curDetValRefac CURSOR FOR selDetValRefac;
+   
 	/********* Select Corporativo T23 **********/
 	strcpy(sql, "SELECT NVL(cod_corporativo, '000') FROM mg_corpor_t23 ");
 	strcat(sql, "WHERE numero_cliente = ? ");
@@ -1468,11 +1504,13 @@ printf("Buscando precio unitario para Cliente %ld Corr Factu %ld cargo %s Tipo C
 }
 
 
-short ClienteYaMigrado(nroCliente, iFlagMigra)
+short ClienteYaMigrado(nroCliente, iFlagMigra, lFechaMoveIn)
 $long	nroCliente;
 int		*iFlagMigra;
+$long    *lFechaMoveIn;
 {
 	$char	sMarca[2];
+   $long lFecha;
 	
 	if(gsTipoGenera[0]=='R'){
 		return 0;	
@@ -1480,25 +1518,32 @@ int		*iFlagMigra;
 	
 	memset(sMarca, '\0', sizeof(sMarca));
 	
-	$EXECUTE selClienteMigrado into :sMarca using :nroCliente;
+	$EXECUTE selClienteMigrado into :sMarca, :lFecha using :nroCliente;
 		
 	if(SQLCODE != 0){
+/*   
 		if(SQLCODE==SQLNOTFOUND){
-			*iFlagMigra=1; /* Indica que se debe hacer un insert */
+			*iFlagMigra=1; 
 			return 0;
 		}else{
 			printf("ErroR al verificar si el cliente %ld ya había sido migrado.\n", nroCliente);
 			exit(1);
 		}
+*/      
+		printf("ErroR al verificar si el cliente %ld ya había sido migrado.\n", nroCliente);
+		exit(1);
 	}
-	
+
+   *lFechaMoveIn=lFecha;
+   
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */	
 		return 1;
 	}else{
 		*iFlagMigra=2; /* Indica que se debe hacer un update */	
 	}
-		
+	
+   
 	return 0;
 }
 
@@ -1541,7 +1586,7 @@ ClsHisfac      regFactu;
 
    /******** HEAD *********/
    /* LLAVE */
-   sprintf(sLinea, "T1%ld-%ldHEAD\t", regClie.numero_cliente, regFactu.corr_facturacion);
+   sprintf(sLinea, "T1%ld-%ld\tHEAD\t", regClie.numero_cliente, regFactu.corr_facturacion);
 
   /* VERTRAG */
   sprintf(sLinea, "%sT1%ld", sLinea, regClie.numero_cliente);
@@ -1571,7 +1616,7 @@ ClsHisfac      regFactu;
   memset(sLinea, '\0', sizeof(sLinea));
   
   /* LLAVE */
-  sprintf(sLinea, "T1%ld-%ldERCH\t", regClie.numero_cliente, regFactu.corr_facturacion);
+  sprintf(sLinea, "T1%ld-%ld\tERCH\t", regClie.numero_cliente, regFactu.corr_facturacion);
 
   /* VERTRAG */
   /*sprintf(sLinea, "%sT1%ld\t", sLinea, regClie.numero_cliente);*/
@@ -1730,7 +1775,7 @@ int            inx;
    iMarca=0;
       
    /* LLAVE */
-   sprintf(sLinea, "T1%ld-%ld-%s-%dERCHZ\t", regClie.numero_cliente, regFactu.corr_facturacion, regDeta.belzart, inx);
+   sprintf(sLinea, "T1%ld-%ld-%s-%d\tERCHZ\t", regClie.numero_cliente, regFactu.corr_facturacion, regDeta.belzart, inx);
 
    /* BELZART */
    sprintf(sLinea, "%s%s\t", sLinea, regDeta.belzart);
@@ -1859,7 +1904,7 @@ int         inx;
 	memset(sLinea, '\0', sizeof(sLinea));
 	
    /*sprintf(sLinea, "T1%ld-%ld-%s-%d&ENDE", regFactu.numero_cliente, regFactu.corr_facturacion, regDeta.clase_pos_doc, inx);*/
-   sprintf(sLinea, "T1%ld-%ld-%d&ENDE", regFactu.numero_cliente, regFactu.corr_facturacion, inx);
+   sprintf(sLinea, "T1%ld-%ld-%d\t&ENDE", regFactu.numero_cliente, regFactu.corr_facturacion, inx);
    
 	strcat(sLinea, "\n");
 	
@@ -2190,6 +2235,43 @@ $ClsDetVal reg;
    InicializaDetVal(&reg);
      
    $FETCH curDetVal INTO
+      :reg.corr_precio,
+      :reg.duracion_periodo, 
+      :reg.precio_unitario,
+      :reg.precio_ponderado, 
+      :reg.tipo_cuadro, 
+      :reg.fecha_desde, 
+      :reg.fecha_hasta, 
+      :reg.consumo;
+
+   if(SQLCODE != 0){
+      return 0;
+   }
+      
+   memset(regDeta->sFechaDesde, '\0', sizeof(regDeta->sFechaDesde));
+   memset(regDeta->sFechaHasta, '\0', sizeof(regDeta->sFechaHasta));
+   
+   if(i==1){
+      reg.fecha_hasta=reg.fecha_hasta+1;
+   }
+   
+   rfmtdate(reg.fecha_desde, "yyyymmdd", regDeta->sFechaDesde); /* long to char */ 
+   rfmtdate(reg.fecha_hasta, "yyyymmdd", regDeta->sFechaHasta); /* long to char */
+   regDeta->valor_cargo = reg.precio_ponderado;
+   regDeta->preisbtr = reg.precio_unitario;
+   
+   return 1;
+}
+
+short LeoDetValRefac(regDeta, i)
+ClsDetalle  *regDeta;
+int         i;
+{
+$ClsDetVal reg;
+
+   InicializaDetVal(&reg);
+     
+   $FETCH curDetValRefac INTO
       :reg.corr_precio,
       :reg.duracion_periodo, 
       :reg.precio_unitario,

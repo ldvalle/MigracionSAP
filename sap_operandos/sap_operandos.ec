@@ -1046,9 +1046,13 @@ $char sAux[1000];
       )VALUES( 'DEPGAR', ?, CURRENT, ?)";
 
    /******** Fecha Inicio busqueda *******/
+/*   
    $PREPARE selFechaDesde FROM "SELECT fecha_limi_inf, fecha_pivote FROM sap_regi_cliente
       WHERE numero_cliente = 0";
-         
+*/
+   $PREPARE selFechaDesde FROM "SELECT DATE(TODAY - 14 UNITS MONTH), fecha_pivote FROM sap_regi_cliente
+      WHERE numero_cliente = 0";
+      
    /******** Cursor Cliente Tasa *******/
    strcpy(sql, "SELECT t.numero_cliente, "); 
    strcat(sql, "t.codigo_tasa, "); 
@@ -1059,9 +1063,9 @@ $char sAux[1000];
    if(giTipoCorrida==1)	
       strcat(sql, ", migra_activos m ");	
    
-   /*strcat(sql, "WHERE (t.fecha_anulacion IS NULL OR t.fecha_anulacion > ?) ");*/
+   strcat(sql, "WHERE (t.fecha_anulacion IS NULL OR t.fecha_anulacion > ?) ");
    
-   strcat(sql, "WHERE c.numero_cliente = t.numero_cliente ");
+   strcat(sql, "AND c.numero_cliente = t.numero_cliente ");
    strcat(sql, "AND c.estado_cliente = 0 ");
    if(giTipoCorrida==1)	
       strcat(sql, "AND m.numero_cliente = t.numero_cliente ");	
@@ -1821,7 +1825,8 @@ $long           CantCliVip;
    if(glFechaParametro > 0){
       $OPEN curElectro USING :glFechaParametro;
    }else{
-      $OPEN curElectro USING :lFechaLimiteInferior;
+      /*$OPEN curElectro USING :lFechaLimiteInferior;*/
+      $OPEN curElectro USING :lFechaPivote;
    }
 
 	lClienteAnterior=0;
@@ -1931,7 +1936,8 @@ $long           CantCliTis;
    if(glFechaParametro > 0){
       $OPEN curTis USING :glFechaParametro;
    }else{
-      $OPEN curTis USING :lFechaLimiteInferior;
+      /*$OPEN curTis USING :lFechaLimiteInferior;*/
+      $OPEN curTis USING :lFechaPivote;
    }
 	
 	lClienteAnterior=0;
@@ -2038,8 +2044,8 @@ int            iNx;
 $long          cantOpTasa;
 int            iFlagMigra;
 
-   /*$OPEN curCliTasa USING :lFechaPivote;*/
-   $OPEN curCliTasa;
+   $OPEN curCliTasa USING :lFechaPivote;
+   /*$OPEN curCliTasa;*/
    
    while(LeoTasa(&regTasa)){
       
@@ -2139,13 +2145,15 @@ ClsOperando reg;
 int         inx;
 {
    char  sMarca[2];
-   
+
+/*   
    if(strcmp(reg.sFechaFin, "99991231")==0){
       strcpy(sMarca, "R");
    }else{
       strcpy(sMarca, "N");
    }
-   
+*/
+   strcpy(sMarca, "R");
    if(inx==1){
       GeneraKEY(sMarca, pFileFlagTap, reg, inx);
       GeneraFFlag(sMarca, pFileFlagTap, reg, inx);
@@ -2185,7 +2193,8 @@ int         inx;
 	
 	sprintf(sLinea, "%s%s\t", sLinea, reg.sOperando);
    
-   sprintf(sLinea, "%s%.02f\t", sLinea, reg.dValor);
+   strcat(sLinea, "X");
+   /*sprintf(sLinea, "%s%.02f\t", sLinea, reg.dValor);*/
 
 	strcat(sLinea, "\n");
 	
@@ -2574,6 +2583,8 @@ int            iTieneSB;
    memset(sFechaPivoteEvento, '\0', sizeof(sFechaPivoteEvento));
    strcpy(sFechaPivoteEvento, "01/12/2014");
    rdefmtdate(&lFechaPivoteEvento, "dd/mm/yyyy", sFechaPivoteEvento); /*char to long*/
+   
+   lFechaPivoteEvento=lFechaPivote;
 
    if(glFechaParametro==-1){
       $OPEN curFP;
@@ -2589,8 +2600,24 @@ int            iTieneSB;
       iNx2=1;
       iTiene=0;
       iTieneSB=0;
+
+      InicializaOperando(&regOpe);
+      /* Solo la Cabecera */ 
+      if(strcmp(regFp.sEventoMac, "SB")){
+         TraspasoFP(regFp, &regOpe);
+         PrintFP(regOpe, iNx);
+         iTiene=1;
+      }else{
+         /* Solo la cabecera del SB */ 
+         TraspasoFP_SB(regFp, &regOpe);
+         PrintFP_SB(regOpe, iNx2);
+         iTieneSB=1;
+      }         
+
+      
+/*      
       if(regFp.lFechaEvento > lFechaPivoteEvento){
-         /* El Detalle */
+         // El Detalle
          if(glFechaParametro==-1){
             $OPEN curFpEve USING :regFp.numero_cliente, :lFechaPivoteEvento;
          }else{
@@ -2610,7 +2637,7 @@ int            iTieneSB;
          
          $CLOSE curFpEve;
          
-         /* El Detalle del SB */
+         // El Detalle del SB
          if(glFechaParametro==-1){
             $OPEN curFpEveSB USING :regFp.numero_cliente, :lFechaPivoteEvento;
          }else{
@@ -2632,19 +2659,19 @@ int            iTieneSB;
          
       }else{
          InicializaOperando(&regOpe);
-         /* Solo la Cabecera */
+         // Solo la Cabecera 
          if(strcmp(regFp.sEventoMac, "SB")){
             TraspasoFP(regFp, &regOpe);
             PrintFP(regOpe, iNx);
             iTiene=1;
          }else{
-            /* Solo la cabecera del SB */
+            // Solo la cabecera del SB 
             TraspasoFP_SB(regFp, &regOpe);
             PrintFP_SB(regOpe, iNx2);
             iTieneSB=1;
          }         
       }
-      
+*/      
       if(iTiene==1){
          cantFP++;
          iFlagMigra=getExiste(regFp.numero_cliente);

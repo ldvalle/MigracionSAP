@@ -748,7 +748,7 @@ $char sAux[1000];
 	strcat(sql, "t1.cod_sap, ");
 	strcat(sql, "h1.lectura_facturac, ");
 	strcat(sql, "h1.consumo, ");
-	strcat(sql, "h2.indica_refact, ");
+	strcat(sql, "h3.indica_refact, ");
 	strcat(sql, "h1.numero_medidor, ");
 	strcat(sql, "h1.marca_medidor, ");
 /*   
@@ -772,7 +772,7 @@ $char sAux[1000];
 
    /*strcat(sql, "FROM hislec h1, hisfac h2, medid md, sap_transforma t1, sucur_centro_op sc ");*/ 
 
-   strcat(sql, "FROM hislec h1, hisfac h2, medidor med, OUTER modelo m, sap_transforma t1, sucur_centro_op sc ");
+   strcat(sql, "FROM hislec h1, hisfac h2, hisfac h3, medidor med, OUTER modelo m, sap_transforma t1, sucur_centro_op sc ");
 
 	strcat(sql, "WHERE h1.numero_cliente = ? ");
    strcat(sql, "AND h1.fecha_lectura >= ? ");
@@ -781,7 +781,11 @@ $char sAux[1000];
 */   
 	strcat(sql, "AND h1.tipo_lectura NOT IN (5, 6, 7) ");
 	strcat(sql, "AND h2.numero_cliente = h1.numero_cliente ");
-	strcat(sql, "AND h2.corr_facturacion = h1.corr_facturacion ");
+/*	strcat(sql, "AND h2.corr_facturacion = h1.corr_facturacion ");*/
+	strcat(sql, "AND h2.corr_facturacion = DECODE(h1.corr_facturacion, 1, 1,  h1.corr_facturacion-1) ");
+	strcat(sql, "AND h3.numero_cliente = h1.numero_cliente "); 
+	strcat(sql, "AND h3.corr_facturacion = h1.corr_facturacion ");
+
 /*
 	strcat(sql, "AND md.numero_cliente = h1.numero_cliente ");
 	strcat(sql, "AND md.numero_medidor = h1.numero_medidor ");
@@ -790,8 +794,16 @@ $char sAux[1000];
     
 	strcat(sql, "AND med.med_numero = h1.numero_medidor ");
 	strcat(sql, "AND med.mar_codigo = h1.marca_medidor ");
-   /*strcat(sql, "AND med.numero_cliente = h1.numero_cliente ");*/
+   strcat(sql, "AND med.numero_cliente = h1.numero_cliente ");
 	strcat(sql, "AND (med.cli_tarifa != 'T2' OR med.cli_tarifa IS NULL) ");
+
+	strcat(sql, "AND ((med.numero_cliente = h1.numero_cliente ) ");
+	strcat(sql, "	OR ");
+	strcat(sql, "     (med.mod_codigo = (SELECT m2.modelo_medidor FROM medid m2 ");
+	strcat(sql, "     	WHERE m2.numero_cliente = h1.numero_cliente ");
+	strcat(sql, "      AND m2.numero_medidor = h1.numero_medidor ");
+	strcat(sql, "      AND m2.marca_medidor = h1.marca_medidor))) ");
+   
 	strcat(sql, "AND m.mar_codigo = h1.marca_medidor ");
 	strcat(sql, "AND m.mod_codigo = med.mod_codigo ");
    
@@ -1245,7 +1257,7 @@ $ClsLecturas *regLectu;
    }
    
    /* Busca inicio Ventana */
-   lFechaAux = regLectu->lFechaLectura; 
+   lFechaAux = regLectu->lFechaLectura+1; 
    alltrim(regLectu->UL, ' ');
    $EXECUTE selIniVentana INTO :regLectu->fechaIniVentana USING
       :regLectu->porcion,
@@ -1284,8 +1296,9 @@ $ClsLecturas *regLectu;
    }      
 
 	alltrim(regLectu->tipo_lectu_sap, ' ');
-   
+/*   
 	if(regLectu->indica_refact[0]=='S'){
+*/   
 		/* Buscar la actualizada */
 
 		$EXECUTE selHislecRefac into :dLectuRectif, :dConsuRectif using :lNroCliente, 
@@ -1301,8 +1314,9 @@ $ClsLecturas *regLectu;
 	    	regLectu->lectura_facturac = dLectuRectif;
 	    	regLectu->consumo = dConsuRectif;
 	    }
+/*       
 	}
-	
+*/	
 	return 1;	
 }
 
@@ -1790,22 +1804,25 @@ $ClsLecturas	*regLectu;
     }		
 	
 	$CLOSE curConsuActi;
-	
+
+/*	
 	if(regLectu->indica_refact[0]=='S'){
+*/   
 		$EXECUTE selHislecRefac	into :dLectuRectif, :dConsuRectif 
 			using :lNroCliente, :lCorrFactu, :regLectu->tipo_lectura;
 				
 	    if ( SQLCODE != 0 ){
-	    	if(SQLCODE == 100){
-				return 0;
-			}else{
+	    	if(SQLCODE != 100){
 				printf("Error al leer Ultimo Consumo Activo Rectificado para cliente %ld\nProceso Abortado.\n", lNroCliente);
 				exit(1);	
 			}
-	    }
-	    regLectu->lectura_facturac = dLectuRectif;
-	    regLectu->consumo = dConsuRectif;
+	    }else{
+         regLectu->lectura_facturac = dLectuRectif;
+         regLectu->consumo = dConsuRectif;
+       }
+/*       
 	}
+*/
 
    /* Busca inicio Ventana */
    alltrim(regLectu->UL, ' ');
@@ -1867,22 +1884,24 @@ $ClsLecturas	*regLectu;
 
 	$CLOSE curLectuReac;
 	
+/*   
 	if(regLectu->indica_refact[0]=='S'){
+*/   
 		$EXECUTE selHislecReacRefac	into :dLectuRectif, :dConsuRectif 
 			using :lNroCliente, :lCorrFactu, :regLectu->tipo_lectura;
 				
 	    if ( SQLCODE != 0 ){
-	    	if(SQLCODE == 100){
-				return 0;
-			}else{
+	    	if(SQLCODE != 100){
 				printf("Error al leer Ultimo Consumo Reactivo Rectificado para cliente %ld\nProceso Abortado.\n", lNroCliente);
 				exit(1);	
 			}
-	    }
-	    regLectu->lectura_facturac = dLectuRectif;
-	    regLectu->consumo = dConsuRectif;
+	    }else{
+   	    regLectu->lectura_facturac = dLectuRectif;
+   	    regLectu->consumo = dConsuRectif;
+       }       
+/*       
 	}
-	
+*/	
 	if(iEtapa==2)
 		regLectu->tipo_lectura=0;
 		

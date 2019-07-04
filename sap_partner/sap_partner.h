@@ -17,7 +17,9 @@ $include datetime.h;
 
 $typedef struct{
 	long	numero_cliente;
-	char	nombre[41];
+   char  razonSocial[50];
+	char	nombre[50];
+   char  apellido[50];
 	char 	tipo_cliente[3];
 	char	actividad_economic[5];
 	char	cod_calle[7];
@@ -109,5 +111,7 @@ short	RegistraArchivo(char*, long);
 static char 	*strReplace(char *, char *, char *);
 char    *getCodTarjeta(char*);
 short CargaIdSF(ClsCliente *);
+int   getCharPosition(char *, char *);
+short SeparaNombre(ClsCliente *);
 
 $endif;

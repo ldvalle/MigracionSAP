@@ -165,6 +165,7 @@ int   getCantCuadros(ClsHisfac);
 char  *getTipoCargoTarifa(char *);
 short LeoDetVal(ClsDetalle *, int);
 void  InicializaDetVal(ClsDetVal *);
+short LeoDetValRefac(ClsDetalle *, int);
 
 void  GenerarCabecera(ClsCliente, ClsHisfac);
 void  GenerarDetalle(ClsCliente, ClsHisfac, ClsDetalle, int, int);
@@ -175,7 +176,7 @@ char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(int);
 
-short	ClienteYaMigrado(long, int*);
+short	ClienteYaMigrado(long, int*, long *);
 short	RegistraCliente(long, int);
 
 /*
