@@ -1518,7 +1518,8 @@ int         inx;
       /* Condicional a la fecha de MOVE_IN */
       if(lFechaLectura == lFechaMv ){
       /*if(lFechaLectura == lFechaPivote){*/
-         strcat(sLinea, "06\t"); /* Motivo */
+         /*strcat(sLinea, "06\t"); *//* Motivo */
+         strcat(sLinea, "01\t");
       }else{
          strcat(sLinea, "01\t"); /* Motivo */
       }
@@ -1538,11 +1539,14 @@ int         inx;
       /* AKTIV */
 		strcat(sLinea, "1\t");
       /* ADATSOLL (Inicio Ventana) */
+      /*
       if(lFechaLectura != lFechaMv ){
-      /*if(lFechaLectura != lFechaPivote){*/
+         //if(lFechaLectura != lFechaPivote){
 		    sprintf(sLinea, "%s%s", sLinea, regLectu.fechaIniVentana);
       }
-			
+		*/
+      sprintf(sLinea, "%s%s", sLinea, regLectu.fechaIniVentana);
+      
 		strcat(sLinea, "\n");
 
    	iRcv=fprintf(fp, sLinea);
@@ -1590,14 +1594,16 @@ int         inx;
    /* Condicional a la fecha de MOVE_IN */
    if(lFechaLectura == lFechaMv){
    /*if(lFechaLectura == lFechaPivote){*/
-      strcat(sLinea, "06\t"); /* Motivo */
+      /* strcat(sLinea, "06\t"); */ /* Motivo */
+      strcat(sLinea, "01\t");
    }else{
       strcat(sLinea, "01\t"); /* Motivo */
    }
 	
 	/* ZWSTAND */
    if(lFechaLectura == lFechaMv){
-      strcat(sLinea, "0\t"); 
+      /*strcat(sLinea, "0\t");*/
+      sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.consumo); 
    }else{
 	   sprintf(sLinea, "%s%.0f\t", sLinea, regLectu.consumo);
    }
@@ -1617,12 +1623,13 @@ int         inx;
    /* AKTIV */
 	strcat(sLinea, "1\t");
    /* ADATSOLL (fecha inicio ventana)*/
+/*   
    if(lFechaLectura != lFechaMv){
-   /*if(lFechaLectura != lFechaPivote){*/
-	  /*sprintf(sLinea, "%s%s", sLinea, regLectu.fecha_lectura);*/
      sprintf(sLinea, "%s%s", sLinea, regLectu.fechaIniVentana);
    }
-
+*/
+   sprintf(sLinea, "%s%s", sLinea, regLectu.fechaIniVentana);
+   
 	strcat(sLinea, "\n");
 
 	iRcv=fprintf(fp, sLinea);

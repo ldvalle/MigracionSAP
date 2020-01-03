@@ -575,9 +575,18 @@ if(giTipoCorrida == 3)
 	$PREPARE selClienteMigrado FROM $sql;
 	
 	/********* Select Corporativo T23 **********/
-	strcpy(sql, "SELECT NVL(cod_corporativo, '000'), cod_corpo_padre FROM mg_corpor_t23 ");
+	strcpy(sql, "SELECT NVL(cod_corporativo, '000'), ");
+	strcat(sql, "CASE ");
+	strcat(sql, "	WHEN cod_corpo_padre[1,3] = 'CCP' THEN '991'|| cod_corpo_padre[4,8] ");
+	strcat(sql, "	WHEN cod_corpo_padre[1,3] = 'CCM' THEN '992'|| cod_corpo_padre[4,8] ");  
+	strcat(sql, "	WHEN cod_corpo_padre[1,3] = 'CCO' THEN '993'|| cod_corpo_padre[4,8] "); 
+	strcat(sql, "	WHEN cod_corpo_padre[1,3] = 'GCP' THEN '994'|| cod_corpo_padre[4,8] ");  
+	strcat(sql, " 	WHEN cod_corpo_padre[1,3] = 'GCM' THEN '995'|| cod_corpo_padre[4,8] "); 
+	strcat(sql, "  WHEN cod_corpo_padre[1,3] = 'GCO' THEN '996'|| cod_corpo_padre[4,8] "); 
+	strcat(sql, "END ");
+	strcat(sql, "FROM mg_corpor_t23 ");
 	strcat(sql, "WHERE numero_cliente = ? ");
-	
+   
 	$PREPARE selCorpoT23 FROM $sql;
 	
 	/******** Update Correlativo ****************/
@@ -1340,19 +1349,21 @@ int iTipo;
    
    
 	/* MGGRUP + VKONV + ABWRH */
-   /* MGGRUP */ 
+   /* MGGRUP */  
    strcat(sLinea, "\t");
-   /* VKONV */ 
+   /* VKONV */  
    strcat(sLinea, "\t");
    /* ABWRH */
    sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
-   /*
+   
+/*
 	if(strcmp(sTarifa, "T1")==0){
-      // MGGRUP
+      // MGGRUP /
       strcat(sLinea, "\t");
       // VKONV 
       if(iTipo ==1 ){
-         sprintf(sLinea, "%sT1%ldCORP\t", sLinea, regCliente.numero_cliente); 
+         //sprintf(sLinea, "%sT1%ldCORP\t", sLinea, regCliente.numero_cliente);
+         strcat(sLinea, "\t"); 
       }else{
          if(regCliente.minist_repart > 0){
             sprintf(sLinea, "%sT1%ldCORP\t", sLinea, regCliente.minist_repart);
@@ -1368,7 +1379,9 @@ int iTipo;
 		}
 		
 	}else{
+      // MGGRUP
 		strcat(sLinea, "\t");
+      // VKONV
 		if(strcmp(regCliente.sCodCorpoT23, "000")==0){
 			strcat(sLinea, "\t");	
 		}else{
@@ -1378,14 +1391,14 @@ int iTipo;
 				strcat(sLinea, "\t");	
 			}
 		}
+      // ABWRH
 		if(strcmp(regCliente.sCodCorpoPadreT23, "")!=0){
 			sprintf(sLinea, "%sT23%s\t", sLinea, regCliente.sCodCorpoPadreT23);
 		}else{
 			strcat(sLinea, "\t");	
 		}
 	}
-	*/
-   
+*/
    
 	/* ADRRH */
 	if(strcmp(regCliente.tipo_reparto, "POSTAL")==0){
@@ -1455,12 +1468,11 @@ int iTipo;
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.comuna);
    
    /* GPARV */
-   /*
 	if(strcmp(sTarifa, "T1")==0){	
 		if(regCliente.minist_repart > 0){
 			sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.minist_repart);	
 		}else{
-			//sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);
+			/*sprintf(sLinea, "%sT1%ld\t", sLinea, regCliente.numero_cliente);*/
          strcat(sLinea, "\t");
 		}
 	}else{
@@ -1470,8 +1482,7 @@ int iTipo;
 			strcat(sLinea, "\t");	
 		}
 	}
-   */
-   strcat(sLinea, "\t");
+   /*strcat(sLinea, "\t");*/
    
    /* LANDL */
 	strcat(sLinea, "AR\t");

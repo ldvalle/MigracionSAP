@@ -221,7 +221,6 @@ long  lCantInFiles;
    lCantInFiles=0;
 	iEsCorpo=0;
 	while(LeoClientes(&regCliente, &regFP)){
-   
       /*$BEGIN WORK;*/
 		if(regCliente.estado_cliente[0]=='0'){
 			iFlagMigra=0;
@@ -406,8 +405,7 @@ long  lCantInFiles;
 	/* ********************************************
 				FIN AREA DE PROCESO
 	********************************************* */
-		
-	
+
 	if(giEstadoCliente==0){
 		/*strcpy(sPathDestino, "/fs/migracion/Extracciones/ISU/Generaciones/T1/Activos/");*/
       strcat(sPathDestino, "Activos/");
@@ -1464,12 +1462,14 @@ $ClsCliente	regCliente;
 	
 	sprintf(sLinea, "%sT1\t", sLinea);
 	
+   /* NAMEORG1 */
 	if(iTipoPersona==2){
       /* Si es empresa*/
 		sprintf(sLinea, "%s%s\t", sLinea, regCliente.razonSocial);	
 	}else{
 		strcat(sLinea, "\t");
 	}
+   /* NAMEORG2 */
 	strcat(sLinea, "\t");
 	
 	if(iTipoPersona==2){
@@ -2099,7 +2099,8 @@ $long	lNroCliente;
 	InicializaCliente(regCli, regFP);
 
 	$EXECUTE selCorpoPropio into :regCli->numero_cliente,
-		:regCli->nombre,
+		/*:regCli->nombre,*/
+      :regCli->razonSocial,
 		:regCli->tipo_cliente,
 		:regCli->actividad_economic,
 		:regCli->cod_calle,
@@ -2153,6 +2154,7 @@ $long	lNroCliente;
 		
 	alltrim(regCli->nombre, ' ');
 	alltrim(regCli->obs_dir, ' ');
+   alltrim(regCli->tipo_cliente, ' ');
 
 	strcpy(regCli->nombre, strReplace(regCli->nombre, "'", " "));
 	strcpy(regCli->nombre, strReplace(regCli->nombre, "#", "N"));
@@ -2381,9 +2383,13 @@ $ClsCliente *reg;
    int   iPos=0;
    int   iP1, iP2, iP3;
    int   iLargo;
+   char  sNombreAux[50];
    
    memset(sNombre, '\0', sizeof(sNombre));
    memset(sApellido, '\0', sizeof(sApellido));
+   memset(sNombreAux, '\0', sizeof(sNombreAux));
+   
+   strcpy(sNombreAux, reg->razonSocial);
    
    iLargo=strlen(reg->razonSocial);
    iPos=getCharPosition(reg->razonSocial, " ");
@@ -2404,6 +2410,8 @@ $ClsCliente *reg;
       strcpy(reg->nombre, reg->razonSocial);
       strcpy(reg->apellido, ".");
    }
+   
+   strcpy(reg->razonSocial, sNombreAux);
    
    return 1;
 }

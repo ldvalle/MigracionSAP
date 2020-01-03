@@ -532,7 +532,7 @@ if(giTipoCorrida==2){
    strcat(sql, "AND md.mod_codigo = mi.modelo_medidor ");
    /*strcat(sql, "AND md.med_estado != 'Z' ");*/
    strcat(sql, "AND md.mar_codigo NOT IN ('000', 'AGE') ");
-   strcat(sql, "AND md.med_anio != 2019 "); 
+   /*strcat(sql, "AND md.med_anio != 2019 ");*/ 
 
 	strcat(sql, "AND c.mar_codigo = md.mar_codigo ");
 	strcat(sql, "AND c.mod_codigo = md.mod_codigo ");
