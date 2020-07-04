@@ -110,8 +110,8 @@ long        lFechaValTarifa;
    rdefmtdate(&lFechaValTarifa, "dd-mm-yyyy", sFechaValTarifa);   
 
    /*strcpy(sFechaPivoteAux, "12-08-2017");*/
-   strcpy(sFechaPivoteAux, "12-02-2018");
    /*strcpy(sFechaPivoteAux, "12-01-2018");*/
+   strcpy(sFechaPivoteAux, "01-12-2018");
    rdefmtdate(&lFechaPivote, "dd-mm-yyyy", sFechaPivoteAux);   
    /*$EXECUTE selFechaPivote INTO :lFechaPivote;*/
 
@@ -150,6 +150,9 @@ long        lFechaValTarifa;
          if(regEstado.lFechaMoveIn <= regEstado.lFechaAlta )
             regEstado.lFechaAlta = regEstado.lFechaMoveIn - 1;
 
+         /* Fecha Ultima Lectura */
+         regEstado.lFechaUltimaLectu = getFechaUltimaLectura(regCliente.numero_cliente);
+         
          /* Tarifa - UL y Motivo Alta */
          CargaEstados(regCliente, &regEstado);
          
@@ -180,7 +183,9 @@ long        lFechaValTarifa;
          if(giTipoTabla == 0){   
             $EXECUTE insParam USING :lFechaPivote, :lFechaLimiteInferior;
          }else{
+/*         
             $EXECUTE insParamAux USING :lFechaPivote, :lFechaLimiteInferior;
+*/            
          }
       
          $COMMIT WORK;
@@ -442,6 +447,16 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
       
    $PREPARE selMoveIn2 FROM $sql;
                   
+   /******* Fecha Ultima Lectura Real *******/
+   $PREPARE selUltimaLectu FROM "SELECT h.fecha_lectura
+      FROM hislec h
+      WHERE h.numero_cliente = ?
+      AND h.tipo_lectura IN (1,2,3,4,7)
+      AND h.fecha_lectura = (SELECT MAX(h2.fecha_lectura) FROM hislec h2
+      	WHERE h2.numero_cliente = h.numero_cliente
+      	AND h2.tipo_lectura IN (1,2,3,4,7)) ";   
+   
+                     
    /******** Estados *********/
 	strcpy(sql, "SELECT first 1 ");
 	strcat(sql, "CASE ");
@@ -508,8 +523,9 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
 	strcat(sql, "motivo_alta, ");
    strcat(sql, "tarifa_actual, ");
    strcat(sql, "ul_actual, ");
-   strcat(sql, "device ");
-	strcat(sql, " )VALUES( ?,?,?,?,?,?,?,?,?,?,?,?) ");
+   strcat(sql, "device, ");
+   strcat(sql, "fecha_ultima_lectu ");
+	strcat(sql, " )VALUES( ?,?,?,?,?,?,?,?,?,?,?,?,?) ");
    
    $PREPARE insRegiMigra FROM $sql;   
    
@@ -533,13 +549,15 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
 	strcat(sql, "motivo_alta = ?, ");
    strcat(sql, "tarifa_actual = ?, ");
    strcat(sql, "ul_actual = ?, ");
-   strcat(sql, "device = ? ");
+   strcat(sql, "device = ?, ");
+   strcat(sql, "fecha_ultima_lectu = ? ");
    strcat(sql, "WHERE numero_cliente = ? ");
    
    $PREPARE updParam FROM $sql;
 
 
    /******** Inserta Estados AUX *********/
+/*   
 	strcpy(sql, "INSERT INTO sap_regi_cliaux (numero_cliente, "); 
 	strcat(sql, "fecha_val_tarifa, "); 
 	strcat(sql, "fecha_alta_real, ");
@@ -555,16 +573,18 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
 	strcat(sql, " )VALUES( ?,?,?,?,?,?,?,?,?,?,?,?) ");
    
    $PREPARE insRegiMigraAux FROM $sql;   
-   
+*/   
    /******** Inserta parametro AUX *********/
+/*   
 	strcpy(sql, "INSERT INTO sap_regi_cliaux (numero_cliente, "); 
 	strcat(sql, "fecha_pivote, ");
    strcat(sql, "fecha_limi_inf ");
 	strcat(sql, " )VALUES( 0,?,?) ");
    
    $PREPARE insParamAux FROM $sql;   
-   
+*/   
    /********* Actualiza Estados AUX ********/
+/*   
    strcpy( sql, "UPDATE sap_regi_cliaux SET ");
 	strcat(sql, "fecha_val_tarifa = ?, "); 
 	strcat(sql, "fecha_alta_real = ?, ");
@@ -580,7 +600,7 @@ if(giTipoCorrida != 2 && giTipoTabla ==0){
    strcat(sql, "WHERE numero_cliente = ? ");
    
    $PREPARE updParamAux FROM $sql;
-   
+*/   
    /****** Medidor Actual ******/
    $PREPARE selMedidor FROM "SELECT 'T1' || numero_medidor || marca_medidor || modelo_medidor 
       FROM medid
@@ -659,6 +679,7 @@ $ClsEstado	*reg;
    rsetnull(CLONGTYPE, (char *) &(reg->lFechaAlta));
    rsetnull(CLONGTYPE, (char *) &(reg->lFechaMoveIn));
    rsetnull(CLONGTYPE, (char *) &(reg->lFechaPivote));
+   rsetnull(CLONGTYPE, (char *) &(reg->lFechaUltimaLectu));
 
    memset(reg->sTarifa, '\0', sizeof(reg->sTarifa));
    memset(reg->sUL, '\0', sizeof(reg->sUL));
@@ -851,7 +872,8 @@ $ClsEstado  reg;
             :reg.sMotivoAlta,
             :reg.sTarifaActual,
             :reg.sULactual,
-            :reg.sMedidorActual;
+            :reg.sMedidorActual,
+            :reg.lFechaUltimaLectu;
       }else{
          $EXECUTE updParam USING
             :reg.lFechaValTar,
@@ -868,6 +890,7 @@ $ClsEstado  reg;
             :reg.numero_cliente;
       }
    }else{
+/*   
       if(giTipoCorrida != 2){
          $EXECUTE insRegiMigraAux USING
             :reg.numero_cliente,
@@ -898,7 +921,7 @@ $ClsEstado  reg;
             :reg.sMedidorActual,
             :reg.numero_cliente;
       }
-   
+*/   
    }      
    if(SQLCODE != 0){
       return 0;
@@ -923,6 +946,22 @@ $long lNroCliente;
    return device;
 }
 
+long getFechaUltimaLectura(lNroCliente)
+$long lNroCliente;
+{
+   $long lFecha;
+   
+   rsetnull(CLONGTYPE, (char *) &(lFecha));
+   
+   $EXECUTE selUltimaLectu INTO :lFecha USING :lNroCliente;
+   
+   if(SQLCODE != 0){
+      printf("No se encontró Fecha Ultima Lectura para cliente %ld\n", lNroCliente);
+      return;
+   }
+   
+   return lFecha;
+}
 
 /****************************
 		GENERALES

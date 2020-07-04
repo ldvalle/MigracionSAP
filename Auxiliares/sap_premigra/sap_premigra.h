@@ -44,6 +44,7 @@ $typedef struct{
    char sTarifaActual[11];
    char sULactual[11];
    char  sMedidorActual[16];
+   long lFechaUltimaLectu;
 }ClsEstado;
    
 
@@ -63,6 +64,7 @@ void  CargaEstados(ClsCliente, ClsEstado *);
 short GrabaEstados(ClsEstado);
 char  *getMedidor(long);
 short ClienteEsta(long);
+long  getFechaUltimaLectura(long);
 
 /*
 short   LeoInstalacion(ClsInstalacion *);

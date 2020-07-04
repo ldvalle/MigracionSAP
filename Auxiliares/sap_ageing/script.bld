@@ -1,0 +1,97 @@
+PROGRAM = sap_ageing.exe
+
+OBJECTS = sap_ageing.o
+
+OBJS_LIB = sqlerror.o ustring.o mfecha.o errores.o macmath.o mfecha.o funcdt.o general.o \
+           anacon.o exigible.o saldos_cnr.o amrrehab.o amortiza.o dgutil.o
+
+OTROS =  amort/amrclien.o \
+         amort/amrerror.o \
+         amort/amrpago.o \
+         amort/amrarray.o \
+         amort/amrconta.o \
+         amort/amrrendi.o \
+         saldos_comun/MontoFacts.o
+
+CXFLAGS = -D_LARGE_FILES -qlonglong
+
+.include /usr/pvcs/etc/build.def
+
+#UPDATE#
+
+sap_ageing.o : sap_ageing.ec                                                      \
+           sap_ageing.h                                                       \
+           amortiza.h                                                     \
+           campos.h                                                       \
+           cliente.h                                                      \
+           errores.h                                                      \
+           funcdt.h                                                       \
+           macmath.h                                                      \
+           mfecha.h                                                       \
+           amort.h                                                        \
+           saldos_impuestos.h                                             \
+           saldos_cnr.h                                                   \
+           sqlerror.h                                                     \
+           tabla_errores.h                                                \
+           ustring.h 
+
+ustring.o : ustring.c                                                     \
+            ustring.h 
+
+mfecha.o : mfecha.ec                                                      \
+           errores.h                                                      \
+           mfecha.h                                                       \
+           tabla_errores.h 
+
+errores.o : errores.ec                                                    \
+            errores.h                                                     \
+            tabla_errores.h 
+
+macmath.o : macmath.c 
+
+mfecha.o : mfecha.ec                                                      \
+           errores.h                                                      \
+           mfecha.h                                                       \
+           tabla_errores.h 
+
+funcdt.o : funcdt.ec 
+
+general.o : general.ec                                                    \
+            errores.h                                                     \
+            tabla_errores.h 
+
+anacon.o : anacon.ec                                                      \
+           anacon.h 
+
+exigible.o : exigible.ec                                                  \
+             exigible.h                                                   \
+             sqlerror.h 
+
+saldos_cnr.o : saldos_cnr.ec                                              \
+               amortiza.h                                                 \
+               campos.h                                                   \
+               cliente.h                                                  \
+               pagco.h                                                    \
+               saldos_cnr.h                                               \
+               saldos_impuestos.h                                         \
+               sqlerror.h 
+
+amrrehab.o : amrrehab.ec                                                  \
+             amrrehab.h                                                   \
+             cliente.h                                                    \
+             errores.h                                                    \
+             tabla_errores.h 
+
+amortiza.o : amortiza.ec                                                  \
+             amortiza.h                                                   \
+             campos.h                                                     \
+             saldos_impuestos.h 
+
+dgutil.o : dgutil.ec                                                      \
+           dgutil.h                                                       \
+           sqlerror.h 
+
+sqlerror.o : sqlerror.ec                                                  \
+             sqlerror.h 
+
+#ENDUPDATE#
