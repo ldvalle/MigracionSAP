@@ -124,17 +124,17 @@ char     sTipo[2];
 		
 	
 	/* Registrar Control Plano */
-/*   
+   
    $BEGIN WORK;
    
-   iCorrelativos = getCorrelativo("FICA");
+   /*iCorrelativos = getCorrelativo("FICA");*/
    
 	if(!RegistraArchivo()){
 		$ROLLBACK WORK;
 		exit(1);
 	}
 	$COMMIT WORK;
-*/
+
 
    $EXECUTE selFechaRti INTO :lFechaRti;
    
@@ -169,6 +169,7 @@ char     sTipo[2];
 	for(i=0; i<12; i++){
 */   
    	/* Registrar Control Plano */
+/*      
       $BEGIN WORK;
       
       iCorrelativos = getCorrelativo("FICA");
@@ -178,6 +179,7 @@ char     sTipo[2];
    		exit(1);
    	}
    	$COMMIT WORK;
+*/
       
 /*   
 		strcpy(sSucursal, vSucursal[i]);
@@ -724,20 +726,22 @@ $char sAux[1000];
 	$PREPARE selRutaPlanos FROM $sql;
 
 	/******** Select Correlativo ****************/
+/*   
 	strcpy(sql, "SELECT correlativo +1 FROM sap_gen_archivos ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
 	$PREPARE selCorrelativo FROM $sql;
-
+*/
 	/******** Update Correlativo ****************/
+/*   
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
 	strcat(sql, "correlativo = correlativo + 1 ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
 	$PREPARE updGenArchivos FROM $sql;
-		
+*/		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
 	strcat(sql, "estructura, ");
@@ -967,6 +971,7 @@ $char clave[7];
     }
 }
 
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -981,6 +986,7 @@ $long iValor=0;
     
     return iValor;
 }
+*/
 
 short LeoCliente(regCli)
 $ClsCliente *regCli;
@@ -1736,11 +1742,11 @@ short RegistraArchivo(void)
 	$long	lCantidad;
 	$char	sTipoArchivo[10];
 	$char	sNombreArchivo[100];
-	
+/*	
    strcpy(sTipoArchivo, "FICA");
    
 	$EXECUTE updGenArchivos using :sTipoArchivo;
-/*  
+  
 	if(cantProcesada > 0){
 		strcpy(sTipoArchivo, "FICA");
 		strcpy(sNombreArchivo, sSoloArchSalidaGral);

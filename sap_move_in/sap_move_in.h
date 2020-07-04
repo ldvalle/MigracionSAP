@@ -40,6 +40,7 @@ $typedef struct{
    char  tarifa[20];
    char  ul[9];
    char  motivo_alta[3];
+   long  fecha_ultima_lectura;
 }ClsEstados;
 
 /** Prototipos de Funciones **/

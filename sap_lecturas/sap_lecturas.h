@@ -55,9 +55,10 @@ $typedef struct{
 short	AnalizarParametros(int, char **);
 void	MensajeParametros(void);
 short	AbreArchivos(long);
-void  	CreaPrepare(void);
+void  CreaPrepare(void);
 void	CreaPrepare1(void);
 void	CreaPrepare2(void);
+void	CreaPrepare3(void);
 void 	FechaGeneracionFormateada( char *);
 void 	RutaArchivos( char*, char * );
 long    getCorrelativo(char*);
@@ -67,7 +68,7 @@ char 	*strReplace(char *, char *, char *);
 void	CerrarArchivos(void);
 void	FormateaArchivos(void);
 
-short	ClienteYaMigrado(long, int*, long*, long*);
+short	ClienteYaMigrado(long, int*, long*, long*, long*);
 short	RegistraCliente(long, long, int);
 
 short	LeoClientes(long*, long*);
@@ -93,4 +94,7 @@ short getNvaVentana(ClsLecturas *);
 short TieneLectuReactiva(ClsLecturas *);
 void  MoverArchivo(void);
 
+short ProcesaInstalacion(long, long);
+short LeoUltimaLectu(long, long, ClsLecturas*);
+void  GeneroPlanoInstalacion(FILE *, char *, ClsLecturas);
 $endif;

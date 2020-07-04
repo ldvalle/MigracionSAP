@@ -447,8 +447,8 @@ $char sAux[1000];
 	
 	/*$PREPARE insGenAltas FROM $sql;*/
 	
-	/********* Select Cliente ya migrado **********/
-	strcpy(sql, "SELECT move_in, fecha_alta_real, fecha_move_in, motivo_alta FROM sap_regi_cliente ");
+	/********* Select Cliente ya migrado ***********/
+	strcpy(sql, "SELECT move_in, fecha_alta_real, fecha_move_in, motivo_alta, fecha_ultima_lectu FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigrado FROM $sql;
@@ -809,7 +809,8 @@ $ClsEstados *regSts;
 	$EXECUTE selClienteMigrado INTO :sMarca, 
                                  :regSts->fecha_alta_real,
                                  :regSts->fecha_move_in,
-                                 :regSts->motivo_alta
+                                 :regSts->motivo_alta,
+                                 :regSts->fecha_ultima_lectura
             using :nroCliente;
 		
 	if(SQLCODE != 0){
@@ -828,6 +829,10 @@ $ClsEstados *regSts;
       *iFlagExiste=1;
    }
 	
+   if(risnull(CLONGTYPE, (char *) regSts->fecha_ultima_lectura)){
+      regSts->fecha_ultima_lectura=regSts->fecha_alta_real;
+   }
+   
 	if(strcmp(sMarca, "S")==0){
 		*iFlagMigra=2; /* Indica que se debe hacer un update */
    	if(gsTipoGenera[0]=='R'){
@@ -1044,7 +1049,8 @@ void CargaCalculados(regAltas, regSts)
 ClsAltas    *regAltas;
 ClsEstados  regSts;
 {
-   rfmtdate(regSts.fecha_move_in, "yyyymmdd", regAltas->fecha_alta); /* long to char */
+   /*rfmtdate(regSts.fecha_move_in, "yyyymmdd", regAltas->fecha_alta); */  /* long to char */
+   rfmtdate(regSts.fecha_ultima_lectura, "yyyymmdd", regAltas->fecha_alta); /* long to char */
    rfmtdate(regSts.fecha_alta_real, "yyyymmdd", regAltas->fecha_alta_sistema); /* long to char */
    strcpy(regAltas->sMotivoAlta, regSts.motivo_alta);
 }
@@ -1137,6 +1143,7 @@ ClsEstados *reg;
    memset(reg->tarifa, '\0', sizeof(reg->tarifa));
    memset(reg->ul, '\0', sizeof(reg->ul));
    memset(reg->motivo_alta, '\0', sizeof(reg->motivo_alta));
+   rsetnull(CLONGTYPE, (char *) &(reg->fecha_ultima_lectura));
 }
 
 void FechaMoveInTrucha(reg)

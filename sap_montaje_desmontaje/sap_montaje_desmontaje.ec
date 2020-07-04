@@ -780,7 +780,7 @@ $char sAux[1000];
 	strcat(sql, "AND la.fecha_lectura = (	SELECT MAX(h2.fecha_lectura) FROM hislec h2 ");
 	strcat(sql, "   WHERE h2.numero_cliente = la.numero_cliente ");
 	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4,5) "); 
-	strcat(sql, "   AND h2.fecha_lectura < ?) ");
+	strcat(sql, "   AND h2.fecha_lectura = ?) ");
 
 /*
 	strcat(sql, "AND la.fecha_lectura = (	SELECT MIN(h2.fecha_lectura) FROM hislec h2 ");
@@ -855,7 +855,7 @@ $char sAux[1000];
 	strcat(sql, "AND la.fecha_lectura = (	SELECT MAX(h2.fecha_lectura) FROM hislec h2 ");
 	strcat(sql, "   WHERE h2.numero_cliente = la.numero_cliente ");
 	strcat(sql, "   AND h2.tipo_lectura IN (1,2,3,4,5, 8) "); 
-	strcat(sql, "   AND h2.fecha_lectura < ?) ");
+	strcat(sql, "   AND h2.fecha_lectura = ?) ");
 	strcat(sql, "AND la.tipo_lectura IN (1,2,3,4,5,8) ");
 	strcat(sql, "AND c.numero_cliente = la.numero_cliente ");
 	strcat(sql, "AND h.numero_cliente = c.numero_cliente ");
@@ -1600,8 +1600,8 @@ $ClsLecturas *regLectu;
 	
 	InicializaLecturas(regLectu);
 
-	$OPEN curPrimLectu 	using :lNroCliente,
-		  					  :lFechaMoveIn;
+	$OPEN curPrimLectu 	using :lNroCliente, :lFechaPrimFactu;
+		  					  /*:lFechaMoveIn;*/
 
 	$FETCH curPrimLectu into 
 		:regLectu->numero_cliente,
@@ -1626,8 +1626,8 @@ $ClsLecturas *regLectu;
     	if(SQLCODE == 100){
     		$CLOSE curPrimLectu;
          
-      	$OPEN curSecondLectu 	using :lNroCliente,
-      		  				               :lFechaMoveIn;
+      	$OPEN curSecondLectu 	using :lNroCliente, :lFechaPrimFactu;
+      		  				               /*:lFechaMoveIn;*/
 
       	$FETCH curSecondLectu into 
       		:regLectu->numero_cliente,
@@ -1663,9 +1663,12 @@ $ClsLecturas *regLectu;
     $CLOSE curPrimLectu;
  
     alltrim(regLectu->tarifa, ' ');
+    /*
     regLectu->fecha_lectura = lFechaMoveIn;
     rfmtdate(lFechaMoveIn, "yyyymmdd", regLectu->sFechaLectura);
-
+   */
+    regLectu->fecha_lectura = lFechaPrimFactu;
+    rfmtdate(lFechaPrimFactu, "yyyymmdd", regLectu->sFechaLectura);
     
 /*    
 // Aca le truche esto por la prueba facturacion masiva    

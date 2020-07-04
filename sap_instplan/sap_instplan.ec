@@ -406,20 +406,22 @@ $char sAux[1000];
 	$PREPARE selRutaPlanos FROM $sql;
 
 	/******** Select Correlativo ****************/
+/*   
 	strcpy(sql, "SELECT correlativo +1 FROM sap_gen_archivos ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
 	$PREPARE selCorrelativo FROM $sql;
-
+*/
 	/******** Update Correlativo ****************/
+/*   
 	strcpy(sql, "UPDATE sap_gen_archivos SET ");
 	strcat(sql, "correlativo = correlativo + 1 ");
 	strcat(sql, "WHERE sistema = 'SAPISU' ");
 	strcat(sql, "AND tipo_archivo = ? ");
 	
 	$PREPARE updGenArchivos FROM $sql;
-		
+*/		
 	/******** Insert gen_archivos ****************/
 	strcpy(sql, "INSERT INTO sap_regiextra ( ");
 	strcat(sql, "estructura, ");
@@ -538,6 +540,7 @@ $char clave[7];
     }
 }
 
+/*
 long getCorrelativo(sTipoArchivo)
 $char		sTipoArchivo[11];
 {
@@ -552,6 +555,7 @@ $long iValor=0;
     
     return iValor;
 }
+*/
 
 short LeoConve(reg)
 $ClsConve *reg;
@@ -855,7 +859,8 @@ ClsConve	reg;
 	sprintf(sLinea, "T1%ld\tIPKEY\t", reg.numero_cliente);
 
    /* WAERS */
-   strcat(sLinea, "ARS\t");
+   /*strcat(sLinea, "ARS\t");*/
+   
    /* BUDAT (Fecha Corrida Fica) */
    sprintf(sLinea, "%s%s\t", sLinea, sFechaFica);
    /* BLDAT (Fecha Corrida Fica) */
@@ -865,13 +870,15 @@ ClsConve	reg;
    /* VKONT */
    sprintf(sLinea, "%sT1%ld\t", sLinea, reg.numero_cliente);
    /* BLART */
-   strcat(sLinea, "PP\t");
+   /*strcat(sLinea, "PP\t");*/
+   
    /* BUKRS */
-   strcat(sLinea, "EDES\t");
+   /*strcat(sLinea, "EDES\t");*/
+   
    /* RPCAT */
-   strcat(sLinea, "E1\t");
+   strcat(sLinea, "E1");
    /* RPRDA */
-	strcat(sLinea, "0");
+	/*strcat(sLinea, "0");*/
 
 	strcat(sLinea, "\n");
 	

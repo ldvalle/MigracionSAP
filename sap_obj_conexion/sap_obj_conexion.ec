@@ -1302,7 +1302,7 @@ ClsCliente	regCliente;
 	memset(sLinea, '\0', sizeof(sLinea));
 	
    /* LLAVE + SPRAS + BEGRU */
-	sprintf(sLinea, "T1%ld\tCO_EHA\tS\tT1\t", regCliente.numero_cliente);
+	sprintf(sLinea, "T1%ld\tCO_EHA\t", regCliente.numero_cliente);
    /* SWERK */
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.sucursal);
    /* COUNC  */
@@ -1352,7 +1352,7 @@ ClsCliente	regCliente;
    alltrim(sAux, ' ');
 	
    /* LLAVE + DATE_FROM + DATE_TO */
-	sprintf(sLinea, "T1%ld\tCO_ADR\t00010101\t99991231\t", regCliente.numero_cliente);
+	sprintf(sLinea, "T1%ld\tCO_ADR\t", regCliente.numero_cliente);
 
    /* NAME_CO */
    if(strcmp(sAux, "") != 0){
@@ -1376,11 +1376,12 @@ ClsCliente	regCliente;
    /* STR_SUPPL2 */
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.nom_entre1);
    /* COUNTRY */
-	strcat(sLinea, "AR\t");
+   /*	strcat(sLinea, "AR\t"); */
+   
    /* REGION */
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.provincia);
    /* TIME_ZONE */
-	strcat(sLinea, "UTC-3");
+	/* strcat(sLinea, "UTC-3"); */
 
 	strcat(sLinea, "\n");
 	
@@ -1411,7 +1412,7 @@ ClsCliente	regCliente;
    /* LGZUSATZ */
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.info_adic_lectura);
    /* VBSTART + BEGRU */
-   strcat(sLinea, "0007\tT1\t");
+   /* strcat(sLinea, "0007\tT1\t"); */
    /* FLOOR */
 	sprintf(sLinea, "%s%s\t", sLinea, regCliente.piso_dir);
    /* ROOMNUMBER */

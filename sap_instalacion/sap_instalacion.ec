@@ -849,7 +849,8 @@ strcat(sql, "END unidad_lectura, ");
    strcat(sql, "fecha_val_tarifa, ");
    strcat(sql, "fecha_alta_real, ");
    strcat(sql, "tarifa, ");
-   strcat(sql, "ul ");    
+   strcat(sql, "ul, ");
+   strcat(sql, "fecha_pivote ");    
    strcat(sql, "FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
@@ -1370,7 +1371,8 @@ $ClsEstados *reg;
                                  :reg->fecha_val_tarifa,
                                  :reg->fecha_alta_real,
                                  :reg->tarifa,
-                                 :reg->ul    
+                                 :reg->ul, 
+                                 :reg->fecha_pivote    
                      USING :nroCliente;
 		
 	if(SQLCODE != 0){
@@ -1724,10 +1726,11 @@ ClsInstalacion	regIns;
    /* ANLAGE */
    /*sprintf(sLinea, "%s%s\t", sLinea, regIns.sPod);*/
    /*sprintf(sLinea, "%s%ldAR\t", sLinea, regIns.numero_cliente);*/
-   sprintf(sLinea, "%s%ld\t", sLinea, regIns.numero_cliente);
+   /*sprintf(sLinea, "%s%ld\t", sLinea, regIns.numero_cliente);*/
+   sprintf(sLinea, "%s%ld", sLinea, regIns.numero_cliente);
    
    /* BIS */
-	strcat(sLinea, "99991231");
+	/*strcat(sLinea, "99991231");*/
 	
 	strcat(sLinea, "\n");
 	
@@ -1755,7 +1758,8 @@ ClsInstalacion	regIns;
 	sprintf(sLinea, "T1%ld\tDATA\t", regIns.numero_cliente);
    
    /* SPARTE */
-	strcat(sLinea, "01\t");
+	/*strcat(sLinea, "01\t");*/
+   
    /* VSTELLE */
 	sprintf(sLinea, "%sT1%ld\t", sLinea, regIns.numero_cliente);
    
@@ -1775,7 +1779,8 @@ ClsInstalacion	regIns;
 		strcat(sLinea, "\t");	
 	}
    /* ANLART */
-	strcat(sLinea, "0007\t"); /* Clase de Instalación - Ex-T1*/
+	/* strcat(sLinea, "0007\t"); */ /* Clase de Instalación - Ex-T1*/
+   
    /* ABLESARTST */
 	strcat(sLinea, "\t");
    /* NODISCONCT */
@@ -1805,15 +1810,16 @@ ClsInstalacion	regIns;
    /* BRANCHE */
 	sprintf(sLinea, "%s%s\t", sLinea, regIns.actividad_economic);
 	/* AKLASSE */
-	strcat(sLinea, "EDE\t");
+	/* strcat(sLinea, "EDE\t"); */
+   
    /* ABLEINH */
 	sprintf(sLinea, "%s%s\t", sLinea, regIns.cod_ul);
    /* ERDAT */
 	/*sprintf(sLinea, "%s%s\t", sLinea, regIns.fecha_instalacion);*/
-   strcat(sLinea, "\t");
+   /*strcat(sLinea, "\t");*/
    
    /* BEGRU + ETIMEZONE */
-	strcat(sLinea, "T1\tUTC-3");
+	/* strcat(sLinea, "T1\tUTC-3"); */
    
 	strcat(sLinea, "\n");
 	
@@ -1897,9 +1903,17 @@ ClsInstalacion *regIns;
 ClsEstados     regSts;
 {
 
-   rfmtdate(regSts.fecha_val_tarifa, "yyyymmdd", regIns->fecha_vig_tarifa); /* long to char */
+/*
+   rfmtdate(regSts.fecha_val_tarifa, "yyyymmdd", regIns->fecha_vig_tarifa); // long to char 
    strcpy(regIns->fecha_instalacion, regIns->fecha_vig_tarifa);
-
+*/
+   if(regSts.fecha_alta_real < regSts.fecha_pivote){
+      rfmtdate(regSts.fecha_pivote, "yyyymmdd", regIns->fecha_vig_tarifa); /* long to char */
+   }else{
+      rfmtdate(regSts.fecha_alta_real, "yyyymmdd", regIns->fecha_vig_tarifa); /* long to char */
+   }
+   strcpy(regIns->fecha_instalacion, regIns->fecha_vig_tarifa);
+   
    alltrim(regSts.tarifa, ' ');
    alltrim(regSts.ul, ' ');
    strcpy(regIns->tarifa, regSts.tarifa);
