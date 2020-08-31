@@ -112,6 +112,7 @@ int         tiene_FACTOR_TAP;
 int         tiene_QPTAP;
 int         tiene_FLAGEBP;
 int         tiene_FLAGFP;
+int			tiene_FLAGCLUB;
 int         iOcurrClienteQB;
 int         iOcurrClienteQBreac;
 int         iMoviArchivos;
@@ -187,6 +188,7 @@ int			iBucle;
          tiene_QPTAP=0;
          tiene_FLAGEBP=0;
          tiene_FLAGFP=0;
+         tiene_FLAGCLUB=0;
          iOcurrClienteQB=0;
          iOcurrClienteQBreac=0;
          
@@ -335,6 +337,11 @@ int			iBucle;
                if(ProcesaFP(regCliente.numero_cliente, lFechaInicio, &lContador)){
                   tiene_FLAGFP=1;
                }               
+               
+               /* Club de Barrio */
+               if(ProcesaClubBarrio(regCliente.numero_cliente, lFechaInicio, &lContador)){
+						tiene_FLAGCLUB=1;
+					}
                
                /* Cierre Cliente */
                GeneraENDE3(fpUnx, regCliente.numero_cliente);
@@ -1008,7 +1015,7 @@ $char sAux[1000];
       p.valor,
       c.codigo_valor,
       'PT1TAP' || h.partido precio_sap
-      FROM hisfac h, carfac c2, condic_impositivas c, preca p, OUTER sap_transforma t
+      FROM hisfac h, carfac c2, condic_impositivas c, preca p
       WHERE h.numero_cliente = ?
       AND h.fecha_facturacion > ?
       AND c2.numero_cliente= h.numero_cliente
@@ -1053,6 +1060,20 @@ $char sAux[1000];
 
    $DECLARE curFP CURSOR FOR selFP;
    
+   /* Club Barrio */
+	$PREPARE selBarrio FROM "SELECT numero_cliente, 
+		fecha_inicio + 1, 
+		TO_CHAR(fecha_inicio + 1, '%Y%m%d'),
+		NVL(fecha_desactivac, 0),
+		NVL(TO_CHAR(fecha_desactivac, '%Y%m%d'), '99991231')
+		FROM club_barrio
+		WHERE numero_cliente = ?
+		AND ( ( ? BETWEEN fecha_inicio AND fecha_desactivac )
+			 OR
+			 (fecha_inicio >= ?))		
+		ORDER BY 2 ASC ";
+		
+	$DECLARE curBarrio CURSOR FOR selBarrio;
       
    /***** Updates registros ******/
 	/************ Update Clientes Migra VIP **************/
@@ -1939,6 +1960,10 @@ ClsFacts regFact;
          /*sprintf(sLinea, "T1%ld-FS\tF_FLAG\t", regFact.numero_cliente);*/
          sprintf(sLinea, "T1%ld\tF_FLAG\t", regFact.numero_cliente);
          break;
+      case 13:
+         /*sprintf(sLinea, "T1%ld-FS\tF_FLAG\t", regFact.numero_cliente);*/
+         sprintf(sLinea, "T1%ld\tF_FLAG\t", regFact.numero_cliente);
+         break;         
          
    }
 
@@ -2014,7 +2039,10 @@ ClsFacts regFact;
          /*sprintf(sLinea, "T1%ld-FS\tV_FLAG\t", regFact.numero_cliente);*/
          sprintf(sLinea, "T1%ld\tV_FLAG\t", regFact.numero_cliente);
          break;
-      
+      case 13:
+         /*sprintf(sLinea, "T1%ld-FS\tV_FLAG\t", regFact.numero_cliente);*/
+         sprintf(sLinea, "T1%ld\tV_FLAG\t", regFact.numero_cliente);
+         break;      
    }
    
    /* AB */
@@ -2043,6 +2071,8 @@ ClsFacts regFact;
       case 6:
       case 7:
       case 10:
+      case 12:
+      case 13:
          /* TARIFART + KONDRIG */
          strcat(sLinea, "\t");
          break;
@@ -2461,7 +2491,7 @@ $long *lFilas;
    long iFilas=0;
    long lFechaAux;
    
-   $OPEN curElectro USING :nroCliente, lFechaInicio, lFechaInicio;
+   $OPEN curElectro USING :nroCliente, :lFechaInicio, :lFechaInicio;
    
    while(LeoElectro(&reg)){
       iFilas++;
@@ -2594,7 +2624,7 @@ $long *lFilas;
       InicializaOperandos(&regF);
       TraspasoDatosTarSoc(iFilas, reg, &regF);
       /*rfmtdate(lFechaInicio, "yyyymmdd", regF.bis1);*/
-      if(iFilas == 1 && reg.lfecha_activacion < lFechaInicio){
+      if(iFilas == 1 && reg.lFechaActivacion < lFechaInicio){
 			lFechaAux=lFechaInicio+1;
 			rfmtdate(lFechaAux, "yyyymmdd", regF.ab);
 		}
@@ -2649,6 +2679,43 @@ $ClsFacts *regF;
    sprintf(regF->anlage, "%ld", reg.numero_cliente);
    
    strcpy(regF->operand, "FLAGTIS");
+   strcpy(regF->auto_inser, "X");
+   strcpy(regF->ab, reg.sFechaActivacion);
+   strcpy(regF->bis2, reg.sFechaDesactivac);
+   strcpy(regF->lmenge, "X");
+}
+
+short LeoClub(reg)
+$ClsElectro *reg;
+{
+   InicializaElectro(reg);
+   
+   $FETCH curBarrio INTO 
+      :reg->numero_cliente,
+      :reg->lFechaActivacion,
+      :reg->sFechaActivacion,
+      :reg->lFechaDesactivac,
+      :reg->sFechaDesactivac;
+      
+   if(SQLCODE != 0){
+      if(SQLCODE != 100){
+         printf("Error al leer cursor de Club de Barrio.\n");
+      }
+      return 0;   
+   }
+      
+   return 1;
+}
+
+void TraspasoDatosClub(iFilas, reg, regF)
+int iFilas;
+ClsElectro reg;
+$ClsFacts *regF;
+{
+   regF->numero_cliente = reg.numero_cliente; 
+   sprintf(regF->anlage, "%ld", reg.numero_cliente);
+   
+   strcpy(regF->operand, "FLAGCLUB");
    strcpy(regF->auto_inser, "X");
    strcpy(regF->ab, reg.sFechaActivacion);
    strcpy(regF->bis2, reg.sFechaDesactivac);
@@ -3021,7 +3088,7 @@ $long *lFilas;
 
    
    if(vectorHay>0){
-      /* El QCONTADOR */
+      /* El QCONTADOR Ver que piden xq no se entiende 2020 */
       iTieneFilas=0;
       for(iFila=1; iFila < index; iFila++){
          alltrim(vecFactorPot[iFila].evento_mac, ' ');
@@ -3029,7 +3096,7 @@ $long *lFilas;
             InicializaOperandos(&regF);
             
             TraspasoDatosQC(vecFactorPot[iFila], &regF);
-            rfmtdate(lFechaInicio, "yyyymmdd", regF.bis1);               
+            rfmtdate(lFechaInicio, "yyyymmdd", regF.bis1);
             GenerarPlanos(fpOperandos, 11, regF, iFila);
             lContador++;
             iTieneFilas=1;
@@ -3048,7 +3115,7 @@ $long *lFilas;
             InicializaOperandos(&regF);
             
             TraspasoDatosSB(vecFactorPot[iFila], &regF);
-            rfmtdate(lFechaInicio, "yyyymmdd", regF.bis1);               
+            /*rfmtdate(lFechaInicio, "yyyymmdd", regF.bis1);*/
             GenerarPlanos(fpOperandos, 12, regF, iFila);
             lContador++;
             iTieneFilas=1;
@@ -3166,6 +3233,43 @@ ClsFactorPot  **vec;
    strcpy((*vec)[index-1].clase_tarifa_sap, regFactor.clase_tarifa_sap);
 }
 
+
+short ProcesaClubBarrio(nroCliente, lFechaInicio, lFilas)
+$long nroCliente;
+$long lFechaInicio;
+$long *lFilas;
+{
+   $ClsElectro reg;
+   ClsFacts    regF;
+   long iFilas=0;
+   long lFechaAux;
+   
+   $OPEN curBarrio USING :nroCliente, :lFechaInicio, :lFechaInicio;
+   
+   while(LeoClub(&reg)){
+      iFilas++;
+      InicializaOperandos(&regF);
+      TraspasoDatosClub(iFilas, reg, &regF);
+      /*rfmtdate(lFechaInicio, "yyyymmdd", regF.bis1);*/
+      if(iFilas == 1 && reg.lFechaActivacion < lFechaInicio){
+			lFechaAux=lFechaInicio+1;
+			rfmtdate(lFechaAux, "yyyymmdd", regF.ab);
+		}
+      GenerarPlanos(fpOperandos, 13, regF, iFilas);
+   }
+   
+   $CLOSE curTarifaSocial;
+
+   if(iFilas>0){
+      /*GeneraENDE2(fpOperandos, 3, nroCliente);*/
+   }else{
+      return 0;
+   }
+   
+   *lFilas+=iFilas;
+   
+   return 1;
+}
 
 /****************************
 		GENERALES

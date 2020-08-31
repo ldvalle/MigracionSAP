@@ -215,6 +215,10 @@ void  CargaVectorFactorPot(ClsFactorPot, int, ClsFactorPot **);
 void  TraspasoDatosQC(ClsFactorPot, ClsFacts *);
 void  TraspasoDatosSB(ClsFactorPot, ClsFacts *);
 
+short ProcesaClubBarrio(long, long, long*);
+short LeoClub(ClsElectro *);
+void  TraspasoDatosClub(int, ClsElectro, ClsFacts *);
+
 /*
 short	EnviarMail( char *, char *);
 void  	ArmaMensajeMail(char **);
