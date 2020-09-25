@@ -66,6 +66,8 @@ int			iFlagMigra=0;
 $ClsCliente		regCliente;
 $ClsFormaPago	regFP;
 $ClsPostal		regPos;
+$ClsTelefonos	regTel;
+$ClsEmail		regMail;
 int			iNx;
 $long			lFechaMoveIn;
 
@@ -85,8 +87,6 @@ $long			lFechaMoveIn;
 	$SET ISOLATION TO DIRTY READ;
    $SET ISOLATION TO CURSOR STABILITY;
 	
-	/*$BEGIN WORK;*/
-
 	CreaPrepare();
 
 	
@@ -104,8 +104,17 @@ $long			lFechaMoveIn;
 
    $OPEN curClientes;
 	
-	while(LeoCliente(&regCliente, &regFP, &regPOs)){
-		if(! ClienteYaMigrado(regDepgar.numero_cliente, &iFlagMigra)){
+	while(LeoCliente(&regCliente, &regFP, &regPOs, &regTel, &regMail)){
+		rsetnull(CLONGTYPE, (char *) &(lFechaMoveIn));
+		
+		if(! ClienteYaMigrado(regDepgar.numero_cliente, &lFechaMoveIn, &iFlagMigra)){
+			
+			/* Ver si Tiene Padre en T23 */
+			if(!CorporativoT23(&regCliente)){
+				printf("Error al verificar si %ld tiene padre T23\n", regCliente.numero_cliente);
+			}
+	
+			
          GenerarPlano(pFileDataUnx, regDepgar);
          cantProcesada++;
 
@@ -128,6 +137,7 @@ $long			lFechaMoveIn;
    $COMMIT WORK;
 
 	/* Registrar Control Plano */
+
 /*   
 	if(!RegistraArchivo()){
 		$ROLLBACK WORK;
@@ -311,9 +321,10 @@ $char sAux[1000];
 	strcat(sql, "	WHEN c.nombre IS NOT NULL AND c.nombre != ' ' THEN UPPER(c.nombre[1,40]) ");
 	strcat(sql, " 	ELSE 'SIN NOMBRE' ");
 	strcat(sql, "END, ");
-	strcat(sql, "c.tipo_cliente, ");
+	strcat(sql, "c.tipo_cliente, ");									/* Tipo de Cliente MAC*/
+	strcat(sql, "t5.cod_sap, "); 										/* Tipo Cliente SAP */
+	strcat(sql, "t5.acronimo_sap, ");									/* CDC de SAP */
 	strcat(sql, "NVL(t1.cod_sap, '0000') actividad_economica, "); 
-
 	strcat(sql, "c.cod_calle, ");
 	strcat(sql, "UPPER(c.nom_calle), ");
 	strcat(sql, "c.nro_dir, ");
@@ -329,14 +340,24 @@ $char sAux[1000];
 	strcat(sql, "c.cod_postal, ");
 	strcat(sql, "c.obs_dir[1,40], ");
 	strcat(sql, "c.telefono, ");
-
 	strcat(sql, "c.rut, ");
 	strcat(sql, "t3.cod_sap tipo_documento, ");
 	strcat(sql, "TRUNC(c.nro_doc,0), ");
 	strcat(sql, "c.tipo_fpago, ");
 	strcat(sql, "c.minist_repart, ");
 	strcat(sql, "c.estado_cliente, ");
+	
 	strcat(sql, "c.tipo_reparto, ");
+	strcat(sql, "t6.cod_sap, "); 										/* Tipo Reparto SAP */
+	strcat(sql, "c.tarifa, ");
+	strcat(sql, "CASE ");
+	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) AND c.sector in (81, 82) THEN 'T1-GEN-CONV' ");
+	strcat(sql, "	WHEN c.tarifa[2] != 'P' AND c.tipo_sum IN(1,2,3,6) AND c.sector not in (81, 82) THEN 'T1-GEN-NOM' ");
+	strcat(sql, "	WHEN c.tarifa[2] = 'P' AND c.tipo_sum = 6 THEN 'T1-AP-NOM' ");
+	strcat(sql, "	ELSE t7.cod_sap ");
+	strcat(sql, "END, ");												/* Tarifa SAP*/
+	strcat(sql, "c.tiene_corte_rest, ");
+	strcat(sql, "c.tiene_cobro_int, ");
 	strcat(sql, "LPAD(f.fp_banco, 4, '0'), ");
 	strcat(sql, "f.fp_tipocuenta, ");
 	strcat(sql, "f.fp_nrocuenta, ");
@@ -357,7 +378,8 @@ $char sAux[1000];
 	strcat(sql, "p.dp_telefono ");
 	
 	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2, OUTER sap_transforma t3, ");
-	strcat(sql, "OUTER forma_pago f, OUTER (postal p, sap_transforma t4) ");
+	strcat(sql, "OUTER forma_pago f, OUTER (postal p, sap_transforma t4), OUTER sap_transforma t5, ");
+	strcat(sql, "sap_transforma t6, sap_transforma t7 ");
    
    if(giEstadoCliente != 0){
       strcat(sql, ", sap_inactivos si ");
@@ -394,6 +416,17 @@ $char sAux[1000];
 	strcat(sql, "AND t3.cod_mac = c.tip_doc ");
 	strcat(sql, "AND t4.clave = 'REGION' ");
 	strcat(sql, "AND t4.cod_mac = p.dp_provincia ");
+	
+	strcat(sql, "AND t5.clave = 'TIPCLI' ");
+	strcat(sql, "AND t5.cod_mac = c.tipo_cliente ");
+	
+	strcat(sql, "AND t6.clave = 'TIPOREPARTO' ");
+	strcat(sql, "AND t6.cod_mac = c.tipo_reparto ");
+
+	strcat(sql, "AND t7.clave = 'TARIFTYP' ");			/* tarifa */
+	strcat(sql, "AND t7.cod_mac = c.tarifa ");
+
+	
 	strcat(sql, "AND f.numero_cliente = c.numero_cliente ");
 	strcat(sql, "AND f.fecha_activacion <= TODAY ");
 	strcat(sql, "AND (f.fecha_desactivac IS NULL OR f.fecha_desactivac > TODAY) ");
@@ -409,6 +442,28 @@ $char sAux[1000];
 	
 	$DECLARE curClientes CURSOR WITH HOLD FOR selClientes;
 		
+	/********* Select Corporativo T23 **********/
+	strcpy(sql, "SELECT NVL(cod_corporativo, '000'), ");
+	strcat(sql, "CASE ");
+	strcat(sql, "	WHEN cod_corpo_padre[1,3] = 'CCP' THEN '991'|| cod_corpo_padre[4,8] ");
+	strcat(sql, "	WHEN cod_corpo_padre[1,3] = 'CCM' THEN '992'|| cod_corpo_padre[4,8] ");  
+	strcat(sql, "	WHEN cod_corpo_padre[1,3] = 'CCO' THEN '993'|| cod_corpo_padre[4,8] "); 
+	strcat(sql, "	WHEN cod_corpo_padre[1,3] = 'GCP' THEN '994'|| cod_corpo_padre[4,8] ");  
+	strcat(sql, " 	WHEN cod_corpo_padre[1,3] = 'GCM' THEN '995'|| cod_corpo_padre[4,8] "); 
+	strcat(sql, "  WHEN cod_corpo_padre[1,3] = 'GCO' THEN '996'|| cod_corpo_padre[4,8] "); 
+	strcat(sql, "END ");
+	strcat(sql, "FROM mg_corpor_t23 ");
+	strcat(sql, "WHERE numero_cliente = ? ");
+   
+	$PREPARE selCorpoT23 FROM $sql;
+
+	/********* get Codigo Tarjetas **********/
+	strcpy(sql, "SELECT cod_sap FROM sap_transforma ");
+	strcat(sql, "WHERE clave = 'CARDTYPE' ");
+	strcat(sql, "AND cod_mac = ? ");
+
+	$PREPARE selCodTarjeta FROM $sql;
+			
 	/******** Select Path de Archivos ****************/
 	strcpy(sql, "SELECT valor_alf ");
 	strcat(sql, "FROM tabla ");
@@ -420,38 +475,8 @@ $char sAux[1000];
 
 	$PREPARE selRutaPlanos FROM $sql;
 
-	/******** Select Correlativo ****************/
-	strcpy(sql, "SELECT correlativo +1 FROM sap_gen_archivos ");
-	strcat(sql, "WHERE sistema = 'SAPISU' ");
-	strcat(sql, "AND tipo_archivo = ? ");
-	
-	/*$PREPARE selCorrelativo FROM $sql;*/
-
-	/******** Update Correlativo ****************/
-	strcpy(sql, "UPDATE sap_gen_archivos SET ");
-	strcat(sql, "correlativo = correlativo + 1 ");
-	strcat(sql, "WHERE sistema = 'SAPISU' ");
-	strcat(sql, "AND tipo_archivo = ? ");
-	
-	/*$PREPARE updGenArchivos FROM $sql;*/
-		
-	/******** Insert gen_archivos ****************/
-	strcpy(sql, "INSERT INTO sap_regiextra ( ");
-	strcat(sql, "estructura, ");
-	strcat(sql, "fecha_corrida, ");
-	strcat(sql, "modo_corrida, ");
-	strcat(sql, "cant_registros, ");
-	strcat(sql, "numero_cliente, ");
-	strcat(sql, "nombre_archivo ");
-	strcat(sql, ")VALUES( ");
-	strcat(sql, "'DEPGAR', ");
-	strcat(sql, "CURRENT, ");
-	strcat(sql, "?, ?, ?, ?) ");
-	
-	/*$PREPARE insGenInstal FROM $sql;*/
-
 	/********* Select Cliente ya migrado **********/
-	strcpy(sql, "SELECT depgar FROM sap_regi_cliente ");
+	strcpy(sql, "SELECT fecha_move_in, interloc_comercial FROM sap_regi_cliente ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE selClienteMigrado FROM $sql;
@@ -465,50 +490,11 @@ $char sAux[1000];
 	
 	/************ Update Clientes Migra **************/
 	strcpy(sql, "UPDATE sap_regi_cliente SET ");
-	strcat(sql, "depgar = 'S' ");
+	strcat(sql, "interloc_comercial = 'S' ");
 	strcat(sql, "WHERE numero_cliente = ? ");
 	
 	$PREPARE updClientesMigra FROM $sql;
 
-	/************ FechaLimiteInferior **************/
-	/*strcpy(sql, "SELECT TODAY-365 FROM dual ");*/
-	strcpy(sql, "SELECT TODAY - t.valor FROM dual d, tabla t ");
-	strcat(sql, "WHERE t.nomtabla = 'SAPFAC' ");
-	strcat(sql, "AND t.sucursal = '0000' ");
-	strcat(sql, "AND t.codigo = 'HISTO' ");
-	strcat(sql, "AND t.fecha_activacion <= TODAY ");
-	strcat(sql, "AND (t.fecha_desactivac IS NULL OR t.fecha_desactivac > TODAY) ");
-		
-	$PREPARE selFechaLimInf FROM $sql;
-
-	/*********** Correlativos Hacia Atras ***********/		
-	strcpy(sql, "SELECT t.valor FROM tabla t ");
-	strcat(sql, "WHERE t.nomtabla = 'SAPFAC' ");
-	strcat(sql, "AND t.sucursal = '0000' ");
-	strcat(sql, "AND t.codigo = 'CORR' ");
-	strcat(sql, "AND t.fecha_activacion <= TODAY ");
-	strcat(sql, "AND (t.fecha_desactivac IS NULL OR t.fecha_desactivac > TODAY) ");
-	
-	$PREPARE selCorrelativos FROM $sql;
-	
-	/******** Fecha Primera Factura a Migrar *********/
-	strcpy(sql, "SELECT TO_CHAR(MAX(h2.fecha_lectura), '%Y%m%d') ");
-	strcat(sql, "FROM hisfac h1, hislec h2 ");
-	strcat(sql, "WHERE h1.numero_cliente = ? ");
-	strcat(sql, "AND h1.corr_facturacion = ? ");
-	strcat(sql, "AND h2.numero_cliente = h1.numero_cliente ");
-	strcat(sql, "AND h2.fecha_lectura < h1.fecha_facturacion ");
-	strcat(sql, "AND h2.tipo_lectura IN (1, 2, 3, 4, 8) ");
-	
-	$PREPARE selFechaFactura FROM $sql;
-
-	/********** Fecha Alta Instalacion ************/
-   
-	strcpy(sql, "SELECT fecha_val_tarifa, TO_CHAR(fecha_val_tarifa, '%Y%m%d') FROM sap_regi_cliente ");
-	strcat(sql, "WHERE numero_cliente = ? ");
-
-	$PREPARE selFechaInstal FROM $sql;
-   	
    /********* Registra Corrida **********/
    $PREPARE insRegiCorrida FROM "INSERT INTO sap_regiextra (
       estructura, fecha_corrida, fecha_fin, parametros
@@ -558,17 +544,25 @@ $long iValor=0;
     return iValor;
 }
 */
-short LeoCliente(regCli, regFP, regPos)
+short LeoCliente(regCli, regFP, regPos, regTel, regMail)
 $ClsCliente *regCliente;
 $ClsFormaPago *regFP;
 $ClsPostal *regPos;
+$ClsTelefonos *regTel;
+$ClsEmail *regMail;
 {
-	InicializaCliente(regCli, regFP, regPos);
+	$int iValor=0;
+	int iCantTelefonos=0;
+	int iCantEmail=0;
+	
+	InicializaCliente(regCli, regFP, regPos, regTel, regMail);
 
 	$FETCH curClientes INTO
 		:regCli->numero_cliente,
-      :regCli->razonSocial,
+		:regCli->razonSocial,
 		:regCli->tipo_cliente,
+		:regCli->tipo_cliente_sap,
+		:regCli->cdc_sap,
 		:regCli->actividad_economic,
 		:regCli->cod_calle,
 		:regCli->nom_calle,
@@ -592,6 +586,11 @@ $ClsPostal *regPos;
 		:regCli->minist_repart,
 		:regCli->estado_cliente,
 		:regCli->tipo_reparto,
+		:regCli->tipo_reparto_sap,
+		:regCli->tarifa,
+		:regCli->tarifa_sap,
+		:regCli->tiene_corte_rest,
+		:regCli->tiene_cobro_int,
 		:regFP->fp_banco,
 		:regFP->fp_tipocuenta,
 		:regFP->fp_nrocuenta,
@@ -678,21 +677,63 @@ $ClsPostal *regPos;
       }
    }
    
+   /* cargo la forma de pago de debito */
+   if(strcmp(regCli->tipo_fpago, "D")==0){
+      strcpy(regCli->sTipoDebito, getTipoDebito(regCli->numero_cliente));
+      strcpy(regCli->sTipoEntidadDebito, getTipoEntidad(regCli->numero_cliente));
+   }
+	   
+   /* Cargo los datos de Electrodependencia */
+   $EXECUTE selElectro INTO :regCli->sCodElectro USING :regCli->numero_cliente;
+   
+   if(SQLCODE != 0){
+      if(SQLCODE == 100){
+         strcpy(regCli->sElectrodependiente, "N");
+      }else{
+		    printf("Error al verificar si cliente %ld es Electro\n", regCli->numero_cliente);
+      }	
+   }else{
+      strcpy(regCli->sElectrodependiente, "S");
+   }
+   alltrim(regCli->sCodElectro, ' ');
+   
+	/* Cargar Telefonos */
+	iCantTelefonos=0;
+	if(! CargaTelefonos(regCliente, &(regTelefonos), &iCantTelefonos)){
+		exit(1);
+	}
+
+	/* Cargar eMail */
+	iCantEmail=0;
+	if(! CargaEmail(regCliente, &regEmail, &iCantEmail)){
+		exit(1);
+	}		
+
+   
+   /* Cargo los datos del medidor */
+   
+   /* Cargo los datos de la lectura de montaje */
+   
+   
 	return 1;	
 }
 
 
-void InicializaCliente(regCli, regFP, regPos)
+void InicializaCliente(regCli, regFP, regPos, regTel, regMail)
 $ClsCliente	*reg;
 $ClsFormaPago *regFP;
 $ClsPostal *regPos;
+$ClsTelefonos *regTel;
+$ClsEmail *regMail;
 {
 
 	rsetnull(CLONGTYPE, (char *) &(regCli->numero_cliente));
 	memset(regCli->nombre, '\0', sizeof(regCli->nombre));
-   memset(regCli->apellido, '\0', sizeof(regCli->apellido));
-   memset(regCli->razonSocial, '\0', sizeof(regCli->razonSocial));
+	memset(regCli->apellido, '\0', sizeof(regCli->apellido));
+	memset(regCli->razonSocial, '\0', sizeof(regCli->razonSocial));
 	memset(regCli->tipo_cliente, '\0', sizeof(regCli->tipo_cliente));
+	memset(regCli->tipo_cliente_sap, '\0', sizeof(regCli->tipo_cliente_sap));
+	memset(regCli->cdc_sap, '\0', sizeof(regCli->cdc_sap));
 	memset(regCli->actividad_economic, '\0', sizeof(regCli->actividad_economic));
 	memset(regCli->cod_calle, '\0', sizeof(regCli->cod_calle));
 	memset(regCli->nom_calle, '\0', sizeof(regCli->nom_calle));
@@ -715,6 +756,13 @@ $ClsPostal *regPos;
 	memset(regCli->tipo_fpago, '\0', sizeof(regCli->tipo_fpago));
 	rsetnull(CLONGTYPE, (char *) &(regCli->minist_repart));
 	memset(regCli->tipo_reparto, '\0', sizeof(regCli->tipo_reparto));
+	
+	memset(regCli->tarifa, '\0', sizeof(regCli->tarifa));
+	memset(regCli->tarifa_sap, '\0', sizeof(regCli->tarifa_sap));	
+
+	memset(regCli->tiene_corte_rest, '\0', sizeof(regCli->tiene_corte_rest));
+	memset(regCli->tiene_cobro_int, '\0', sizeof(regCli->tiene_cobro_int));	
+	
 	memset(regCli->sAccount, '\0', sizeof(regCli->sAccount));
 	
 	memset(regFP->fp_banco, '\0', sizeof(regFP->fp_banco));
@@ -736,21 +784,41 @@ $ClsPostal *regPos;
 	rsetnull(CINTTYPE, (char *) &(regPos->dp_cod_postal));
 	memset(regPos->dp_telefono, '\0', sizeof(regFP->dp_telefono));
 	
+	memset(regCli->sCodCorpoT23, '\0', sizeof(regCli->sCodCorpoT23));
+	memset(regCli->sCodCorpoPadreT23, '\0', sizeof(regCli->sCodCorpoPadreT23));
+	memset(regCli->sElectrodependiente, '\0', sizeof(regCli->sElectrodependiente));
+	memset(regCli->sCodElectro, '\0', sizeof(regCli->sCodElectro));
+
+
+	memset(regTel->tipo_te, '\0', sizeof(regTel->tipo_te));
+	memset(regTel->cod_area_te, '\0', sizeof(regTel->cod_area_te));
+	memset(regTel->prefijo_te, '\0', sizeof(regTel->prefijo_te));
+	rsetnull(CLONGTYPE, (char *) &(regTel->numero_te));
+	memset(regTel->ppal_te, '\0', sizeof(regTel->ppal_te));
+	
+	memset(regMail->email1, '\0', sizeof(regMail->email1));
+	memset(regMail->email2, '\0', sizeof(regMail->email2));
+	memset(regMail->email3, '\0', sizeof(regMail->email3));
+
 }
 
-short ClienteYaMigrado(nroCliente, iFlagMigra)
+short ClienteYaMigrado(nroCliente, lFechaMoveIn, iFlagMigra)
 $long	nroCliente;
-int		*iFlagMigra;
+$long lFechaMoveIn;
+int	*iFlagMigra;
 {
 	$char	sMarca[2];
+	$long lFecha;
+	
 	
 	if(gsTipoGenera[0]=='R'){
 		return 0;	
 	}
 	
 	memset(sMarca, '\0', sizeof(sMarca));
+	rsetnull(CLONGTYPE, (char *) &(lFecha));
 	
-	$EXECUTE selClienteMigrado into :sMarca using :nroCliente;
+	$EXECUTE selClienteMigrado INTO :lFecha, :sMarca using :nroCliente;
 		
 	if(SQLCODE != 0){
 		if(SQLCODE==SQLNOTFOUND){
@@ -763,14 +831,41 @@ int		*iFlagMigra;
 	}
 	
 	if(strcmp(sMarca, "S")==0){
-		*iFlagMigra=2; /* Indica que se debe hacer un update */	
+		*iFlagMigra=2; /* Indica que se debe hacer un update */
+		*lFechaMoveIn=lFecha;	
 		return 1;
 	}else{
 		*iFlagMigra=2; /* Indica que se debe hacer un update */	
+		*lFechaMoveIn=lFecha;
 	}
 		
 	return 0;
 }
+
+
+short CorporativoT23(regCliente)
+$ClsCliente *regCliente;
+{
+	$int	iCant=0;
+
+   return 0;
+   /* Salida Forzada por NO */
+   
+	$EXECUTE selCorpoT23 into :regCliente->sCodCorpoT23, 
+							  :regCliente->sCodCorpoPadreT23 
+						using :regCliente->numero_cliente;
+
+	if(SQLCODE == SQLNOTFOUND)
+		return 1;
+
+	if(SQLCODE != 0){
+		printf("ErroR al verificar si el cliente %ld es corporativo T23.\n",regCliente->numero_cliente);
+		exit(1);
+	}
+	
+	return 1;
+}
+
 
 short CargaAltaCliente(regDep)
 $ClsDepgar *regDep;
