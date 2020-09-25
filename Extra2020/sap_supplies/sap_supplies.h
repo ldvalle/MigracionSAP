@@ -48,6 +48,30 @@ $typedef struct{
 }ClsCliente;
 
 $typedef struct{
+	char	dp_nom_calle[36];
+	char	dp_nro_dir[6];
+	char	dp_piso_dir[7];
+	char	dp_depto_dir[7];
+	char	dp_nom_entre[26];
+	char	dp_nom_entre1[26];
+	char	dp_cod_provincia[4];
+	char	dp_nom_partido[26];
+	int	dp_cod_postal;
+	char	dp_telefono[10];
+}ClsPostal;
+
+$typedef struct{
+	char	fp_banco[7];
+	char	fp_tipocuenta[7];
+	char	fp_nrocuenta[21];
+	int	fp_sucursal;
+	long	fecha_activacion;
+	long	fecha_desactivac;
+	char	fp_cbu[23];
+	char	cod_tarjeta[11];
+}ClsFormaPago;
+
+$typedef struct{
 	char	email1[51];
 	char	email2[51];
 	char	email3[51];
@@ -61,17 +85,6 @@ $typedef struct{
 	char	ppal_te[2];
 }ClsTelefonos;
 
-$typedef struct{
-	char	fp_banco[7];
-	char	fp_tipocuenta[7];
-	char	fp_nrocuenta[21];
-	int	fp_sucursal;
-	long	fecha_activacion;
-	long	fecha_desactivac;
-	char	fp_cbu[23];
-	char	cod_tarjeta[11];
-}ClsFormaPago;
-
 /* Prototipos de Funciones */
 short	AnalizarParametros(int, char **);
 void	MensajeParametros(void);
@@ -81,21 +94,12 @@ void 	FechaGeneracionFormateada( char *);
 void 	RutaArchivos( char*, char * );
 long  getCorrelativo(char*);
 
-short LeoDepgar(ClsDepgar *);
-void  InicializaDepgar(ClsDepgar *);
+short LeoCliente(ClsCliente *, ClsFormaPago *, ClsPostal *);
+void  InicializaCliente(ClsCliente *, ClsFormaPago *, ClsPostal *);
 
 short CargaAltaCliente(ClsDepgar *);
 
 short	GenerarPlano(FILE *, ClsDepgar);
-void	GeneraSEC_D(FILE *, ClsDepgar);
-void	GeneraSEC_C(FILE *, ClsDepgar);
-void	GeneraENDE(FILE *, ClsDepgar);
-/*
-short   LeoInstalacion(ClsInstalacion *);
-void    InicializaInstalacion(ClsInstalacion *);
-short	CargaCambioTarifa(ClsInstalacion *);
-*/
-
 
 short	RegistraArchivo(void);
 char 	*strReplace(char *, char *, char *);

@@ -63,7 +63,9 @@ void main( int argc, char **argv )
 $char 		nombreBase[20];
 time_t 		hora;
 int			iFlagMigra=0;
-$ClsCliente	regCliente
+$ClsCliente		regCliente;
+$ClsFormaPago	regFP;
+$ClsPostal		regPos;
 int			iNx;
 $long			lFechaMoveIn;
 
@@ -102,7 +104,7 @@ $long			lFechaMoveIn;
 
    $OPEN curClientes;
 	
-	while(LeoDepgar(&regDepgar)){
+	while(LeoCliente(&regCliente, &regFP, &regPOs)){
 		if(! ClienteYaMigrado(regDepgar.numero_cliente, &iFlagMigra)){
          GenerarPlano(pFileDataUnx, regDepgar);
          cantProcesada++;
@@ -341,7 +343,19 @@ $char sAux[1000];
 	strcat(sql, "f.fp_sucursal, ");
 	strcat(sql, "f.fecha_activacion, ");
 	strcat(sql, "f.fecha_desactivac, ");
-	strcat(sql, "f.fp_cbu ");
+	strcat(sql, "f.fp_cbu, ");
+	
+	strcat(sql, "UPPER(p.dp_nom_calle), ");
+	strcat(sql, "p.dp_nro_dir, ");
+	strcat(sql, "p.dp_piso_dir, ");
+	strcat(sql, "p.dp_depto_dir, ");
+	strcat(sql, "UPPER(p.dp_nom_entre), ");
+	strcat(sql, "UPPER(p.dp_nom_entre1), ");
+	strcat(sql, "t4.cod_sap pcia_postal, ");
+	strcat(sql, "UPPER(p.dp_nom_partido), ");
+	strcat(sql, "p.dp_cod_postal, ");
+	strcat(sql, "p.dp_telefono ");
+	
 	strcat(sql, "FROM cliente c, OUTER sap_transforma t1, OUTER sap_transforma t2, OUTER sap_transforma t3, ");
 	strcat(sql, "OUTER forma_pago f, OUTER (postal p, sap_transforma t4) ");
    
@@ -544,60 +558,184 @@ $long iValor=0;
     return iValor;
 }
 */
-short LeoDepgar(regDep)
-$ClsDepgar *regDep;
+short LeoCliente(regCli, regFP, regPos)
+$ClsCliente *regCliente;
+$ClsFormaPago *regFP;
+$ClsPostal *regPos;
 {
-	InicializaDepgar(regDep);
+	InicializaCliente(regCli, regFP, regPos);
 
-	$FETCH curDepgar into
-    :regDep->numero_dg,
-    :regDep->numero_cliente,
-    :regDep->numero_comprob,
-    :regDep->sFechaDeposito,
-    :regDep->lFechaDeposito,
-    :regDep->sFechaReintegro,
-    :regDep->lFechaReintegro,
-    :regDep->valor_deposito,
-    :regDep->estado,
-    :regDep->estado_dg,
-    :regDep->origen,
-    :regDep->motivo,
-    :regDep->garante;
-
+	$FETCH curClientes INTO
+		:regCli->numero_cliente,
+      :regCli->razonSocial,
+		:regCli->tipo_cliente,
+		:regCli->actividad_economic,
+		:regCli->cod_calle,
+		:regCli->nom_calle,
+		:regCli->nro_dir,
+		:regCli->piso_dir,
+		:regCli->depto_dir,
+		:regCli->nom_entre,
+		:regCli->nom_entre1,
+		:regCli->provincia,
+		:regCli->partido,
+		:regCli->nom_partido,
+		:regCli->comuna,
+		:regCli->nom_comuna,
+		:regCli->cod_postal,
+		:regCli->obs_dir,
+		:regCli->telefono,
+		:regCli->rut,
+		:regCli->tip_doc,
+		:regCli->nro_doc,
+		:regCli->tipo_fpago,
+		:regCli->minist_repart,
+		:regCli->estado_cliente,
+		:regCli->tipo_reparto,
+		:regFP->fp_banco,
+		:regFP->fp_tipocuenta,
+		:regFP->fp_nrocuenta,
+		:regFP->fp_sucursal,
+		:regFP->fecha_activacion,
+		:regFP->fecha_desactivac,
+		:regFP->fp_cbu,
+		:regPos->dp_nom_calle,
+		:regPos->dp_nro_dir,
+		:regPos->dp_piso_dir,
+		:regPos->dp_depto_dir,
+		:regPos->dp_nom_entre,
+		:regPos->dp_nom_entre1,
+		:regPos->dp_cod_provincia,
+		:regPos->dp_nom_partido,
+		:regPos->dp_cod_postal,
+		:regPos->dp_telefono;
+		
     if ( SQLCODE != 0 ){
-    	if(SQLCODE == 100){
+		if(SQLCODE == 100){
 			return 0;
 		}else{
-			printf("Error al leer Cursor de DEPGAR !!!\nProceso Abortado.\n");
+			printf("Error al leer Cursor de Clientes !!!\nProceso Abortado.\n");
 			exit(1);	
 		}
     }			
 
+    if(risnull(CINTTYPE,(char *) &(regCli->cod_postal))){
+    	regCli->cod_postal=0;
+    }
+    
+	if(risnull(CFLOATTYPE,(char *) &(regCli->nro_doc))){
+		regCli->nro_doc=0;	
+	}
+   
+	alltrim(regCli->telefono, ' ');
+		
+   alltrim(regCli->razonSocial, ' ');
+   
+	alltrim(regCli->obs_dir, ' ');
+	
+	/* Reemp Comillas y # */
+	strcpy(regCli->razonSocial, strReplace(regCli->razonSocial, "'", " "));
+	strcpy(regCli->razonSocial, strReplace(regCli->razonSocial, "#", "N"));
+	
+   if(!SeparaNombre(regCli)){
+      printf("No se pudo separar el nombre de cliente %ld\n", regCli->numero_cliente);
+   }
+   
+	alltrim(regCli->nombre, ' ');
+   alltrim(regCli->apellido, ' ');
+   
+	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "'", " "));
+	strcpy(regCli->nom_calle, strReplace(regCli->nom_calle, "#", "N"));
+	
+	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "'", " "));
+	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "#", "N"));
+	strcpy(regCli->nom_entre, strReplace(regCli->nom_entre, "*", " "));
+	
+	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "'", " "));
+	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "#", "N"));
+	strcpy(regCli->nom_entre1, strReplace(regCli->nom_entre1, "*", " "));
+	
+	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "'", " "));
+	strcpy(regCli->nom_partido, strReplace(regCli->nom_partido, "#", "N"));
+
+	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "'", " "));
+	strcpy(regCli->nom_comuna, strReplace(regCli->nom_comuna, "#", "N"));
+		
+	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "'", " "));
+	strcpy(regCli->obs_dir, strReplace(regCli->obs_dir, "#", "N"));
+      
+   if(regCli->tipo_fpago[0]=='D'){   
+      $EXECUTE selFPago INTO :iValor USING :regCli->numero_cliente;
+      
+      if(SQLCODE != 0){
+         printf("No se pudo validar Forma Pago para cliente %ld\n\tSe lo pasa a Normal.\n", regCli->numero_cliente);
+         strcpy(regCli->tipo_fpago, "N");   
+      }else{
+         if(iValor <= 0){
+            printf("No se encontro Forma Pago para cliente %ld\n\tSe lo pasa a Normal.\n", regCli->numero_cliente);
+            strcpy(regCli->tipo_fpago, "N");   
+         }
+      }
+   }
+   
 	return 1;	
 }
 
 
-void InicializaDepgar(regDep)
-$ClsDepgar	*regDep;
+void InicializaCliente(regCli, regFP, regPos)
+$ClsCliente	*reg;
+$ClsFormaPago *regFP;
+$ClsPostal *regPos;
 {
 
-   rsetnull(CLONGTYPE, (char *) &(regDep->numero_dg));
-   rsetnull(CLONGTYPE, (char *) &(regDep->numero_cliente));
-   memset(regDep->sFechaDeposito, '\0', sizeof(regDep->sFechaDeposito));
-   rsetnull(CLONGTYPE, (char *) &(regDep->lFechaDeposito));
-   memset(regDep->sFechaReintegro, '\0', sizeof(regDep->sFechaReintegro));
-   rsetnull(CDOUBLETYPE, (char *) &(regDep->valor_deposito));
-   memset(regDep->estado, '\0', sizeof(regDep->estado));
-   memset(regDep->estado_dg, '\0', sizeof(regDep->estado_dg));
-   memset(regDep->origen, '\0', sizeof(regDep->origen));  
-   memset(regDep->motivo, '\0', sizeof(regDep->motivo));
-   rsetnull(CLONGTYPE, (char *) &(regDep->garante));
-   memset(regDep->sFechaVigTarifa, '\0', sizeof(regDep->sFechaVigTarifa));
-   rsetnull(CLONGTYPE, (char *) &(regDep->lFechaVigTarifa));
-   
-   rsetnull(CLONGTYPE, (char *) &(regDep->lFechaReintegro));
-   rsetnull(CLONGTYPE, (char *) &(regDep->numero_comprob));
-
+	rsetnull(CLONGTYPE, (char *) &(regCli->numero_cliente));
+	memset(regCli->nombre, '\0', sizeof(regCli->nombre));
+   memset(regCli->apellido, '\0', sizeof(regCli->apellido));
+   memset(regCli->razonSocial, '\0', sizeof(regCli->razonSocial));
+	memset(regCli->tipo_cliente, '\0', sizeof(regCli->tipo_cliente));
+	memset(regCli->actividad_economic, '\0', sizeof(regCli->actividad_economic));
+	memset(regCli->cod_calle, '\0', sizeof(regCli->cod_calle));
+	memset(regCli->nom_calle, '\0', sizeof(regCli->nom_calle));
+	memset(regCli->nro_dir, '\0', sizeof(regCli->nro_dir));
+	memset(regCli->piso_dir, '\0', sizeof(regCli->piso_dir));
+	memset(regCli->depto_dir, '\0', sizeof(regCli->depto_dir));
+	memset(regCli->nom_entre, '\0', sizeof(regCli->nom_entre));
+	memset(regCli->nom_entre1, '\0', sizeof(regCli->nom_entre1));
+	memset(regCli->provincia, '\0', sizeof(regCli->provincia));
+	memset(regCli->partido, '\0', sizeof(regCli->partido));
+	memset(regCli->nom_partido, '\0', sizeof(regCli->nom_partido));
+	memset(regCli->comuna, '\0', sizeof(regCli->comuna));
+	memset(regCli->nom_comuna, '\0', sizeof(regCli->nom_comuna));
+	rsetnull(CINTTYPE, (char *) &(regCli->cod_postal));
+	memset(regCli->obs_dir, '\0', sizeof(regCli->obs_dir));
+	memset(regCli->telefono, '\0', sizeof(regCli->telefono));
+	memset(regCli->rut, '\0', sizeof(regCli->rut));
+	memset(regCli->tip_doc, '\0', sizeof(regCli->tip_doc));
+	rsetnull(CFLOATTYPE, (char *) &(regCli->nro_doc));
+	memset(regCli->tipo_fpago, '\0', sizeof(regCli->tipo_fpago));
+	rsetnull(CLONGTYPE, (char *) &(regCli->minist_repart));
+	memset(regCli->tipo_reparto, '\0', sizeof(regCli->tipo_reparto));
+	memset(regCli->sAccount, '\0', sizeof(regCli->sAccount));
+	
+	memset(regFP->fp_banco, '\0', sizeof(regFP->fp_banco));
+	memset(regFP->fp_tipocuenta, '\0', sizeof(regFP->fp_tipocuenta));
+	memset(regFP->fp_nrocuenta, '\0', sizeof(regFP->fp_nrocuenta));
+	rsetnull(CINTTYPE, (char *) &(regFP->fp_sucursal));
+	rsetnull(CLONGTYPE, (char *) &(regFP->fecha_activacion));
+	rsetnull(CLONGTYPE, (char *) &(regFP->fecha_desactivac));
+	memset(regFP->fp_cbu, '\0', sizeof(regFP->fp_cbu));
+	
+	memset(regPos->dp_nom_calle, '\0', sizeof(regFP->dp_nom_calle));
+	memset(regPos->dp_nro_dir, '\0', sizeof(regFP->dp_nro_dir));
+	memset(regPos->dp_piso_dir, '\0', sizeof(regFP->dp_piso_dir));
+	memset(regPos->dp_depto_dir, '\0', sizeof(regFP->dp_depto_dir));
+	memset(regPos->dp_nom_entre, '\0', sizeof(regFP->dp_nom_entre));
+	memset(regPos->dp_nom_entre1, '\0', sizeof(regFP->dp_nom_entre1));
+	memset(regPos->dp_cod_provincia, '\0', sizeof(regFP->dp_cod_provincia));
+	memset(regPos->dp_nom_partido, '\0', sizeof(regFP->dp_nom_partido));
+	rsetnull(CINTTYPE, (char *) &(regPos->dp_cod_postal));
+	memset(regPos->dp_telefono, '\0', sizeof(regFP->dp_telefono));
+	
 }
 
 short ClienteYaMigrado(nroCliente, iFlagMigra)
